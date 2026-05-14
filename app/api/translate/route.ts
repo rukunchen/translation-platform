@@ -51,7 +51,9 @@ export async function POST(req: NextRequest) {
           setTimeout(() => reject(new Error('翻译超时，请重试')), 110000)
         )
       ])
-      return ((res as Awaited<ReturnType<typeof anthropic.messages.create>>).content[0] as any).text as string
+      // res 联合类型里有 Stream 分支；这里只走非 stream，直接窄化结构
+      const msg = res as { content: Array<{ text?: string }> }
+      return msg.content[0]?.text ?? ''
     }
 
     let translation = ''
@@ -66,7 +68,8 @@ export async function POST(req: NextRequest) {
             setTimeout(() => reject(new Error('TIMEOUT')), 30000)
           )
         ])
-        translation = (res as Awaited<ReturnType<typeof deepseek.chat.completions.create>>).choices[0].message.content || ''
+        const completion = res as { choices: Array<{ message: { content?: string } }> }
+        translation = completion.choices[0]?.message?.content || ''
       } catch (e: any) {
         // DeepSeek 失败（连接错误或超时）→ 自动降级到 Claude
         console.warn('DeepSeek failed, falling back to Claude:', e?.message)
