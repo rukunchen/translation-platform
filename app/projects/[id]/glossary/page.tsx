@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase'
 import { apiJSON } from '@/lib/apiFetch'
 import Sidebar from '@/components/Sidebar'
@@ -83,7 +82,19 @@ export default function GlossaryPage() {
         .order('created_at', { ascending: false }),
     ])
     setProjectName((proj?.name as string) ?? '')
-    setTerms((rows ?? []) as Term[])
+    // 防御：旧行可能缺新字段（虽然 DB default 会回填，但 select 投影后类型上是 unknown）
+    const normalized = (rows ?? []).map(r => {
+      const row = r as Record<string, unknown>
+      return {
+        ...row,
+        category: String(row.category ?? ''),
+        note: String(row.note ?? row.definition ?? ''),
+        status: String(row.status ?? 'active'),
+        is_questionable: Boolean(row.is_questionable ?? false),
+        match_status: (row.match_status as Term['match_status']) ?? 'unknown',
+      } as Term
+    })
+    setTerms(normalized)
     setLoading(false)
   }
 
@@ -149,6 +160,7 @@ export default function GlossaryPage() {
     if (!file) return
     try {
       setImporting(true)
+      const XLSX = await import('xlsx')
       const buf = await file.arrayBuffer()
       const wb = XLSX.read(buf, { type: 'array' })
       const sheet = wb.Sheets[wb.SheetNames[0]]
@@ -344,9 +356,14 @@ export default function GlossaryPage() {
 
                     {/* 匹配状态 */}
                     <div className="px-3 py-3 border-l border-line flex items-center justify-center">
-                      <span className={cn('text-[10px] font-medium rounded-full px-2 py-1 uppercase tracking-wider', matchMeta[t.match_status].cls)}>
-                        {matchMeta[t.match_status].label}
-                      </span>
+                      {(() => {
+                        const meta = matchMeta[t.match_status] ?? matchMeta.unknown
+                        return (
+                          <span className={cn('text-[10px] font-medium rounded-full px-2 py-1 uppercase tracking-wider', meta.cls)}>
+                            {meta.label}
+                          </span>
+                        )
+                      })()}
                     </div>
 
                     {/* 删除 */}
