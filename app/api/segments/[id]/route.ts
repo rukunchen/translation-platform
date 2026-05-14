@@ -38,29 +38,41 @@ export async function PATCH(
 
   const body = await req.json().catch(() => ({}))
   const target = typeof body.target === 'string' ? body.target : null
-  if (target === null) {
-    return NextResponse.json({ error: 'target required' }, { status: 400 })
+  const source = typeof body.source === 'string' ? body.source : null
+  if (target === null && source === null) {
+    return NextResponse.json({ error: 'target or source required' }, { status: 400 })
+  }
+  if (source !== null && !source.trim()) {
+    return NextResponse.json({ error: '原文不能为空' }, { status: 400 })
   }
 
-  // 状态流转规则：编辑会把 reviewed 退回 draft（除非 manager 编辑 locked 的）
+  // 状态流转规则：
+  //   - 改 target：locked 维持；空 target → untranslated；其他 → draft
+  //   - 改 source：locked 维持；reviewed → draft（译文可能已不匹配新原文）
   let newStatus = ctx.segment.status
-  if (ctx.segment.status === 'locked') {
-    // manager 编辑 locked → 仍保持 locked（管理员修订）
-    newStatus = 'locked'
-  } else {
-    newStatus = target.trim() ? 'draft' : 'untranslated'
+  if (ctx.segment.status !== 'locked') {
+    if (target !== null) {
+      newStatus = target.trim() ? 'draft' : 'untranslated'
+    } else if (source !== null && ctx.segment.status === 'reviewed') {
+      newStatus = 'draft'
+    }
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    status: newStatus,
+    last_edited_by: user.id,
+  }
+  if (target !== null) updatePayload.target = target
+  if (source !== null) updatePayload.source = source
+  if (ctx.segment.status === 'reviewed') {
+    updatePayload.reviewed_by = null
+    updatePayload.reviewed_at = null
   }
 
   const admin = supabaseAdmin()
   const { data, error } = await admin
     .from('segments')
-    .update({
-      target,
-      status: newStatus,
-      last_edited_by: user.id,
-      // 编辑后清掉审校信息（因为内容变了）
-      ...(ctx.segment.status === 'reviewed' ? { reviewed_by: null, reviewed_at: null } : {}),
-    })
+    .update(updatePayload)
     .eq('id', id)
     .select()
     .single()

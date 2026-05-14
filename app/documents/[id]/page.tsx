@@ -61,6 +61,8 @@ export default function DocumentPage() {
   const [chatOpen, setChatOpen] = useState(false)
   const [unread, setUnread] = useState(0)
   const segmentsRef = useRef<Segment[]>([])
+  // 记录每条句段进入编辑时的原文，用于 onBlur 判断是否改动
+  const sourceFocusRef = useRef<Record<string, string>>({})
 
   useEffect(() => { segmentsRef.current = segments }, [segments])
   useEffect(() => { loadData() }, [params.id])
@@ -137,6 +139,14 @@ export default function DocumentPage() {
     return { segment: data?.segment }
   }
 
+  const saveSegmentSource = async (segId: string, source: string) => {
+    const { data, error } = await apiJSON<{ segment: Segment }>(`/api/segments/${segId}`, {
+      method: 'PATCH', body: JSON.stringify({ source }),
+    })
+    if (error) { console.error('Save source failed:', error); return { error } }
+    return { segment: data?.segment }
+  }
+
   const handleTranslateRow = async (seg: Segment) => {
     if (seg.status === 'locked') { alert('该句段已锁定，无法翻译'); return }
     setTranslatingIds(prev => new Set(prev).add(seg.id))
@@ -191,6 +201,30 @@ export default function DocumentPage() {
     const r = await saveSegmentTarget(seg.id, current.target)
     if (r.segment) setSegments(prev => prev.map(s => s.id === seg.id ? { ...s, ...r.segment } : s))
     else if (r.error) alert('保存失败：' + r.error)
+    setTimeout(() => {
+      setSavingIds(prev => { const s = new Set(prev); s.delete(seg.id); return s })
+    }, 800)
+  }
+
+  const handleEditSource = (id: string, value: string) => {
+    setSegments(prev => prev.map(s => s.id === id ? { ...s, source: value } : s))
+  }
+
+  const handleBlurSource = async (seg: Segment) => {
+    if (seg.status === 'locked' && !canManage(myRole)) return
+    const current = segmentsRef.current.find(s => s.id === seg.id)
+    if (!current) return
+    const baseline = sourceFocusRef.current[seg.id] ?? current.source
+    if (!current.source.trim()) {
+      setSegments(prev => prev.map(s => s.id === seg.id ? { ...s, source: baseline } : s))
+      alert('原文不能为空')
+      return
+    }
+    if (current.source === baseline) return
+    setSavingIds(prev => new Set(prev).add(seg.id))
+    const r = await saveSegmentSource(seg.id, current.source)
+    if (r.segment) setSegments(prev => prev.map(s => s.id === seg.id ? { ...s, ...r.segment } : s))
+    else if (r.error) alert('保存原文失败：' + r.error)
     setTimeout(() => {
       setSavingIds(prev => { const s = new Set(prev); s.delete(seg.id); return s })
     }, 800)
@@ -444,9 +478,22 @@ export default function DocumentPage() {
                       )}
                     </div>
 
-                    {/* 原文 */}
-                    <div className="px-6 py-5 text-ink-900 text-sm leading-7 whitespace-pre-wrap">
-                      {seg.source}
+                    {/* 原文（可编辑：修正错字或调整分句） */}
+                    <div className="px-4 py-4 relative">
+                      <textarea
+                        value={seg.source}
+                        onFocus={() => { sourceFocusRef.current[seg.id] = seg.source }}
+                        onChange={e => handleEditSource(seg.id, e.target.value)}
+                        onBlur={() => handleBlurSource(seg)}
+                        disabled={isTranslating || !canEditThis}
+                        placeholder={!canEditThis ? '已锁定，不可编辑' : '原文'}
+                        className={cn(
+                          'w-full min-h-[88px] px-4 py-3 text-sm leading-7 rounded-lg resize-none focus:outline-none transition-colors',
+                          !canEditThis
+                            ? 'bg-canvas-2 text-ink-500 cursor-not-allowed'
+                            : 'bg-transparent text-ink-900 focus:bg-white focus:ring-2 focus:ring-brand/30 hover:bg-canvas/40'
+                        )}
+                      />
                     </div>
 
                     {/* 译文 textarea */}
