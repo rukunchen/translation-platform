@@ -36,7 +36,20 @@ export async function POST(req: NextRequest) {
     const content = res.choices[0].message.content || '[]'
     const jsonMatch = content.match(/\[[\s\S]*\]/)
     if (!jsonMatch) return NextResponse.json({ terms: [] })
-    const terms = JSON.parse(jsonMatch[0])
+    const raw = JSON.parse(jsonMatch[0]) as Array<{ source_term?: string; translated_term?: string; definition?: string }>
+    // 给新字段默认值，向旧调用方兼容
+    const terms = raw
+      .filter(t => t.source_term && t.translated_term)
+      .map(t => ({
+        source_term: String(t.source_term).trim(),
+        translated_term: String(t.translated_term).trim(),
+        definition: String(t.definition ?? '').trim(),
+        note: String(t.definition ?? '').trim(),
+        category: '',
+        status: 'active',
+        is_questionable: false,
+        match_status: 'unknown',
+      }))
     return NextResponse.json({ terms })
   } catch (error: any) {
     console.error('Glossary error:', error)

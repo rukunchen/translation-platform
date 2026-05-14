@@ -823,9 +823,15 @@ export default function DocumentPage() {
                   <span className="font-serif text-base text-ink-900">术语表</span>
                   <span className="text-xs text-ink-400 font-normal">{glossary.length} 条</span>
                 </button>
-                <Button size="sm" variant="secondary" onClick={handleGenerateGlossary} loading={generatingGlossary}>
-                  {generatingGlossary ? '生成中...' : 'AI 生成术语表'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="ghost"
+                    onClick={() => doc && router.push(`/projects/${doc.project_id}/glossary`)}>
+                    打开完整术语库 →
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={handleGenerateGlossary} loading={generatingGlossary}>
+                    {generatingGlossary ? '生成中...' : 'AI 生成术语表'}
+                  </Button>
+                </div>
               </div>
               {showGlossary && (
                 <div className="px-6 pb-5 max-h-48 overflow-auto border-t border-line pt-4">
