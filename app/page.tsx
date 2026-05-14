@@ -72,15 +72,15 @@ export default function LoginPage() {
             />
           </div>
 
-          <h1 className="font-serif text-3xl lg:text-4xl leading-[1.15] text-ink-900 tracking-tight">
+          <h1 className="font-serif text-3xl lg:text-4xl leading-[1.15] text-ink-900 tracking-tight text-center">
             专为25级<span className="text-brand">深技大MTI</span>同学<br />
             打造的翻译平台
           </h1>
 
-          <ul className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+          <ul className="mt-8 space-y-2.5 text-sm">
             {features.map(f => (
-              <li key={f.zh} className="flex items-center gap-2">
-                <span className="w-1 h-1 rounded-full bg-brand" />
+              <li key={f.zh} className="flex items-center justify-center gap-2">
+                <span className="w-1 h-1 rounded-full bg-brand flex-shrink-0" />
                 <span className="text-ink-900">{f.zh}</span>
                 <span className="text-ink-400 text-xs italic">{f.en}</span>
               </li>
