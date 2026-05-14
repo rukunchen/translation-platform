@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import AuthGate from '@/components/AuthGate'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -9,7 +10,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh">
-      <body className="font-sans" suppressHydrationWarning>{children}</body>
+      <body className="font-sans" suppressHydrationWarning>
+        <AuthGate />
+        {children}
+      </body>
     </html>
   )
 }
