@@ -9,6 +9,7 @@ export type Segment = {
   position?: number
   source: string
   target: string
+  notes?: string
   status?: SegmentStatus
   reviewed_by?: string | null
   reviewed_at?: string | null

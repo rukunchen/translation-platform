@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { apiJSON } from '@/lib/apiFetch'
 import { splitSentences, type Segment, type SegmentStatus } from '@/lib/sentenceSplit'
-import { exportBilingualDoc } from '@/lib/exportBilingual'
+import { exportBilingualDoc, type ExportMode } from '@/lib/exportBilingual'
 import { type Role, canManage, canReview } from '@/lib/permissions'
 import ChatPanel from '@/components/ChatPanel'
 import ChatToggleButton from '@/components/ChatToggleButton'
@@ -64,6 +64,8 @@ export default function DocumentPage() {
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  // 导出菜单
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const segmentsRef = useRef<Segment[]>([])
   // 记录每条句段进入编辑时的原文，用于 onBlur 判断是否改动
   const sourceFocusRef = useRef<Record<string, string>>({})
@@ -151,6 +153,14 @@ export default function DocumentPage() {
     return { segment: data?.segment }
   }
 
+  const saveSegmentNotes = async (segId: string, notes: string) => {
+    const { data, error } = await apiJSON<{ segment: Segment }>(`/api/segments/${segId}`, {
+      method: 'PATCH', body: JSON.stringify({ notes }),
+    })
+    if (error) { console.error('Save notes failed:', error); return { error } }
+    return { segment: data?.segment }
+  }
+
   const handleTranslateRow = async (seg: Segment) => {
     if (seg.status === 'locked') { alert('该句段已锁定，无法翻译'); return }
     setTranslatingIds(prev => new Set(prev).add(seg.id))
@@ -212,6 +222,28 @@ export default function DocumentPage() {
 
   const handleEditSource = (id: string, value: string) => {
     setSegments(prev => prev.map(s => s.id === id ? { ...s, source: value } : s))
+  }
+
+  const handleEditNotes = (id: string, value: string) => {
+    setSegments(prev => prev.map(s => s.id === id ? { ...s, notes: value } : s))
+  }
+
+  // notes 单独的 baseline ref（与 source 同模式）
+  const notesFocusRef = useRef<Record<string, string>>({})
+
+  const handleBlurNotes = async (seg: Segment) => {
+    const current = segmentsRef.current.find(s => s.id === seg.id)
+    if (!current) return
+    const baseline = notesFocusRef.current[seg.id] ?? (seg.notes || '')
+    const value = current.notes || ''
+    if (value === baseline) return
+    setSavingIds(prev => new Set(prev).add(seg.id))
+    const r = await saveSegmentNotes(seg.id, value)
+    if (r.segment) setSegments(prev => prev.map(s => s.id === seg.id ? { ...s, ...r.segment } : s))
+    else if (r.error) alert('保存备注失败：' + r.error)
+    setTimeout(() => {
+      setSavingIds(prev => { const s = new Set(prev); s.delete(seg.id); return s })
+    }, 800)
   }
 
   // —— 批量选择 ——
@@ -290,12 +322,13 @@ export default function DocumentPage() {
     if (data?.segment) setSegments(prev => prev.map(s => s.id === seg.id ? { ...s, ...data.segment } : s))
   }
 
-  const handleExport = () => {
+  const handleExport = (mode: ExportMode) => {
     if (!doc) return
     if (segments.length === 0) { alert('请先切分原文'); return }
+    setExportMenuOpen(false)
     exportBilingualDoc({
       title: doc.title, sourceLang: doc.source_language,
-      targetLang: doc.target_language, segments,
+      targetLang: doc.target_language, segments, mode,
     })
   }
 
@@ -461,20 +494,85 @@ export default function DocumentPage() {
           {selectMode ? '退出选择' : '批量选择'}
         </Button>
 
-        {/* 右侧 */}
-        <div className="ml-auto">
+        {/* 右侧：导出下拉 */}
+        <div className="ml-auto relative">
           <Button
             size="sm" variant="primary"
-            onClick={handleExport}
+            onClick={() => setExportMenuOpen(o => !o)}
             disabled={segments.length === 0}
             leftIcon={
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
               </svg>
             }
+            rightIcon={
+              <svg className={cn('w-3.5 h-3.5 transition-transform', exportMenuOpen && 'rotate-180')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            }
           >
-            导出双语对照
+            导出
           </Button>
+
+          {exportMenuOpen && (
+            <>
+              {/* 点击外部关闭 */}
+              <div className="fixed inset-0 z-20" onClick={() => setExportMenuOpen(false)} />
+              <div className="absolute right-0 top-full mt-2 z-30 w-72 bg-white border border-line rounded-2xl shadow-[var(--shadow-modal)] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => handleExport('target')}
+                  className="w-full text-left px-5 py-4 hover:bg-canvas/60 transition-colors border-b border-line"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 6h16M4 12h12M4 18h16" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-ink-900">译文导出</div>
+                      <div className="text-xs text-ink-500 mt-0.5">仅译文段落，按顺序排列</div>
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport('bilingual')}
+                  className="w-full text-left px-5 py-4 hover:bg-canvas/60 transition-colors border-b border-line"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 6h7M13 6h7M4 12h7M13 12h7M4 18h7M13 18h7" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-ink-900">双语对照导出</div>
+                      <div className="text-xs text-ink-500 mt-0.5">原文 / 译文双栏表格</div>
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport('bilingual_notes')}
+                  className="w-full text-left px-5 py-4 hover:bg-canvas/60 transition-colors"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 5h.01M11 14h2m-2 4h2" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-ink-900">双语对照 + 备注导出</div>
+                      <div className="text-xs text-ink-500 mt-0.5">含译者备注与处理说明</div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -550,11 +648,12 @@ export default function DocumentPage() {
             {/* 句段表格 */}
             <Card padding="none" className="overflow-hidden">
               {/* 表头 */}
-              <div className="grid grid-cols-[68px_1fr_1fr_200px] bg-canvas border-b border-line">
-                <div className="px-4 py-3 flex justify-center"><Eyebrow tone="muted">#</Eyebrow></div>
-                <div className="px-6 py-3"><Eyebrow>原文 · {langNames[doc.source_language]}</Eyebrow></div>
-                <div className="px-6 py-3 border-l border-line"><Eyebrow tone="brand">译文 · {langNames[doc.target_language]}</Eyebrow></div>
-                <div className="px-4 py-3 border-l border-line flex justify-center"><Eyebrow tone="muted">状态 / 操作</Eyebrow></div>
+              <div className="grid grid-cols-[60px_1fr_1fr_260px_180px] bg-canvas border-b border-line">
+                <div className="px-3 py-3 flex justify-center"><Eyebrow tone="muted">#</Eyebrow></div>
+                <div className="px-5 py-3"><Eyebrow>原文 · {langNames[doc.source_language]}</Eyebrow></div>
+                <div className="px-5 py-3 border-l border-line"><Eyebrow tone="brand">译文 · {langNames[doc.target_language]}</Eyebrow></div>
+                <div className="px-5 py-3 border-l border-line"><Eyebrow tone="muted">备注</Eyebrow></div>
+                <div className="px-3 py-3 border-l border-line flex justify-center"><Eyebrow tone="muted">状态 / 操作</Eyebrow></div>
               </div>
 
               {/* 数据行 */}
@@ -570,7 +669,7 @@ export default function DocumentPage() {
                 return (
                   <div key={seg.id}
                     className={cn(
-                      'grid grid-cols-[68px_1fr_1fr_200px] border-b border-line last:border-b-0 transition-colors',
+                      'grid grid-cols-[60px_1fr_1fr_260px_180px] border-b border-line last:border-b-0 transition-colors',
                       isSelected ? 'bg-brand-50/60'
                       : isLocked ? 'bg-canvas/40'
                       : 'hover:bg-canvas/30'
@@ -643,6 +742,18 @@ export default function DocumentPage() {
                       {isSaving && (
                         <span className="absolute top-5 right-5 text-[10px] text-ink-400 font-mono">已保存</span>
                       )}
+                    </div>
+
+                    {/* 备注 */}
+                    <div className="px-4 py-4 border-l border-line">
+                      <textarea
+                        value={seg.notes || ''}
+                        onFocus={() => { notesFocusRef.current[seg.id] = seg.notes || '' }}
+                        onChange={e => handleEditNotes(seg.id, e.target.value)}
+                        onBlur={() => handleBlurNotes(seg)}
+                        placeholder="翻译处理说明、参考、疑问..."
+                        className="w-full min-h-[88px] px-3 py-2.5 text-xs leading-6 rounded-lg resize-none focus:outline-none transition-colors bg-transparent text-ink-700 placeholder-ink-300 hover:bg-canvas/40 focus:bg-white focus:ring-2 focus:ring-brand/30"
+                      />
                     </div>
 
                     {/* 操作列 */}

@@ -39,8 +39,9 @@ export async function PATCH(
   const body = await req.json().catch(() => ({}))
   const target = typeof body.target === 'string' ? body.target : null
   const source = typeof body.source === 'string' ? body.source : null
-  if (target === null && source === null) {
-    return NextResponse.json({ error: 'target or source required' }, { status: 400 })
+  const notes = typeof body.notes === 'string' ? body.notes : null
+  if (target === null && source === null && notes === null) {
+    return NextResponse.json({ error: 'target / source / notes required' }, { status: 400 })
   }
   if (source !== null && !source.trim()) {
     return NextResponse.json({ error: '原文不能为空' }, { status: 400 })
@@ -49,7 +50,9 @@ export async function PATCH(
   // 状态流转规则：
   //   - 改 target：locked 维持；空 target → untranslated；其他 → draft
   //   - 改 source：locked 维持；reviewed → draft（译文可能已不匹配新原文）
+  //   - 仅改 notes：状态不变，审校信息也保留
   let newStatus = ctx.segment.status
+  const contentChanged = target !== null || source !== null
   if (ctx.segment.status !== 'locked') {
     if (target !== null) {
       newStatus = target.trim() ? 'draft' : 'untranslated'
@@ -64,7 +67,8 @@ export async function PATCH(
   }
   if (target !== null) updatePayload.target = target
   if (source !== null) updatePayload.source = source
-  if (ctx.segment.status === 'reviewed') {
+  if (notes !== null) updatePayload.notes = notes
+  if (contentChanged && ctx.segment.status === 'reviewed') {
     updatePayload.reviewed_by = null
     updatePayload.reviewed_at = null
   }
