@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
@@ -16,7 +16,8 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { MainContent } from '@/components/ui/MainContent'
 import { splitSentences } from '@/lib/sentenceSplit'
 
-type Document = { id: string; title: string; source_language: string; target_language: string; created_at: string }
+type Document = { id: string; title: string; source_language: string; target_language: string; created_at: string; updated_at?: string }
+type SortKey = 'updated_desc' | 'updated_asc' | 'created_desc' | 'created_asc' | 'name_asc' | 'name_desc'
 type Project = { id: string; name: string; description: string }
 
 const langNames: Record<string, string> = {
@@ -71,6 +72,35 @@ export default function ProjectPage() {
   const [editSaving, setEditSaving] = useState(false)
   const [deletingDoc, setDeletingDoc] = useState<Document | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
+
+  // 排序：默认按修改时间倒序；记忆用户选择
+  const [sort, setSort] = useState<SortKey>('updated_desc')
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('doc-sort') as SortKey | null
+      if (saved) setSort(saved)
+    } catch {}
+  }, [])
+  useEffect(() => {
+    try { localStorage.setItem('doc-sort', sort) } catch {}
+  }, [sort])
+
+  const sortedDocuments = useMemo(() => {
+    const list = [...documents]
+    const cmp = (a: string | undefined, b: string | undefined) => {
+      const av = a ?? '', bv = b ?? ''
+      return av < bv ? -1 : av > bv ? 1 : 0
+    }
+    switch (sort) {
+      case 'name_asc':     list.sort((a, b) => a.title.localeCompare(b.title, 'zh')); break
+      case 'name_desc':    list.sort((a, b) => b.title.localeCompare(a.title, 'zh')); break
+      case 'created_asc':  list.sort((a, b) => cmp(a.created_at, b.created_at)); break
+      case 'created_desc': list.sort((a, b) => cmp(b.created_at, a.created_at)); break
+      case 'updated_asc':  list.sort((a, b) => cmp(a.updated_at ?? a.created_at, b.updated_at ?? b.created_at)); break
+      case 'updated_desc': list.sort((a, b) => cmp(b.updated_at ?? b.created_at, a.updated_at ?? a.created_at)); break
+    }
+    return list
+  }, [documents, sort])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -232,16 +262,38 @@ export default function ProjectPage() {
 
             {/* 左：文档区 */}
             <section className="min-w-0">
-              <div className="flex items-center justify-between mb-7 pb-5 border-b border-line">
-                <div>
+              <div className="flex items-center justify-between gap-4 mb-7 pb-5 border-b border-line">
+                <div className="min-w-0">
                   <Eyebrow tone="muted" className="mb-1.5">Documents</Eyebrow>
                   <h2 className="font-serif text-2xl text-ink-900 leading-tight">
                     文档 <span className="text-sm text-ink-400 font-sans font-normal ml-1">{documents.length} 个</span>
                   </h2>
                 </div>
-                <Button variant="brand" onClick={() => setShowModal(true)} leftIcon={<span className="text-base leading-none">+</span>}>
-                  新建文档
-                </Button>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {documents.length > 1 && (
+                    <label className="flex items-center gap-2 text-xs text-ink-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 7h13M3 12h9m-9 5h6m4-2v6m0 0l-3-3m3 3l3-3" />
+                      </svg>
+                      排序
+                      <select
+                        value={sort}
+                        onChange={e => setSort(e.target.value as SortKey)}
+                        className="text-sm border-2 border-line rounded-lg px-2.5 py-1.5 text-ink-900 bg-white focus:outline-none focus:border-brand font-medium"
+                      >
+                        <option value="updated_desc">修改时间 · 最新在前</option>
+                        <option value="updated_asc">修改时间 · 最旧在前</option>
+                        <option value="created_desc">添加时间 · 最新在前</option>
+                        <option value="created_asc">添加时间 · 最旧在前</option>
+                        <option value="name_asc">名称 · A→Z / 拼音</option>
+                        <option value="name_desc">名称 · Z→A / 拼音倒</option>
+                      </select>
+                    </label>
+                  )}
+                  <Button variant="brand" onClick={() => setShowModal(true)} leftIcon={<span className="text-base leading-none">+</span>}>
+                    新建文档
+                  </Button>
+                </div>
               </div>
 
               {documents.length === 0 ? (
@@ -256,7 +308,7 @@ export default function ProjectPage() {
                 </Card>
               ) : (
                 <div className="space-y-4">
-                  {documents.map((doc, i) => (
+                  {sortedDocuments.map((doc, i) => (
                     <div
                       key={doc.id}
                       className="group w-full bg-white border border-line rounded-2xl transition-all hover:border-brand/40 hover:bg-brand-50/30 hover:shadow-[var(--shadow-card)]"
