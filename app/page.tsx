@@ -131,7 +131,7 @@ export default function LoginPage() {
                 onChange={e => setName(e.target.value)}
                 placeholder="请输入姓名"
                 required={!isLogin}
-                inputClassName="h-11 py-0"
+                style={{ height: 44, paddingTop: 0, paddingBottom: 0 }}
               />
             )}
             <Input
@@ -141,7 +141,7 @@ export default function LoginPage() {
               onChange={e => setEmail(e.target.value)}
               placeholder="your@email.com"
               required
-              inputClassName="h-11 py-0"
+              style={{ height: 44, paddingTop: 0, paddingBottom: 0 }}
             />
             <Input
               label="密码"
@@ -150,7 +150,7 @@ export default function LoginPage() {
               onChange={e => setPassword(e.target.value)}
               placeholder="至少 6 位"
               required
-              inputClassName="h-11 py-0"
+              style={{ height: 44, paddingTop: 0, paddingBottom: 0 }}
             />
 
             {error && <div className="bg-red-50 border border-red-100 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>}
