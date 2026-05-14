@@ -329,7 +329,7 @@ export default function ProjectPage() {
 
       {showModal && (
         <div className="fixed inset-0 bg-ink-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl w-full max-w-2xl p-10 lg:p-12 shadow-[var(--shadow-modal)] max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-[var(--shadow-modal)] max-h-[90vh] overflow-y-auto" style={{ padding: '48px' }}>
             <h3 className="font-serif text-2xl text-ink-900 mb-2 tracking-tight">新建翻译文档</h3>
             <p className="text-ink-500 text-sm mb-7">粘贴原文；如已有译文也可一同导入，系统会按句对齐。</p>
             <form onSubmit={createDocument} className="space-y-5">
@@ -404,7 +404,7 @@ export default function ProjectPage() {
       {/* 编辑文档：标题 + 语言对 */}
       {editingDoc && (
         <div className="fixed inset-0 bg-ink-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl w-full max-w-lg p-10 lg:p-12 shadow-[var(--shadow-modal)]">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-[var(--shadow-modal)]" style={{ padding: '48px' }}>
             <h3 className="font-serif text-2xl text-ink-900 mb-2 tracking-tight">编辑文档</h3>
             <p className="text-ink-500 text-sm mb-7">可以修改标题或重新选择语言对（不影响已翻译的内容）。</p>
             <form onSubmit={saveEdit} className="space-y-5">
@@ -457,7 +457,7 @@ export default function ProjectPage() {
       {/* 删除文档确认 */}
       {deletingDoc && (
         <div className="fixed inset-0 bg-ink-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl w-full max-w-md p-10 lg:p-12 shadow-[var(--shadow-modal)]">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-[var(--shadow-modal)]" style={{ padding: '48px' }}>
             <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mb-5">
               <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6}

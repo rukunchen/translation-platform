@@ -181,7 +181,7 @@ export default function DashboardPage() {
 
       {showModal && (
         <div className="fixed inset-0 bg-ink-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl w-full max-w-lg p-10 lg:p-12 shadow-[var(--shadow-modal)]">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-[var(--shadow-modal)]" style={{ padding: '48px' }}>
             <h3 className="font-serif text-2xl text-ink-900 mb-2 tracking-tight">新建翻译项目</h3>
             <p className="text-ink-500 text-sm mb-7">为新的翻译工作起一个名字。</p>
             <form onSubmit={createProject} className="space-y-5">
