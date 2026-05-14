@@ -84,7 +84,7 @@ export function exportBilingualDoc(opts: {
 <meta charset="utf-8">
 <title>${escape(title)} · ${modeMeta[mode].label}</title>
 <style>
-  body { font-family: 'Times New Roman', '宋体', SimSun, serif; font-size: 12pt; padding: 24pt; }
+  body { font-family: 'Segoe UI', SimSun, '宋体', 'Songti SC', serif; font-size: 12pt; padding: 24pt; }
   h1 { font-size: 20pt; margin: 0 0 6pt; }
   .meta { color: #666; font-size: 10pt; margin-bottom: 18pt; }
   th { background: #f5f5f0; border: 1px solid #ccc; padding: 10px; text-align: left; font-weight: 600; }
