@@ -80,3 +80,29 @@ export async function PATCH(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ segment: data })
 }
+
+// DELETE /api/segments/[id]    删除单个句段
+// 规则：locked 段仅 manager 可删；其他成员可删自己有写权限的段
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const { client, user } = await supabaseFromRequest(req)
+  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+
+  const ctx = await getSegmentContext(id)
+  if (!ctx) return NextResponse.json({ error: 'segment not found' }, { status: 404 })
+
+  const myRole = await getMyRole(client, ctx.projectId, user.id)
+  if (!myRole) return NextResponse.json({ error: 'not a member' }, { status: 403 })
+
+  if (ctx.segment.status === 'locked' && !canManage(myRole)) {
+    return NextResponse.json({ error: '该句段已锁定，仅项目经理可删除' }, { status: 403 })
+  }
+
+  const admin = supabaseAdmin()
+  const { error } = await admin.from('segments').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}

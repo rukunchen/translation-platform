@@ -60,6 +60,10 @@ export default function DocumentPage() {
   const [splitting, setSplitting] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [unread, setUnread] = useState(0)
+  // 批量选择 / 删除
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
   const segmentsRef = useRef<Segment[]>([])
   // 记录每条句段进入编辑时的原文，用于 onBlur 判断是否改动
   const sourceFocusRef = useRef<Record<string, string>>({})
@@ -208,6 +212,46 @@ export default function DocumentPage() {
 
   const handleEditSource = (id: string, value: string) => {
     setSegments(prev => prev.map(s => s.id === id ? { ...s, source: value } : s))
+  }
+
+  // —— 批量选择 ——
+  const toggleSelectMode = () => {
+    setSelectMode(prev => {
+      if (prev) setSelectedIds(new Set())   // 退出时清空
+      return !prev
+    })
+  }
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const selectAllVisible = () => {
+    const eligible = segmentsRef.current
+      .filter(s => s.status !== 'locked' || canManage(myRole))
+      .map(s => s.id)
+    setSelectedIds(new Set(eligible))
+  }
+
+  const bulkDelete = async () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    if (!confirm(`确认删除选中的 ${ids.length} 个句段？此操作无法撤销。`)) return
+    setBulkDeleting(true)
+    let failed = 0
+    await Promise.all(ids.map(async id => {
+      const { error } = await apiJSON(`/api/segments/${id}`, { method: 'DELETE' })
+      if (error) failed++
+    }))
+    setBulkDeleting(false)
+    if (failed > 0) alert(`${failed} 个句段删除失败（可能已锁定且你无权限）`)
+    setSelectedIds(new Set())
+    setSelectMode(false)
+    if (doc) await loadSegments(doc.id)
   }
 
   const handleBlurSource = async (seg: Segment) => {
@@ -400,6 +444,23 @@ export default function DocumentPage() {
           ⚡ 多模型并行
         </Button>
 
+        <div className="w-px h-5 bg-line" />
+
+        <Button
+          size="sm"
+          variant={selectMode ? 'brand' : 'ghost'}
+          onClick={toggleSelectMode}
+          disabled={segments.length === 0}
+          title="进入批量选择，删除多余或错误分句"
+          leftIcon={
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          }
+        >
+          {selectMode ? '退出选择' : '批量选择'}
+        </Button>
+
         {/* 右侧 */}
         <div className="ml-auto">
           <Button
@@ -444,6 +505,48 @@ export default function DocumentPage() {
         ) : (
           <div className="max-w-7xl mx-auto space-y-6">
 
+            {/* 批量操作浮条 */}
+            {selectMode && (
+              <div className="sticky top-0 z-20 -mt-2 bg-white border border-brand/30 rounded-2xl shadow-[var(--shadow-card)] flex items-center gap-4 px-5 py-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="inline-flex items-center justify-center w-7 h-7 bg-brand text-white rounded-lg text-xs font-semibold">
+                    {selectedIds.size}
+                  </span>
+                  <span className="text-ink-900">已选中</span>
+                </div>
+                <div className="w-px h-5 bg-line" />
+                <button
+                  type="button"
+                  onClick={selectAllVisible}
+                  className="text-sm text-ink-700 hover:text-brand font-medium"
+                >
+                  全选可编辑行
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set())}
+                  disabled={selectedIds.size === 0}
+                  className="text-sm text-ink-500 hover:text-ink-900 font-medium disabled:opacity-40"
+                >
+                  清除选择
+                </button>
+                <div className="ml-auto flex items-center gap-2">
+                  <Button size="sm" variant="ghost" onClick={toggleSelectMode}>
+                    退出
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={bulkDelete}
+                    disabled={selectedIds.size === 0 || bulkDeleting}
+                    loading={bulkDeleting}
+                  >
+                    {bulkDeleting ? '删除中...' : `删除选中（${selectedIds.size}）`}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* 句段表格 */}
             <Card padding="none" className="overflow-hidden">
               {/* 表头 */}
@@ -462,15 +565,40 @@ export default function DocumentPage() {
                 const status = (seg.status || 'untranslated') as SegmentStatus
                 const isLocked = status === 'locked'
                 const canEditThis = !isLocked || canManage(myRole)
+                const isSelected = selectedIds.has(seg.id)
+                const canSelectThis = !isLocked || canManage(myRole)
                 return (
                   <div key={seg.id}
                     className={cn(
                       'grid grid-cols-[68px_1fr_1fr_200px] border-b border-line last:border-b-0 transition-colors',
-                      isLocked ? 'bg-canvas/40' : 'hover:bg-canvas/30'
+                      isSelected ? 'bg-brand-50/60'
+                      : isLocked ? 'bg-canvas/40'
+                      : 'hover:bg-canvas/30'
                     )}>
-                    {/* 编号 */}
-                    <div className="px-4 py-6 flex flex-col items-center gap-1">
-                      <span className="text-xs font-mono text-ink-400">{String(i + 1).padStart(2, '0')}</span>
+                    {/* 编号 / 选择 */}
+                    <div className="px-4 py-6 flex flex-col items-center gap-1.5">
+                      {selectMode ? (
+                        <label className={cn('flex items-center justify-center w-7 h-7 rounded-md border-2 cursor-pointer transition-colors',
+                          !canSelectThis ? 'border-line bg-canvas cursor-not-allowed opacity-50'
+                          : isSelected ? 'border-brand bg-brand'
+                          : 'border-line bg-white hover:border-brand/60'
+                        )}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            disabled={!canSelectThis}
+                            onChange={() => toggleSelectOne(seg.id)}
+                            className="sr-only"
+                          />
+                          {isSelected && (
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </label>
+                      ) : (
+                        <span className="text-xs font-mono text-ink-400">{String(i + 1).padStart(2, '0')}</span>
+                      )}
                       {isLocked && (
                         <svg className="w-3.5 h-3.5 text-ink-900" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 116 0z" clipRule="evenodd" />
