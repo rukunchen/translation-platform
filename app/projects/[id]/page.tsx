@@ -14,6 +14,7 @@ import { Input, Textarea, Select } from '@/components/ui/Input'
 import { Eyebrow } from '@/components/ui/Eyebrow'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MainContent } from '@/components/ui/MainContent'
+import { splitSentences } from '@/lib/sentenceSplit'
 
 type Document = { id: string; title: string; source_language: string; target_language: string; created_at: string }
 type Project = { id: string; name: string; description: string }
@@ -22,6 +23,24 @@ const langNames: Record<string, string> = {
   en: '英语', zh: '中文', ja: '日语', ko: '韩语',
   fr: '法语', de: '德语', es: '西班牙语', ru: '俄语'
 }
+
+// 粗略判断一段文字偏 CJK 还是 Latin —— 仅在文本足够长时才输出明确判断
+function detectScript(text: string): 'cjk' | 'latin' | 'unknown' {
+  const sample = text.slice(0, 600)
+  let cjk = 0, latin = 0
+  for (const ch of sample) {
+    const code = ch.codePointAt(0) ?? 0
+    if (
+      (code >= 0x4e00 && code <= 0x9fff) ||   // 中日韩统一表意
+      (code >= 0x3040 && code <= 0x30ff) ||   // 日文假名
+      (code >= 0xac00 && code <= 0xd7af)      // 谚文
+    ) cjk++
+    else if ((code >= 0x41 && code <= 0x5a) || (code >= 0x61 && code <= 0x7a)) latin++
+  }
+  if (cjk + latin < 8) return 'unknown'
+  return cjk > latin ? 'cjk' : 'latin'
+}
+const langScript = (lang: string): 'cjk' | 'latin' => (['zh','ja','ko'].includes(lang) ? 'cjk' : 'latin')
 
 export default function ProjectPage() {
   const router = useRouter()
@@ -35,9 +54,12 @@ export default function ProjectPage() {
   const [showModal, setShowModal] = useState(false)
   const [title, setTitle] = useState('')
   const [sourceText, setSourceText] = useState('')
+  const [targetText, setTargetText] = useState('')
   const [sourceLang, setSourceLang] = useState('en')
   const [targetLang, setTargetLang] = useState('zh')
   const [loading, setLoading] = useState(false)
+  // 自动归位时给用户的提示（一闪而过即可，简单用 state 控制）
+  const [importHint, setImportHint] = useState('')
   const [chatOpen, setChatOpen] = useState(false)
   const [unread, setUnread] = useState(0)
 
@@ -71,14 +93,76 @@ export default function ProjectPage() {
 
   const createDocument = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // 自动归位：若两边文字脚本与所选语言对调了，给一次纠正机会
+    let src = sourceText, tgt = targetText
+    if (tgt.trim()) {
+      const srcScript = detectScript(src)
+      const tgtScript = detectScript(tgt)
+      const expSrc = langScript(sourceLang)
+      const expTgt = langScript(targetLang)
+      if (srcScript !== 'unknown' && tgtScript !== 'unknown'
+          && srcScript === expTgt && tgtScript === expSrc) {
+        if (confirm('检测到原文与译文位置对调了，是否自动互换？')) {
+          [src, tgt] = [tgt, src]
+          setSourceText(src); setTargetText(tgt)
+        }
+      }
+    }
+
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase.from('documents')
-      .insert({ title, source_text: sourceText, project_id: projectId, source_language: sourceLang, target_language: targetLang, created_by: user?.id })
+      .insert({ title, source_text: src, project_id: projectId, source_language: sourceLang, target_language: targetLang, created_by: user?.id })
       .select().single()
+
+    if (error || !data) { setLoading(false); alert('创建失败：' + (error?.message ?? '未知错误')); return }
+
+    // 若提供了译文，立即按句对齐插入 segments
+    if (tgt.trim()) {
+      const srcSegs = splitSentences(src, sourceLang)
+      const tgtSegs = splitSentences(tgt, targetLang)
+      const N = Math.max(srcSegs.length, tgtSegs.length)
+      if (srcSegs.length !== tgtSegs.length) {
+        const proceed = confirm(`原文切出 ${srcSegs.length} 句，译文切出 ${tgtSegs.length} 句。\n将按顺序对齐前 ${Math.min(srcSegs.length, tgtSegs.length)} 句，多出的部分留空（你可以在分句页面调整）。\n\n继续？`)
+        if (!proceed) {
+          // 回滚刚才创建的 documents 行，让用户重新粘贴
+          await supabase.from('documents').delete().eq('id', data.id)
+          setLoading(false); return
+        }
+      }
+      const rows = Array.from({ length: N }, (_, i) => ({
+        document_id: data.id,
+        position: i,
+        source: srcSegs[i]?.source ?? '',
+        target: tgtSegs[i]?.source ?? '',
+        status: (tgtSegs[i]?.source?.trim() ? 'draft' : 'untranslated'),
+      }))
+      // source 不能为空：用译文占位
+      for (const r of rows) if (!r.source.trim() && r.target.trim()) { r.source = '[待补充]' }
+      await supabase.from('segments').insert(rows)
+    }
+
     setLoading(false)
-    if (error) { alert('创建失败：' + error.message); return }
-    if (data) router.push(`/documents/${data.id}`)
+    router.push(`/documents/${data.id}`)
+  }
+
+  // 粘贴/失焦时自动归位 —— 若文字与选定语言脚本不匹配且对侧空，则迁移
+  const reconcileImport = (which: 'source' | 'target') => {
+    const text = which === 'source' ? sourceText : targetText
+    if (!text.trim()) return
+    const script = detectScript(text)
+    if (script === 'unknown') return
+    const expected = which === 'source' ? langScript(sourceLang) : langScript(targetLang)
+    if (script === expected) return
+    const otherEmpty = which === 'source' ? !targetText.trim() : !sourceText.trim()
+    const otherExpected = which === 'source' ? langScript(targetLang) : langScript(sourceLang)
+    if (otherEmpty && script === otherExpected) {
+      if (which === 'source') { setTargetText(text); setSourceText('') }
+      else { setSourceText(text); setTargetText('') }
+      setImportHint('已自动识别并归位到正确位置')
+      setTimeout(() => setImportHint(''), 2500)
+    }
   }
 
   const openEdit = (doc: Document) => {
@@ -245,9 +329,9 @@ export default function ProjectPage() {
 
       {showModal && (
         <div className="fixed inset-0 bg-ink-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl w-full max-w-xl p-10 lg:p-12 shadow-[var(--shadow-modal)]">
+          <div className="bg-white rounded-3xl w-full max-w-2xl p-10 lg:p-12 shadow-[var(--shadow-modal)] max-h-[90vh] overflow-y-auto">
             <h3 className="font-serif text-2xl text-ink-900 mb-2 tracking-tight">新建翻译文档</h3>
-            <p className="text-ink-500 text-sm mb-7">粘贴原文，选择语言对，开始翻译。</p>
+            <p className="text-ink-500 text-sm mb-7">粘贴原文；如已有译文也可一同导入，系统会按句对齐。</p>
             <form onSubmit={createDocument} className="space-y-5">
               <Input
                 label="文档标题"
@@ -273,15 +357,39 @@ export default function ProjectPage() {
                 </Select>
               </div>
               <Textarea
-                label="原文内容"
+                label={`原文 · ${langNames[sourceLang]}`}
                 value={sourceText}
                 onChange={e => setSourceText(e.target.value)}
-                placeholder="在这里粘贴需要翻译的原文..."
-                rows={8}
+                onBlur={() => reconcileImport('source')}
+                placeholder={`在这里粘贴 ${langNames[sourceLang]} 原文...`}
+                rows={6}
                 required
               />
+              <Textarea
+                label={`译文 · ${langNames[targetLang]}（可选 — 已有译文可一同导入）`}
+                value={targetText}
+                onChange={e => setTargetText(e.target.value)}
+                onBlur={() => reconcileImport('target')}
+                placeholder={`如已有 ${langNames[targetLang]} 译文，粘贴这里；按段落 / 标点自动对齐。`}
+                rows={6}
+              />
+              {importHint && (
+                <p className="text-xs text-brand bg-brand-50 border border-brand/20 rounded-lg px-3 py-2">
+                  ✓ {importHint}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => { const a = sourceText; setSourceText(targetText); setTargetText(a) }}
+                className="text-xs text-brand hover:text-brand-600 font-medium inline-flex items-center gap-1"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                互换原文与译文
+              </button>
               <div className="flex gap-3 pt-2">
-                <Button variant="secondary" fullWidth type="button" onClick={() => setShowModal(false)}>
+                <Button variant="secondary" fullWidth type="button" onClick={() => { setShowModal(false); setTargetText(''); setImportHint('') }}>
                   取消
                 </Button>
                 <Button variant="primary" fullWidth type="submit" loading={loading}>
