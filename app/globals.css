@@ -1,6 +1,93 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
+/* ============================================================
+ * Design Tokens — 译境
+ * 在 Tailwind v4 中，@theme 里的 --color-* / --spacing-* 等变量
+ * 会自动生成 text-* / bg-* / border-* / p-* 等 utility 类
+ * ============================================================ */
+@theme {
+  /* ---------- 字体 ---------- */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* ---------- 品牌色 ---------- */
+  --color-brand: #D97757;          /* 主橙色，仅用于关键 CTA / 高亮 */
+  --color-brand-50: #FFF7F4;       /* 极浅，用于 hover / 卡片高亮底色 */
+  --color-brand-100: #FEEEE5;
+  --color-brand-200: #FBD9C7;
+  --color-brand-500: #D97757;
+  --color-brand-600: #C46340;      /* hover */
+  --color-brand-700: #A85129;
+
+  /* ---------- 中性色（语义化命名） ---------- */
+  --color-ink-900: #1F1E1D;        /* 主文本 / 主按钮底 */
+  --color-ink-800: #2A2926;
+  --color-ink-700: #3D3D3A;        /* 副文本 */
+  --color-ink-500: #7A7872;        /* 辅助文 / icon */
+  --color-ink-400: #A8A29E;        /* 极弱 / meta */
+  --color-ink-300: #C7C2BC;        /* placeholder */
+  --color-ink-200: #E0DDD3;        /* 边框 */
+  --color-ink-100: #EBE7DD;        /* 浅边框 / 分割线 */
+
+  /* ---------- 背景层级 ---------- */
+  --color-canvas: #F0EEE5;         /* 页面外层暖米 */
+  --color-canvas-2: #F6F4EC;       /* 比 canvas 略浅，用于次级背景 */
+  --color-surface: #FAF9F6;        /* 卡片之间柔白 */
+  --color-surface-2: #FFFFFF;      /* 主卡片 / 输入框 */
+
+  /* ---------- 边框 ---------- */
+  --color-line: #E7E2D8;           /* 默认边框（与暖米调一致） */
+  --color-line-strong: #1F1E1D;    /* 强调边框（按钮 outline 等） */
+
+  /* ---------- 状态色（语义） ---------- */
+  --color-status-draft: #D97757;
+  --color-status-reviewed: #5470D6;
+  --color-status-locked: #1F1E1D;
+  --color-status-success: #16A34A;
+  --color-status-error: #DC2626;
+  --color-status-info-bg: #EEF4FF;
+  --color-status-info-text: #5470D6;
+
+  /* ---------- 圆角 ---------- */
+  --radius-card: 16px;             /* 卡片：rounded-card */
+  --radius-card-lg: 24px;          /* 大区域 / 弹窗 */
+
+  /* ---------- 阴影 ---------- */
+  --shadow-card: 0 1px 2px rgba(31,30,29,0.04), 0 4px 16px rgba(31,30,29,0.04);
+  --shadow-card-hover: 0 2px 4px rgba(31,30,29,0.06), 0 12px 32px rgba(31,30,29,0.08);
+  --shadow-modal: 0 24px 48px rgba(31,30,29,0.18);
+}
+
+/* ============================================================
+ * Global resets
+ * ============================================================ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { max-width: 100vw; overflow-x: hidden; }
+
+html, body {
+  background: var(--color-canvas);
+  color: var(--color-ink-900);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-ink-200); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-ink-300); }
+
+/* Focus 可见性 — 系统默认的蓝色 outline 在暖米背景下太突兀 */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 选中文本颜色 */
+::selection {
+  background: var(--color-brand-100);
+  color: var(--color-ink-900);
+}
+
+/* 链接默认样式 */
+a { color: inherit; text-decoration: none; }

@@ -1,8 +1,18 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Eyebrow } from '@/components/ui/Eyebrow'
+
+const features = [
+  { zh: 'AI 一键初翻', en: 'One-click AI draft' },
+  { zh: '术语自动对照', en: 'Auto glossary' },
+  { zh: '多人协作翻译', en: 'Team collaboration' },
+]
 
 export default function LoginPage() {
   const router = useRouter()
@@ -16,80 +26,149 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
-    setError('')
-    setMessage('')
-
+    setLoading(true); setError(''); setMessage('')
     if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setError('登录失败：' + error.message)
+      if (error) setError('邮箱或密码错误，请重试')
       else router.push('/dashboard')
     } else {
-      const { error } = await supabase.auth.signUp({
-        email, password, options: { data: { name } }
-      })
+      const { error } = await supabase.auth.signUp({ email, password, options: { data: { name } } })
       if (error) setError('注册失败：' + error.message)
-      else {
-        setMessage('注册成功！请检查邮箱验证链接后登录。')
-        setIsLogin(true)
-      }
+      else { setMessage('注册成功！请登录。'); setIsLogin(true) }
     }
     setLoading(false)
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-indigo-600">译境</h1>
-          <p className="text-gray-500 mt-2">多人协作翻译平台</p>
+    <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* 左侧：暖米色 — 品牌叙述 */}
+      <section className="lg:w-1/2 bg-canvas relative flex items-center justify-center px-10 sm:px-12 lg:px-16 py-24 min-h-screen">
+        {/* 顶部 logo */}
+        <div className="absolute top-10 left-10 sm:top-10 sm:left-12 lg:top-12 lg:left-16 flex items-center gap-3">
+          <div className="w-9 h-9 bg-brand rounded-xl flex items-center justify-center">
+            <span className="text-white font-bold">译</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-ink-900 font-semibold text-base tracking-tight">译境</span>
+            <span className="hidden sm:inline text-ink-500 text-xs">— 技大25级MTIer翻译平台</span>
+          </div>
         </div>
 
-        <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
-          <button onClick={() => setIsLogin(true)}
-            className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${isLogin ? 'bg-white shadow text-indigo-600' : 'text-gray-500'}`}>
-            登录
-          </button>
-          <button onClick={() => setIsLogin(false)}
-            className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${!isLogin ? 'bg-white shadow text-indigo-600' : 'text-gray-500'}`}>
-            注册
-          </button>
+        {/* 中部主内容 */}
+        <div className="w-full max-w-xl">
+          {/* 头图 — mix-blend-multiply 让米白底融入 canvas 色 */}
+          <div className="mb-10 -mx-2">
+            <Image
+              src="/page1.png"
+              alt="MTI 同学协作翻译"
+              width={1536}
+              height={1024}
+              priority
+              className="w-full h-auto rounded-2xl mix-blend-multiply select-none pointer-events-none"
+              style={{
+                maskImage: 'radial-gradient(ellipse at center, #000 60%, transparent 100%)',
+                WebkitMaskImage: 'radial-gradient(ellipse at center, #000 60%, transparent 100%)',
+              }}
+            />
+          </div>
+
+          <h1 className="font-serif text-3xl lg:text-4xl leading-[1.15] text-ink-900 tracking-tight">
+            专为25级<span className="text-brand">深技大MTI</span>同学<br />
+            打造的翻译平台
+          </h1>
+
+          <ul className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+            {features.map(f => (
+              <li key={f.zh} className="flex items-center gap-2">
+                <span className="w-1 h-1 rounded-full bg-brand" />
+                <span className="text-ink-900">{f.zh}</span>
+                <span className="text-ink-400 text-xs italic">{f.en}</span>
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">姓名</label>
-              <input type="text" value={name} onChange={e => setName(e.target.value)}
+        {/* 底部版权 */}
+        <p className="absolute bottom-6 left-6 sm:bottom-8 sm:left-10 lg:bottom-10 lg:left-16 text-[11px] text-ink-500 font-mono">
+          © 2026 译境 · Powered by DeepSeek · Claude · Supabase
+        </p>
+      </section>
+
+      {/* 右侧：纯白 — 居中表单 card */}
+      <section className="lg:w-1/2 bg-white relative flex items-center justify-center px-10 sm:px-12 lg:px-16 py-24 min-h-screen">
+        {/* 顶部切换链接 */}
+        <div className="absolute top-8 right-6 sm:top-10 sm:right-10 lg:top-12 lg:right-16">
+          <p className="text-ink-500 text-sm">
+            {isLogin ? '还没有账号？' : '已有账号？'}
+            <button onClick={() => { setIsLogin(!isLogin); setError(''); setMessage('') }}
+              className="text-brand hover:text-brand-600 font-medium ml-1.5 underline-offset-4 hover:underline">
+              {isLogin ? '立即注册' : '去登录'}
+            </button>
+          </p>
+        </div>
+
+        {/* 表单 card：固定 420px，padding 32px，rounded-2xl，border + 轻微阴影 */}
+        <div
+          className="w-full bg-white border border-line rounded-2xl shadow-[0_1px_2px_rgba(31,30,29,0.04),0_8px_24px_rgba(31,30,29,0.06)]"
+          style={{ maxWidth: 440, padding: '40px' }}
+        >
+          <div className="mb-10">
+            <Eyebrow className="mb-3">{isLogin ? 'Sign in' : 'Get started'}</Eyebrow>
+            <h2 className="font-serif text-3xl text-ink-900 tracking-tight leading-tight">
+              {isLogin ? '欢迎回来' : '创建账号'}
+            </h2>
+            <p className="text-ink-500 mt-2.5 text-sm">
+              {isLogin ? '登录以继续你的翻译工作' : '加入你的翻译团队'}
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLogin && (
+              <Input
+                label="姓名"
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
                 placeholder="请输入姓名"
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required={!isLogin} />
+                required={!isLogin}
+                inputClassName="h-11 py-0"
+              />
+            )}
+            <Input
+              label="邮箱"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="your@email.com"
+              required
+              inputClassName="h-11 py-0"
+            />
+            <Input
+              label="密码"
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="至少 6 位"
+              required
+              inputClassName="h-11 py-0"
+            />
+
+            {error && <div className="bg-red-50 border border-red-100 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>}
+            {message && <div className="bg-green-50 border border-green-100 text-green-700 rounded-xl px-4 py-3 text-sm">{message}</div>}
+
+            <div className="pt-2">
+              <Button variant="primary" type="submit" loading={loading} fullWidth className="h-11 py-0">
+                {loading ? '处理中' : isLogin ? '登录' : '创建账号'}
+              </Button>
             </div>
-          )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">邮箱</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="请输入邮箱"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              required />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">密码</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="请输入密码（至少6位）"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              required />
-          </div>
+          </form>
+        </div>
 
-          {error && <div className="bg-red-50 border border-red-200 text-red-600 rounded-lg px-4 py-3 text-sm">{error}</div>}
-          {message && <div className="bg-green-50 border border-green-200 text-green-600 rounded-lg px-4 py-3 text-sm">{message}</div>}
-
-          <button type="submit" disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50">
-            {loading ? '处理中...' : isLogin ? '登录' : '注册'}
-          </button>
-        </form>
-      </div>
+        {/* 底部 */}
+        <p className="absolute bottom-6 right-6 sm:bottom-8 sm:right-10 lg:bottom-10 lg:right-16 text-[11px] text-ink-400">
+          继续即表示同意使用本平台进行翻译协作
+        </p>
+      </section>
     </div>
   )
 }
