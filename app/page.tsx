@@ -131,7 +131,8 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit}
+            style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {!isLogin && (
               <Input
                 label="姓名"
@@ -162,10 +163,21 @@ export default function LoginPage() {
               style={{ height: 44, paddingTop: 0, paddingBottom: 0 }}
             />
 
-            {error && <div className="bg-red-50 border border-red-100 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>}
-            {message && <div className="bg-green-50 border border-green-100 text-green-700 rounded-xl px-4 py-3 text-sm">{message}</div>}
+            {error && (
+              <div className="bg-red-50 border border-red-100 text-red-700 rounded-xl"
+                style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 12, paddingBottom: 12, fontSize: 13 }}>
+                {error}
+              </div>
+            )}
+            {message && (
+              <div className="bg-green-50 border border-green-100 text-green-700 rounded-xl"
+                style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 12, paddingBottom: 12, fontSize: 13 }}>
+                {message}
+              </div>
+            )}
 
-            <div className="pt-2">
+            {/* 按钮上方留出明显空隙，与密码框分开 */}
+            <div style={{ marginTop: 14 }}>
               <Button variant="primary" type="submit" loading={loading} fullWidth className="h-11 py-0">
                 {loading ? '处理中' : isLogin ? '登录' : '创建账号'}
               </Button>
