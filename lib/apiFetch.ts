@@ -1,5 +1,23 @@
 // 客户端发起带 Authorization 头的 fetch（用于调自家 /api 路由）
+// 检测到 401 会自动登出 + 跳回登录页（避免 UI 卡在 "unable to connect" 假象）
 import { supabase } from './supabase'
+
+const PUBLIC_PATHS = ['/', '/invite']
+function isPublic(pathname: string) {
+  return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
+}
+
+let handlingAuthFailure = false
+async function handleAuthFailure() {
+  if (handlingAuthFailure) return
+  if (typeof window === 'undefined') return
+  if (isPublic(window.location.pathname)) return
+  handlingAuthFailure = true
+  try {
+    await supabase.auth.signOut()
+  } catch { /* 忽略：可能 token 已经无效，signOut 也会出错 */ }
+  window.location.replace('/')
+}
 
 export async function apiFetch(input: string, init: RequestInit = {}) {
   const { data: { session } } = await supabase.auth.getSession()
@@ -16,7 +34,12 @@ export async function apiFetch(input: string, init: RequestInit = {}) {
 export async function apiJSON<T = any>(input: string, init: RequestInit = {}): Promise<{ data: T | null; error: string | null }> {
   try {
     const res = await apiFetch(input, init)
-    const json = await res.json()
+    if (res.status === 401) {
+      // 会话过期或被服务端拒绝 → 立刻登出回首页（兜底）
+      void handleAuthFailure()
+      return { data: null, error: '会话已失效，请重新登录' }
+    }
+    const json = await res.json().catch(() => ({}))
     if (!res.ok) return { data: null, error: json.error || `HTTP ${res.status}` }
     return { data: json as T, error: null }
   } catch (e: any) {
