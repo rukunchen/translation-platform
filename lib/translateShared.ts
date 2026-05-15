@@ -1,7 +1,9 @@
 // 纯共享常量 / 类型 — 服务端和客户端都能安全引用
 // ⚠️ 这个文件不要 import 任何 Node-only SDK，保持纯净
 
-export type ProviderId = 'deepseek' | 'claude'
+export type ProviderId = 'deepseek' | 'claude' | 'doubao' | 'openai'
+
+export const ALL_PROVIDER_IDS: ProviderId[] = ['deepseek', 'claude', 'doubao', 'openai']
 
 export const langNames: Record<string, string> = {
   en: '英语', zh: '中文', ja: '日语', ko: '韩语',

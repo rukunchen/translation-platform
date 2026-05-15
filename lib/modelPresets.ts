@@ -36,6 +36,28 @@ export const PROVIDERS: ProviderPreset[] = [
       { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', hint: '最快' },
     ],
   },
+  {
+    id: 'doubao',
+    label: 'Doubao',
+    color: '#3656DF',
+    models: [
+      { value: 'doubao-1-5-pro-32k', label: 'Doubao 1.5 Pro 32k', hint: '通用主力' },
+      { value: 'doubao-1-5-pro-256k', label: 'Doubao 1.5 Pro 256k', hint: '长文本' },
+      { value: 'doubao-1-5-lite-32k', label: 'Doubao 1.5 Lite 32k', hint: '轻量、便宜' },
+      { value: 'doubao-pro-32k', label: 'Doubao Pro 32k', hint: '老版本兜底' },
+    ],
+  },
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    color: '#10A37F',
+    models: [
+      { value: 'gpt-4o', label: 'GPT-4o', hint: '主力多模态' },
+      { value: 'gpt-4o-mini', label: 'GPT-4o mini', hint: '便宜、快' },
+      { value: 'gpt-4-turbo', label: 'GPT-4 Turbo', hint: '老版本' },
+      { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', hint: '最便宜' },
+    ],
+  },
 ]
 
 // 一些常用的预设 prompt，供用户快速选择
@@ -77,15 +99,22 @@ export type WindowConfig = {
 }
 
 // 创建一个默认窗口配置
+//   A → DeepSeek（快速）   B → Claude（高质量）
+//   C → Doubao（豆包）     D → OpenAI（ChatGPT）
 export function makeDefaultConfig(idx: number): WindowConfig {
   const labels = ['A', 'B', 'C', 'D']
-  // 第一个用 DeepSeek，第二个用 Claude，其余默认 DeepSeek
-  const isClaude = idx === 1
+  const slot: { provider: ProviderId; model: string }[] = [
+    { provider: 'deepseek', model: 'deepseek-chat' },
+    { provider: 'claude',   model: 'claude-opus-4-7' },
+    { provider: 'doubao',   model: 'doubao-1-5-pro-32k' },
+    { provider: 'openai',   model: 'gpt-4o' },
+  ]
+  const { provider, model } = slot[idx] ?? slot[0]
   return {
     id: `model-${labels[idx]}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    enabled: idx < 2,         // 默认启用前 2 个
-    provider: isClaude ? 'claude' : 'deepseek',
-    model: isClaude ? 'claude-opus-4-7' : 'deepseek-chat',
+    enabled: idx < 2,         // 默认只启用 A / B；C/D 留空等用户接入 API
+    provider,
+    model,
     temperature: 0.3,
     prompt: DEFAULT_PROMPT,
   }

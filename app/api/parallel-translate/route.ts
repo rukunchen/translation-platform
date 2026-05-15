@@ -4,7 +4,7 @@
 // body: {
 //   documentId: string
 //   segmentId: string
-//   provider: 'deepseek' | 'claude'
+//   provider: 'deepseek' | 'claude' | 'doubao' | 'openai'
 //   model: string
 //   temperature: number
 //   prompt: string
@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
 import { getMyRole } from '@/lib/permissions'
 import { translateWith, type ProviderId } from '@/lib/aiProviders'
+import { ALL_PROVIDER_IDS } from '@/lib/translateShared'
 
 export const maxDuration = 60
 
@@ -47,8 +48,8 @@ export async function POST(req: NextRequest) {
   if (!documentId || !segmentId || !provider || !model || !sourceLang || !targetLang) {
     return NextResponse.json({ error: '缺少必要参数' }, { status: 400 })
   }
-  if (provider !== 'claude' && provider !== 'deepseek') {
-    return NextResponse.json({ error: '不支持的 provider' }, { status: 400 })
+  if (!ALL_PROVIDER_IDS.includes(provider as ProviderId)) {
+    return NextResponse.json({ error: `不支持的 provider: ${provider}` }, { status: 400 })
   }
 
   const admin = supabaseAdmin()

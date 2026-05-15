@@ -92,8 +92,8 @@ function exportXlsx({ title, sourceLang, targetLang, segments, configs, results 
   ws['!rows'] = rows.map((r, idx) => {
     if (idx === 0) return { hpt: 22 }
     // 取本行最长文本估算行数
-    const maxChars = r.slice(1).reduce((m, cell) => {
-      const len = String(cell || '').length
+    const maxChars: number = r.slice(1).reduce<number>((m, cell) => {
+      const len = String(cell ?? '').length
       return Math.max(m, len)
     }, 0)
     const lines = Math.max(1, Math.ceil(maxChars / 42))
