@@ -82,8 +82,14 @@ export default function DocumentPage() {
       .from('documents').select('*').eq('id', params.id).single()
     if (docData) {
       setDoc(docData)
-      const { data: roleData } = await apiJSON<{ myRole: Role }>(`/api/projects/${docData.project_id}/members`)
-      setMyRole(roleData?.myRole || null)
+      // 直接查 project_members，避免经过 /api 中间层的 403 问题
+      const { data: memberRow } = await supabase
+        .from('project_members')
+        .select('role')
+        .eq('project_id', docData.project_id)
+        .eq('user_id', user.id)
+        .maybeSingle()
+      setMyRole((memberRow?.role as Role) || null)
       await loadSegments(docData.id)
       loadGlossary(docData.project_id)
     }
@@ -371,15 +377,8 @@ export default function DocumentPage() {
     </div>
   )
 
-  if (!myRole) return (
-    <div className="h-screen flex items-center justify-center bg-canvas">
-      <Card padding="lg" className="text-center max-w-sm">
-        <h3 className="font-serif text-xl text-ink-900 mb-2">无权访问</h3>
-        <p className="text-sm text-ink-500 mb-5">你不是此项目的成员</p>
-        <Button onClick={() => router.push('/dashboard')}>返回工作台</Button>
-      </Card>
-    </div>
-  )
+  // myRole 为 null：仍然渲染页面（标题可见），但所有编辑/翻译操作全部禁用
+  // 不再做全页拦截，避免因偶发 API 失败导致「名字不见了、点不进去」的假象
 
   const translatedCount = segments.filter(s => s.target.trim()).length
   const reviewedCount = segments.filter(s => s.status === 'reviewed' || s.status === 'locked').length
