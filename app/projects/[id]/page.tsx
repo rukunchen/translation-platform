@@ -738,11 +738,15 @@ function CollaborationTab(p: CollabProps) {
                 <button
                   type="button"
                   onClick={() => p.onOpenDoc(d.id)}
-                  className="text-left min-w-0 group/title">
-                  <p className="font-serif text-[15px] text-ink-900 truncate tracking-tight leading-tight group-hover/title:text-brand">
+                  className="text-left hover:opacity-80 transition-opacity"
+                  style={{ display: 'block', width: '100%', minWidth: 0 }}>
+                  <p className="truncate"
+                    style={{ fontFamily: 'var(--font-serif)', fontSize: 15, color: 'var(--color-ink-900)', lineHeight: 1.3, letterSpacing: '-0.01em' }}>
                     {d.title}
                   </p>
-                  <p className="text-[11px] text-ink-500 mt-1">{info.total > 0 ? `${info.total} 句段` : '尚未分句'}</p>
+                  <p style={{ fontSize: 11, color: 'var(--color-ink-500)', marginTop: 3 }}>
+                    {info.total > 0 ? `${info.total} 句段` : '尚未分句'}
+                  </p>
                 </button>
 
                 {/* 语言方向 */}
