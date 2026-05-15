@@ -738,15 +738,26 @@ function CollaborationTab(p: CollabProps) {
                 <button
                   type="button"
                   onClick={() => p.onOpenDoc(d.id)}
-                  className="text-left group/title transition-colors"
+                  className="text-left transition-colors hover:opacity-80"
                   style={{ display: 'block', width: '100%', minWidth: 0 }}>
-                  <p className="truncate group-hover/title:text-brand transition-colors"
-                    style={{ fontFamily: 'var(--font-serif)', fontSize: 15, color: 'var(--color-ink-900)', lineHeight: 1.3, letterSpacing: '-0.01em', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '3px' }}>
-                    {d.title}
-                  </p>
-                  <p style={{ fontSize: 11, color: 'var(--color-ink-500)', marginTop: 3 }}>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-serif)',
+                      fontSize: 16,
+                      lineHeight: 1.35,
+                      fontWeight: 500,
+                      color: d.title?.trim() ? '#1F1E1D' : '#A8A29E',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      marginBottom: 4,
+                    }}
+                    title={d.title || '（未命名）'}>
+                    {d.title?.trim() || '（未命名）'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#7A7872', fontFamily: 'var(--font-sans)' }}>
                     {info.total > 0 ? `${info.total} 句段` : '尚未分句'}
-                  </p>
+                  </div>
                 </button>
 
                 {/* 语言方向 */}
