@@ -83,14 +83,15 @@ export default function LoginPage() {
             为{' '}
             <span
               style={{
-                fontFamily: '"Bodoni 72", "Didot", "Playfair Display", "Times New Roman", Georgia, serif',
-                fontStyle: 'italic',
+                fontFamily: '"Chalkboard SE", "Marker Felt", "Comic Sans MS", "Segoe Print", system-ui, sans-serif',
                 fontWeight: 700,
                 color: 'var(--color-brand)',
-                fontSize: '1.35em',
-                letterSpacing: '0.02em',
-                margin: '0 0.08em',
+                fontSize: '1.4em',
+                letterSpacing: '0.03em',
+                margin: '0 0.1em',
                 verticalAlign: 'baseline',
+                display: 'inline-block',
+                transform: 'rotate(-2deg)',
               }}>
               MTI
             </span>{' '}
