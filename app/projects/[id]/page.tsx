@@ -714,7 +714,7 @@ function CollaborationTab(p: CollabProps) {
       ) : (
         <Card padding="none" className="overflow-hidden">
           {/* 表头 */}
-          <div className="grid grid-cols-[48px_minmax(0,1.4fr)_140px_minmax(0,0.9fr)_120px_180px_84px_72px] gap-3 bg-canvas/60 border-b border-line text-[11px] uppercase tracking-wider text-ink-500 font-medium"
+          <div className="grid grid-cols-[40px_minmax(0,1.5fr)_120px_minmax(0,0.9fr)_88px_160px_64px_88px] gap-3 bg-canvas/60 border-b border-line text-[11px] uppercase tracking-wider text-ink-500 font-medium"
             style={{ paddingLeft: 20, paddingRight: 20, paddingTop: 12, paddingBottom: 12 }}>
             <div className="text-center">#</div>
             <div>文档</div>
@@ -730,7 +730,7 @@ function CollaborationTab(p: CollabProps) {
             const d = info.doc
             const meta = docStatusMeta[info.status]
             return (
-              <div key={d.id} className="grid grid-cols-[48px_minmax(0,1.4fr)_140px_minmax(0,0.9fr)_120px_180px_84px_72px] gap-3 items-center border-t border-line hover:bg-canvas/30 transition-colors"
+              <div key={d.id} className="grid grid-cols-[40px_minmax(0,1.5fr)_120px_minmax(0,0.9fr)_88px_160px_64px_88px] gap-3 items-center border-t border-line hover:bg-canvas/30 transition-colors"
                 style={{ paddingLeft: 20, paddingRight: 20, paddingTop: 16, paddingBottom: 16 }}>
                 <div className="text-[11px] font-mono text-ink-400 text-center">{String(i + 1).padStart(2, '0')}</div>
 
@@ -738,10 +738,10 @@ function CollaborationTab(p: CollabProps) {
                 <button
                   type="button"
                   onClick={() => p.onOpenDoc(d.id)}
-                  className="text-left hover:opacity-80 transition-opacity"
+                  className="text-left group/title transition-colors"
                   style={{ display: 'block', width: '100%', minWidth: 0 }}>
-                  <p className="truncate"
-                    style={{ fontFamily: 'var(--font-serif)', fontSize: 15, color: 'var(--color-ink-900)', lineHeight: 1.3, letterSpacing: '-0.01em' }}>
+                  <p className="truncate group-hover/title:text-brand transition-colors"
+                    style={{ fontFamily: 'var(--font-serif)', fontSize: 15, color: 'var(--color-ink-900)', lineHeight: 1.3, letterSpacing: '-0.01em', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '3px' }}>
                     {d.title}
                   </p>
                   <p style={{ fontSize: 11, color: 'var(--color-ink-500)', marginTop: 3 }}>
@@ -779,25 +779,25 @@ function CollaborationTab(p: CollabProps) {
                   {new Date(d.updated_at ?? d.created_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
                 </div>
 
-                {/* 操作：打开 + 更多 */}
-                <div className="flex items-center justify-end gap-1 relative">
+                {/* 操作：进入 + 更多（编辑/导出/删除 都收进菜单） */}
+                <div className="flex items-center justify-end relative" style={{ gap: 4 }}>
                   <button
                     type="button"
                     onClick={() => p.onOpenDoc(d.id)}
-                    title="打开文档"
-                    style={{ padding: 6 }}
-                    className="rounded-lg text-ink-500 hover:text-brand hover:bg-brand-50 transition-colors">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    title="进入翻译工作台"
+                    className="inline-flex items-center justify-center rounded-lg bg-brand text-white hover:bg-brand-600 active:bg-brand-700 transition-colors flex-shrink-0"
+                    style={{ width: 32, height: 32 }}>
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                     </svg>
                   </button>
                   <button
                     type="button"
                     onClick={() => p.setMenuOpenForDoc(p.menuOpenForDoc === d.id ? null : d.id)}
                     title="更多"
-                    style={{ padding: 6 }}
-                    className="rounded-lg text-ink-500 hover:bg-canvas transition-colors">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    className="rounded-lg text-ink-500 hover:bg-canvas transition-colors flex-shrink-0 inline-flex items-center justify-center"
+                    style={{ width: 32, height: 32 }}>
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" />
                     </svg>
                   </button>
@@ -805,8 +805,8 @@ function CollaborationTab(p: CollabProps) {
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => p.setMenuOpenForDoc(null)} />
                       <div className="absolute right-0 top-full mt-1 z-20 w-44 bg-white border border-line rounded-xl shadow-[var(--shadow-card)] overflow-hidden text-sm">
+                        <MenuItem onClick={() => { p.onEdit(d); p.setMenuOpenForDoc(null) }}>编辑标题 / 语言</MenuItem>
                         <MenuItem onClick={() => { p.onOpenExport(d.id); p.setMenuOpenForDoc(null) }}>导出译文</MenuItem>
-                        <MenuItem onClick={() => p.onEdit(d)}>编辑标题/语言</MenuItem>
                         <MenuItem onClick={() => p.onDelete(d)} danger>删除文档</MenuItem>
                       </div>
                     </>
