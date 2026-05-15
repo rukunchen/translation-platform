@@ -94,7 +94,6 @@ export default function LoginPage() {
               }}>
               MTI
             </span>{' '}
-            <span style={{ color: 'var(--color-brand)' }}>小组</span>{' '}
             翻译项目而建
           </h1>
           <p style={{
