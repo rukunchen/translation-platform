@@ -50,8 +50,13 @@ export default function ModelConfigPanel({ idx, config, onChange, onToggleEnable
           <div className="flex items-center gap-2">
             <p className="font-medium text-sm text-ink-900">{windowLabel(idx)}</p>
             <span
-              className="text-[10px] font-medium uppercase tracking-[0.12em] px-1.5 py-0.5 rounded text-white"
-              style={{ background: providerPreset.color }}
+              className="inline-flex items-center font-medium uppercase rounded text-white"
+              style={{
+                background: providerPreset.color,
+                fontSize: 10,
+                letterSpacing: '0.12em',
+                paddingLeft: 8, paddingRight: 8, paddingTop: 3, paddingBottom: 3,
+              }}
             >
               {providerPreset.label}
             </span>
