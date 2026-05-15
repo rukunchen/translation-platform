@@ -9,6 +9,7 @@ import { exportBilingualDoc, type ExportMode } from '@/lib/exportBilingual'
 import { type Role, canManage, canReview } from '@/lib/permissions'
 import ChatPanel from '@/components/ChatPanel'
 import ChatToggleButton from '@/components/ChatToggleButton'
+import Logo from '@/components/Logo'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 
@@ -494,9 +495,7 @@ export default function DocumentPage() {
           </button>
           <div style={{ width: 1, height: 18, background: 'var(--color-line)' }} />
           <div className="flex items-center flex-1 min-w-0" style={{ gap: 10 }}>
-            <div className="bg-brand rounded-lg flex items-center justify-center flex-shrink-0" style={{ width: 28, height: 28 }}>
-              <span className="text-white font-bold" style={{ fontSize: 11 }}>译</span>
-            </div>
+            <Logo size={28} className="flex-shrink-0" />
             <h1 className="truncate"
               style={{ fontFamily: 'var(--font-serif)', fontSize: 17, color: 'var(--color-ink-900)', letterSpacing: '-0.01em' }}>
               {doc.title}

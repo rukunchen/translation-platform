@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input'
 import { Eyebrow } from '@/components/ui/Eyebrow'
 import { Card } from '@/components/ui/Card'
 import { cn } from '@/components/ui/cn'
+import Logo from '@/components/Logo'
 
 type Invite = {
   projectId: string
@@ -157,9 +158,7 @@ export default function AcceptInvitePage() {
       <div className="bg-white rounded-3xl p-10 lg:p-12 max-w-lg w-full shadow-[var(--shadow-card)]">
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-9 h-9 bg-brand rounded-xl flex items-center justify-center">
-            <span className="text-white font-bold">译</span>
-          </div>
+          <Logo size={40} priority />
           <div className="flex flex-col leading-tight">
             <span className="text-ink-900 font-semibold text-sm">译境</span>
             <span className="text-ink-500 text-xs">技大25级MTIer翻译平台</span>

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Eyebrow } from '@/components/ui/Eyebrow'
+import Logo from '@/components/Logo'
 
 const features = [
   { zh: '小组翻译与审校协作', en: 'In-team translation & review' },
@@ -45,9 +46,7 @@ export default function LoginPage() {
       <section className="lg:w-1/2 bg-canvas relative flex items-center justify-center px-10 sm:px-12 lg:px-16 py-24 min-h-screen">
         {/* 顶部 logo */}
         <div className="absolute top-10 left-10 sm:top-10 sm:left-12 lg:top-12 lg:left-16 flex items-center gap-3">
-          <div className="w-9 h-9 bg-brand rounded-xl flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold">译</span>
-          </div>
+          <Logo size={40} priority className="flex-shrink-0" />
           <div className="flex flex-col leading-tight min-w-0">
             <span className="text-ink-900 font-semibold text-base tracking-tight">译境</span>
             <span className="hidden sm:inline text-ink-500 text-[11px] mt-0.5 truncate">深技大25级 MTI 翻译协作与研究平台</span>

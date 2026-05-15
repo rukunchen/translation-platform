@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
 import { cn } from './ui/cn'
+import Logo from './Logo'
 
 type User = {
   id: string
@@ -38,9 +39,7 @@ export default function Sidebar() {
           onClick={() => router.push('/dashboard')}
           className="flex items-center gap-3 cursor-pointer group"
         >
-          <div className="w-10 h-10 bg-brand rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform shadow-sm">
-            <span className="text-white font-bold text-base">译</span>
-          </div>
+          <Logo size={40} priority className="flex-shrink-0 group-hover:scale-105 transition-transform" />
           <div className="flex flex-col leading-tight min-w-0">
             <span className="text-white font-semibold text-[15px] tracking-tight">译境</span>
             <span className="text-ink-400 text-[11px] mt-0.5 truncate">技大25级MTIer翻译平台</span>
