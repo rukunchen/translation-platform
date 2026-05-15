@@ -43,9 +43,15 @@ const variantStyle: Record<Variant, string> = {
 }
 
 const sizeStyle: Record<Size, string> = {
-  sm: 'text-xs px-3 py-1.5 rounded-lg gap-1.5',
-  md: 'text-sm px-4 py-2 rounded-xl gap-2',
-  lg: 'text-sm px-5 py-2.5 rounded-xl gap-2',
+  sm: 'text-xs rounded-lg gap-1.5',
+  md: 'text-sm rounded-xl gap-2',
+  lg: 'text-sm rounded-xl gap-2',
+}
+
+const sizePadding: Record<Size, React.CSSProperties> = {
+  sm: { paddingLeft: 12, paddingRight: 12, paddingTop: 7, paddingBottom: 7 },
+  md: { paddingLeft: 16, paddingRight: 16, paddingTop: 9, paddingBottom: 9 },
+  lg: { paddingLeft: 20, paddingRight: 20, paddingTop: 11, paddingBottom: 11 },
 }
 
 export function Button({
@@ -69,6 +75,7 @@ export function Button({
       onClick={onClick}
       disabled={isDisabled}
       title={title}
+      style={sizePadding[size]}
       className={cn(
         'inline-flex items-center justify-center font-medium transition-colors',
         'disabled:cursor-not-allowed',
