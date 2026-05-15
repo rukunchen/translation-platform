@@ -437,8 +437,8 @@ export default function ProjectPage() {
             </div>
           </div>
 
-          {/* 主体两栏：左 1fr + 右 360px 固定栏 */}
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-10 items-start">
+          {/* 主体两栏：左 1fr + 右 320px 固定栏（在 xl 以上才并排，避免挤压表格） */}
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-8 items-start">
 
             <section className="min-w-0">
               {tab === 'collab' ? (
@@ -465,7 +465,7 @@ export default function ProjectPage() {
               )}
             </section>
 
-            <aside className="lg:sticky lg:top-0">
+            <aside className="xl:sticky xl:top-0">
               <MembersPanel projectId={projectId} currentUserId={userId} onRoleChanged={setMyRole} />
             </aside>
           </div>
@@ -712,9 +712,9 @@ function CollaborationTab(p: CollabProps) {
           <p className="text-center text-sm text-ink-600 py-6">没有符合当前筛选条件的文档</p>
         </Card>
       ) : (
-        <Card padding="none" className="overflow-hidden">
+        <Card padding="none" className="overflow-x-auto">
           {/* 表头 */}
-          <div className="grid grid-cols-[40px_minmax(0,1.5fr)_120px_minmax(0,0.9fr)_88px_160px_64px_88px] gap-3 bg-canvas/60 border-b border-line text-[11px] uppercase tracking-wider text-ink-500 font-medium"
+          <div className="grid grid-cols-[36px_minmax(220px,2fr)_108px_minmax(96px,1fr)_84px_140px_60px_84px] gap-3 bg-canvas/60 border-b border-line text-[11px] uppercase tracking-wider text-ink-500 font-medium min-w-[920px]"
             style={{ paddingLeft: 20, paddingRight: 20, paddingTop: 12, paddingBottom: 12 }}>
             <div className="text-center">#</div>
             <div>文档</div>
@@ -730,7 +730,7 @@ function CollaborationTab(p: CollabProps) {
             const d = info.doc
             const meta = docStatusMeta[info.status]
             return (
-              <div key={d.id} className="grid grid-cols-[40px_minmax(0,1.5fr)_120px_minmax(0,0.9fr)_88px_160px_64px_88px] gap-3 items-center border-t border-line hover:bg-canvas/30 transition-colors"
+              <div key={d.id} className="grid grid-cols-[36px_minmax(220px,2fr)_108px_minmax(96px,1fr)_84px_140px_60px_84px] gap-3 items-start border-t border-line hover:bg-canvas/30 transition-colors min-w-[920px]"
                 style={{ paddingLeft: 20, paddingRight: 20, paddingTop: 16, paddingBottom: 16 }}>
                 <div className="text-[11px] font-mono text-ink-400 text-center">{String(i + 1).padStart(2, '0')}</div>
 
@@ -747,9 +747,8 @@ function CollaborationTab(p: CollabProps) {
                       lineHeight: 1.35,
                       fontWeight: 500,
                       color: d.title?.trim() ? '#1F1E1D' : '#A8A29E',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      wordBreak: 'break-word',
+                      overflowWrap: 'anywhere',
                       marginBottom: 4,
                     }}
                     title={d.title || '（未命名）'}>
@@ -889,8 +888,8 @@ function ExperimentTab({ experiments, onView, onPickDoc }: {
   }
 
   return (
-    <Card padding="none" className="overflow-hidden">
-      <div className="grid grid-cols-[minmax(0,1.4fr)_80px_70px_120px_120px_120px_120px] gap-3 px-5 py-3 bg-canvas/60 border-b border-line text-[11px] uppercase tracking-wider text-ink-500 font-medium">
+    <Card padding="none" className="overflow-x-auto">
+      <div className="grid grid-cols-[minmax(220px,2fr)_72px_72px_112px_104px_112px_120px] gap-3 px-5 py-3 bg-canvas/60 border-b border-line text-[11px] uppercase tracking-wider text-ink-500 font-medium min-w-[900px]">
         <div>实验 · 关联文档</div>
         <div className="text-center">模型</div>
         <div className="text-center">Prompt</div>
@@ -900,9 +899,9 @@ function ExperimentTab({ experiments, onView, onPickDoc }: {
         <div className="text-right">操作</div>
       </div>
       {experiments.map((e, i) => (
-        <div key={e.docId} className={cn('grid grid-cols-[minmax(0,1.4fr)_80px_70px_120px_120px_120px_120px] gap-3 px-5 py-4 items-center', i > 0 && 'border-t border-line')}>
+        <div key={e.docId} className={cn('grid grid-cols-[minmax(220px,2fr)_72px_72px_112px_104px_112px_120px] gap-3 px-5 py-4 items-center min-w-[900px]', i > 0 && 'border-t border-line')}>
           <div className="min-w-0">
-            <p className="font-serif text-[15px] text-ink-900 truncate tracking-tight leading-tight">{e.docTitle} · 多模型对比</p>
+            <p className="font-serif text-[15px] text-ink-900 tracking-tight leading-tight break-words">{e.docTitle} · 多模型对比</p>
             <p className="text-[11px] text-ink-500 mt-1 font-mono">
               {e.createdAt ? new Date(e.createdAt).toLocaleDateString('zh-CN') : '—'}
             </p>
