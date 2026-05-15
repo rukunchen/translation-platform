@@ -71,8 +71,31 @@ export default function LoginPage() {
             />
           </div>
 
-          <h1 className="font-serif text-3xl lg:text-[2.4rem] leading-[1.15] text-ink-900 tracking-tight text-center">
-            为 <span className="text-brand">MTI 小组</span> 翻译项目而建
+          <h1 className="font-serif text-ink-900"
+            style={{
+              fontFamily: 'var(--font-serif)',
+              fontSize: 'clamp(28px, 3.4vw, 44px)',
+              lineHeight: 1.15,
+              letterSpacing: '-0.01em',
+              textAlign: 'center',
+              margin: 0,
+            }}>
+            为{' '}
+            <span
+              style={{
+                fontFamily: '"Bodoni 72", "Didot", "Playfair Display", "Times New Roman", Georgia, serif',
+                fontStyle: 'italic',
+                fontWeight: 700,
+                color: 'var(--color-brand)',
+                fontSize: '1.35em',
+                letterSpacing: '0.02em',
+                margin: '0 0.08em',
+                verticalAlign: 'baseline',
+              }}>
+              MTI
+            </span>{' '}
+            <span style={{ color: 'var(--color-brand)' }}>小组</span>{' '}
+            翻译项目而建
           </h1>
           <p className="mt-5 text-ink-500 text-sm lg:text-[15px] leading-relaxed text-center max-w-md mx-auto">
             支持分句翻译、多人审校、多模型 AI 译文对比、Prompt 与 Temperature 实验记录，以及研究数据导出。
