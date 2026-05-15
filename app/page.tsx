@@ -9,9 +9,9 @@ import { Input } from '@/components/ui/Input'
 import { Eyebrow } from '@/components/ui/Eyebrow'
 
 const features = [
-  { zh: 'AI 一键初翻', en: 'One-click AI draft' },
-  { zh: '术语自动对照', en: 'Auto glossary' },
-  { zh: '多人协作翻译', en: 'Team collaboration' },
+  { zh: '小组翻译与审校协作', en: 'In-team translation & review' },
+  { zh: '多模型 AI 翻译实验', en: 'Multi-model translation experiments' },
+  { zh: '术语库、版本记录与数据导出', en: 'Glossary, history & research export' },
 ]
 
 export default function LoginPage() {
@@ -45,12 +45,12 @@ export default function LoginPage() {
       <section className="lg:w-1/2 bg-canvas relative flex items-center justify-center px-10 sm:px-12 lg:px-16 py-24 min-h-screen">
         {/* 顶部 logo */}
         <div className="absolute top-10 left-10 sm:top-10 sm:left-12 lg:top-12 lg:left-16 flex items-center gap-3">
-          <div className="w-9 h-9 bg-brand rounded-xl flex items-center justify-center">
+          <div className="w-9 h-9 bg-brand rounded-xl flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold">译</span>
           </div>
-          <div className="flex items-baseline gap-2">
+          <div className="flex flex-col leading-tight min-w-0">
             <span className="text-ink-900 font-semibold text-base tracking-tight">译境</span>
-            <span className="hidden sm:inline text-ink-500 text-xs">— 技大25级MTIer翻译平台</span>
+            <span className="hidden sm:inline text-ink-500 text-[11px] mt-0.5 truncate">深技大25级 MTI 翻译协作与研究平台</span>
           </div>
         </div>
 
@@ -72,39 +72,47 @@ export default function LoginPage() {
             />
           </div>
 
-          <h1 className="font-serif text-3xl lg:text-4xl leading-[1.15] text-ink-900 tracking-tight text-center">
-            专为25级<span className="text-brand">深技大MTI</span>同学<br />
-            打造的翻译平台
+          <h1 className="font-serif text-3xl lg:text-[2.4rem] leading-[1.15] text-ink-900 tracking-tight text-center">
+            为 <span className="text-brand">MTI 小组</span> 翻译项目而建
           </h1>
+          <p className="mt-5 text-ink-500 text-sm lg:text-[15px] leading-relaxed text-center max-w-md mx-auto">
+            支持分句翻译、多人审校、多模型 AI 译文对比、Prompt 与 Temperature 实验记录，以及研究数据导出。
+          </p>
 
-          <ul className="mt-8 space-y-2.5 text-sm">
-            {features.map(f => (
-              <li key={f.zh} className="flex items-center justify-center gap-2">
-                <span className="w-1 h-1 rounded-full bg-brand flex-shrink-0" />
-                <span className="text-ink-900">{f.zh}</span>
-                <span className="text-ink-400 text-xs italic">{f.en}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-8 mx-auto max-w-md pt-6 border-t border-ink-900/10">
+            <ul className="space-y-3 text-sm">
+              {features.map(f => (
+                <li key={f.zh} className="flex items-center gap-3 whitespace-nowrap">
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand flex-shrink-0" />
+                  <span className="text-ink-900">{f.zh}</span>
+                  <span className="text-ink-400 text-[11px] italic ml-auto">{f.en}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
 
         {/* 底部版权 */}
         <p className="absolute bottom-6 left-6 sm:bottom-8 sm:left-10 lg:bottom-10 lg:left-16 text-[11px] text-ink-500 font-mono">
-          © 2026 译境 · Powered by DeepSeek · Claude · Supabase
+          © 2026 译境 · Built for MTI translation collaboration and research
         </p>
       </section>
 
       {/* 右侧：纯白 — 居中表单 card */}
       <section className="lg:w-1/2 bg-white relative flex items-center justify-center px-10 sm:px-12 lg:px-16 py-24 min-h-screen">
-        {/* 顶部切换链接 */}
+        {/* 顶部说明：私域平台、不开放公开注册 */}
         <div className="absolute top-8 right-6 sm:top-10 sm:right-10 lg:top-12 lg:right-16">
-          <p className="text-ink-500 text-sm">
-            {isLogin ? '还没有账号？' : '已有账号？'}
-            <button onClick={() => { setIsLogin(!isLogin); setError(''); setMessage('') }}
-              className="text-brand hover:text-brand-600 font-medium ml-1.5 underline-offset-4 hover:underline">
-              {isLogin ? '立即注册' : '去登录'}
-            </button>
-          </p>
+          {isLogin ? (
+            <p className="text-ink-400 text-xs">新成员？联系项目管理员</p>
+          ) : (
+            <p className="text-ink-400 text-xs">
+              已有账号？
+              <button onClick={() => { setIsLogin(true); setError(''); setMessage('') }}
+                className="text-ink-700 hover:text-ink-900 font-medium ml-1.5 underline underline-offset-4">
+                返回登录
+              </button>
+            </p>
+          )}
         </div>
 
         {/* 表单 card：固定 420px，padding 32px，rounded-2xl，border + 轻微阴影 */}
@@ -113,12 +121,14 @@ export default function LoginPage() {
           style={{ maxWidth: 440, padding: '40px' }}
         >
           <div className="mb-10">
-            <Eyebrow className="mb-3">{isLogin ? 'Sign in' : 'Get started'}</Eyebrow>
+            <Eyebrow className="mb-3">{isLogin ? 'Sign in' : 'Admin sign-up'}</Eyebrow>
             <h2 className="font-serif text-3xl text-ink-900 tracking-tight leading-tight">
               {isLogin ? '欢迎回来' : '创建账号'}
             </h2>
-            <p className="text-ink-500 mt-2.5 text-sm">
-              {isLogin ? '登录以继续你的翻译工作' : '加入你的翻译团队'}
+            <p className="text-ink-500 mt-2.5 text-sm leading-relaxed">
+              {isLogin
+                ? '登录后进入你的翻译项目、审校任务和 AI 实验记录。'
+                : '此入口仅供项目管理员为新成员创建账号。'}
             </p>
           </div>
 
@@ -162,11 +172,25 @@ export default function LoginPage() {
               </Button>
             </div>
           </form>
+
+          {/* 弱化的管理员注册入口：仅供需要时手动切换 */}
+          {isLogin && (
+            <p className="mt-6 pt-5 border-t border-line text-center text-[11px] text-ink-400">
+              管理员可在此
+              <button
+                type="button"
+                onClick={() => { setIsLogin(false); setError(''); setMessage('') }}
+                className="text-ink-500 hover:text-ink-900 underline underline-offset-4 ml-1"
+              >
+                为成员创建账号
+              </button>
+            </p>
+          )}
         </div>
 
         {/* 底部 */}
         <p className="absolute bottom-6 right-6 sm:bottom-8 sm:right-10 lg:bottom-10 lg:right-16 text-[11px] text-ink-400">
-          继续即表示同意使用本平台进行翻译协作
+          内部研究与协作平台 · 仅限授权成员使用
         </p>
       </section>
     </div>
