@@ -38,17 +38,18 @@ export default function ModelConfigPanel({ idx, config, onChange, onToggleEnable
       config.enabled ? 'border-line' : 'border-line opacity-50'
     )}>
       {/* 头部 */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-line bg-surface">
+      <div className="flex items-center border-b border-line bg-surface"
+        style={{ gap: 12, paddingLeft: 18, paddingRight: 18, paddingTop: 14, paddingBottom: 14 }}>
         <span
-          className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-white text-sm font-bold flex-shrink-0"
-          style={{ background: providerPreset.color }}
+          className="inline-flex items-center justify-center rounded-lg text-white font-bold flex-shrink-0"
+          style={{ background: providerPreset.color, width: 32, height: 32, fontSize: 14 }}
         >
           {['A','B','C','D'][idx]}
         </span>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="font-medium text-sm text-ink-900">{windowLabel(idx)}</p>
+          <div className="flex items-center" style={{ gap: 8 }}>
+            <p className="font-medium text-ink-900" style={{ fontSize: 14 }}>{windowLabel(idx)}</p>
             <span
               className="inline-flex items-center font-medium uppercase rounded text-white"
               style={{
@@ -61,15 +62,17 @@ export default function ModelConfigPanel({ idx, config, onChange, onToggleEnable
               {providerPreset.label}
             </span>
           </div>
-          <p className="text-[11px] text-ink-500 truncate font-mono mt-0.5">
+          <p className="text-ink-500 truncate font-mono"
+            style={{ fontSize: 11, marginTop: 3 }}>
             {currentModel?.label || config.model} · T={config.temperature}
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center" style={{ gap: 8 }}>
           <button
             onClick={() => setExpanded(e => !e)}
-            className="text-xs text-ink-500 hover:text-ink-900 px-2 py-1 transition-colors"
+            className="text-ink-500 hover:text-ink-900 transition-colors rounded-md hover:bg-canvas"
+            style={{ fontSize: 12, paddingLeft: 10, paddingRight: 10, paddingTop: 5, paddingBottom: 5 }}
           >
             {expanded ? '收起' : '设置'}
           </button>
@@ -78,19 +81,19 @@ export default function ModelConfigPanel({ idx, config, onChange, onToggleEnable
               onClick={onToggleEnabled}
               title={config.enabled ? '禁用此窗口' : '启用此窗口'}
               className={cn(
-                'w-9 h-5 rounded-full transition-colors relative flex-shrink-0',
+                'rounded-full transition-colors relative flex-shrink-0',
                 config.enabled ? 'bg-ink-900' : 'bg-line'
               )}
+              style={{ width: 36, height: 20 }}
             >
-              <span className={cn(
-                'absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all',
-                config.enabled ? 'left-[18px]' : 'left-0.5'
-              )} />
+              <span className="bg-white rounded-full transition-all"
+                style={{ position: 'absolute', top: 2, left: config.enabled ? 18 : 2, width: 16, height: 16 }} />
             </button>
           )}
           {canRemove && onRemove && (
             <button onClick={onRemove} title="移除此窗口"
-              className="text-ink-400 hover:text-red-600 p-1 transition-colors">
+              className="text-ink-400 hover:text-red-600 transition-colors"
+              style={{ padding: 6, borderRadius: 6 }}>
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -101,21 +104,23 @@ export default function ModelConfigPanel({ idx, config, onChange, onToggleEnable
 
       {/* 配置区 */}
       {expanded && (
-        <div className="px-5 py-5 space-y-5 border-b border-line bg-white">
+        <div className="border-b border-line bg-white"
+          style={{ paddingLeft: 20, paddingRight: 20, paddingTop: 20, paddingBottom: 22, display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Provider */}
           <div>
-            <Eyebrow className="mb-2">Provider</Eyebrow>
-            <div className="grid grid-cols-2 gap-2">
+            <div style={{ marginBottom: 10 }}><Eyebrow>Provider</Eyebrow></div>
+            <div className="grid grid-cols-2" style={{ gap: 8 }}>
               {PROVIDERS.map(p => (
                 <button
                   key={p.id}
                   onClick={() => setProvider(p.id)}
                   className={cn(
-                    'px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all',
+                    'rounded-lg font-medium border-2 transition-all',
                     config.provider === p.id
                       ? 'border-ink-900 bg-ink-900 text-white'
                       : 'border-line text-ink-500 hover:border-ink-900/30'
                   )}
+                  style={{ fontSize: 12, paddingLeft: 14, paddingRight: 14, paddingTop: 9, paddingBottom: 9 }}
                 >
                   {p.label}
                 </button>
@@ -125,11 +130,12 @@ export default function ModelConfigPanel({ idx, config, onChange, onToggleEnable
 
           {/* Model */}
           <div>
-            <Eyebrow className="mb-2">Model</Eyebrow>
+            <div style={{ marginBottom: 10 }}><Eyebrow>Model</Eyebrow></div>
             <select
               value={config.model}
               onChange={e => onChange({ ...config, model: e.target.value })}
-              className="w-full bg-white border-2 border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand"
+              className="bg-white border-2 border-line rounded-lg focus:outline-none focus:border-brand"
+              style={{ width: '100%', fontSize: 13, paddingLeft: 12, paddingRight: 12, paddingTop: 9, paddingBottom: 9 }}
             >
               {providerPreset.models.map(m => (
                 <option key={m.value} value={m.value}>{m.label}{m.hint ? ` · ${m.hint}` : ''}</option>
@@ -139,17 +145,19 @@ export default function ModelConfigPanel({ idx, config, onChange, onToggleEnable
 
           {/* Temperature */}
           <div>
-            <div className="flex justify-between items-center mb-2">
+            <div className="flex justify-between items-center" style={{ marginBottom: 10 }}>
               <Eyebrow>Temperature</Eyebrow>
-              <span className="text-xs font-mono text-ink-900">{config.temperature.toFixed(2)}</span>
+              <span className="font-mono text-ink-900" style={{ fontSize: 12 }}>{config.temperature.toFixed(2)}</span>
             </div>
             <input
               type="range" min={0} max={1} step={0.1}
               value={config.temperature}
               onChange={e => onChange({ ...config, temperature: parseFloat(e.target.value) })}
-              className="w-full accent-brand cursor-pointer"
+              className="accent-brand cursor-pointer"
+              style={{ width: '100%' }}
             />
-            <div className="flex justify-between text-[10px] text-ink-400 font-mono mt-1">
+            <div className="flex justify-between text-ink-400 font-mono"
+              style={{ fontSize: 10, marginTop: 6 }}>
               <span>0 · 严谨</span>
               <span>1 · 创意</span>
             </div>
@@ -157,18 +165,19 @@ export default function ModelConfigPanel({ idx, config, onChange, onToggleEnable
 
           {/* Prompt 预设 */}
           <div>
-            <Eyebrow className="mb-2">Prompt 预设</Eyebrow>
-            <div className="flex flex-wrap gap-1.5">
+            <div style={{ marginBottom: 10 }}><Eyebrow>Prompt 预设</Eyebrow></div>
+            <div className="flex flex-wrap" style={{ gap: 6 }}>
               {PROMPT_PRESETS.map(p => (
                 <button
                   key={p.label}
                   onClick={() => onChange({ ...config, prompt: p.prompt })}
                   className={cn(
-                    'text-[11px] px-2.5 py-1 rounded-md border transition-colors',
+                    'rounded-md border transition-colors',
                     config.prompt === p.prompt
                       ? 'border-brand bg-brand-50 text-brand'
                       : 'border-line text-ink-500 hover:border-ink-900/30 hover:text-ink-900'
                   )}
+                  style={{ fontSize: 11, paddingLeft: 10, paddingRight: 10, paddingTop: 5, paddingBottom: 5 }}
                 >
                   {p.label}
                 </button>
@@ -178,15 +187,18 @@ export default function ModelConfigPanel({ idx, config, onChange, onToggleEnable
 
           {/* 自定义 prompt */}
           <div>
-            <Eyebrow className="mb-2">
-              翻译指令 <span className="text-ink-400 normal-case tracking-normal">（支持 {'{sourceLang}'} {'{targetLang}'} {'{source}'}）</span>
-            </Eyebrow>
+            <div style={{ marginBottom: 10 }}>
+              <Eyebrow>
+                翻译指令 <span className="text-ink-400 normal-case tracking-normal">（支持 {'{sourceLang}'} {'{targetLang}'} {'{source}'}）</span>
+              </Eyebrow>
+            </div>
             <textarea
               value={config.prompt}
               onChange={e => onChange({ ...config, prompt: e.target.value })}
               rows={3}
               placeholder="请将以下{sourceLang}文本翻译成{targetLang}..."
-              className="w-full bg-white border-2 border-line rounded-lg px-3 py-2 text-xs font-mono text-ink-900 focus:outline-none focus:border-brand resize-none leading-relaxed"
+              className="bg-white border-2 border-line rounded-lg font-mono text-ink-900 focus:outline-none focus:border-brand resize-none leading-relaxed"
+              style={{ width: '100%', fontSize: 12, paddingLeft: 14, paddingRight: 14, paddingTop: 11, paddingBottom: 11, lineHeight: 1.6 }}
             />
           </div>
         </div>
