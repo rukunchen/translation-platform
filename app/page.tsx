@@ -97,8 +97,17 @@ export default function LoginPage() {
             <span style={{ color: 'var(--color-brand)' }}>小组</span>{' '}
             翻译项目而建
           </h1>
-          <p className="mt-5 text-ink-500 text-sm lg:text-[15px] leading-relaxed text-center max-w-md mx-auto">
-            支持分句翻译、多人审校、多模型 AI 译文对比、Prompt 与 Temperature 实验记录，以及研究数据导出。
+          <p style={{
+            marginTop: 22,
+            marginLeft: 'auto',
+            marginRight: 'auto',
+            maxWidth: 560,
+            textAlign: 'center',
+            fontSize: 15,
+            lineHeight: 1.75,
+            color: 'var(--color-ink-500)',
+          }}>
+            支持分句翻译、多人审校、多模型 AI 译文对比、<wbr />Prompt 与 Temperature 实验记录，以及研究数据导出。
           </p>
 
           <div className="mt-8 mx-auto max-w-md pt-6 border-t border-ink-900/10">
