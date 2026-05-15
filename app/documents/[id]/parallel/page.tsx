@@ -249,9 +249,11 @@ export default function ParallelWorkbenchPage() {
   return (
     <div className="min-h-screen flex flex-col bg-canvas">
       {/* 顶栏 */}
-      <header className="bg-white border-b border-line px-8 lg:px-10 py-4 flex items-center gap-4 flex-shrink-0">
+      <header className="bg-white border-b border-line flex items-center gap-4 flex-shrink-0"
+        style={{ paddingLeft: 56, paddingRight: 56, paddingTop: 18, paddingBottom: 18 }}>
         <button onClick={() => router.push(`/documents/${doc.id}`)}
-          className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900 transition-colors">
+          className="inline-flex items-center gap-1.5 text-ink-500 hover:text-ink-900 transition-colors"
+          style={{ fontSize: 13 }}>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
@@ -263,25 +265,30 @@ export default function ParallelWorkbenchPage() {
             <span className="text-white text-xs font-bold">⚡</span>
           </div>
           <Eyebrow>Parallel Workbench</Eyebrow>
-          <h1 className="font-serif text-lg text-ink-900 truncate">{doc.title}</h1>
-          <span className="text-xs text-ink-500 bg-canvas px-2.5 py-1 rounded-full font-mono flex-shrink-0">
+          <h1 className="font-serif text-ink-900 truncate"
+            style={{ fontSize: 18, fontFamily: 'var(--font-serif)' }}>{doc.title}</h1>
+          <span className="bg-canvas rounded-full font-mono flex-shrink-0"
+            style={{ fontSize: 11, color: 'var(--color-ink-500)', paddingLeft: 10, paddingRight: 10, paddingTop: 4, paddingBottom: 4 }}>
             {langNames[doc.source_language]} → {langNames[doc.target_language]}
           </span>
         </div>
-        <span className="text-xs text-ink-500 flex-shrink-0">
+        <span className="flex-shrink-0" style={{ fontSize: 12, color: 'var(--color-ink-500)' }}>
           启用 <span className="text-brand font-semibold">{enabledConfigs.length}</span> / 4
         </span>
       </header>
 
       {/* 工具栏 */}
-      <div className="bg-white border-b border-line px-8 lg:px-10 py-3 flex items-center gap-3 flex-wrap flex-shrink-0">
-        <span className="text-xs text-ink-500">
+      <div className="bg-white border-b border-line flex items-center flex-wrap flex-shrink-0"
+        style={{ paddingLeft: 56, paddingRight: 56, paddingTop: 14, paddingBottom: 14, gap: 14 }}>
+        <span style={{ fontSize: 12, color: 'var(--color-ink-500)' }}>
           已选 <span className="text-ink-900 font-semibold">{selectedIds.size}</span> / {segments.length} 句
         </span>
         <button onClick={selectAll}
-          className="text-xs text-ink-500 hover:text-ink-900 px-2 py-1 transition-colors">全选</button>
+          className="text-ink-500 hover:text-ink-900 transition-colors"
+          style={{ fontSize: 12, paddingLeft: 10, paddingRight: 10, paddingTop: 4, paddingBottom: 4 }}>全选</button>
         <button onClick={clearSelection}
-          className="text-xs text-ink-500 hover:text-ink-900 px-2 py-1 transition-colors">清空</button>
+          className="text-ink-500 hover:text-ink-900 transition-colors"
+          style={{ fontSize: 12, paddingLeft: 10, paddingRight: 10, paddingTop: 4, paddingBottom: 4 }}>清空</button>
 
         <div className="w-px h-5 bg-line" />
 
@@ -305,10 +312,13 @@ export default function ParallelWorkbenchPage() {
       {/* 主体 */}
       <main className="flex-1 overflow-hidden flex">
         {/* 左侧：原文列表 */}
-        <aside className="w-[340px] flex-shrink-0 border-r border-line bg-white overflow-y-auto">
-          <div className="px-6 py-4 border-b border-line sticky top-0 bg-white z-10">
+        <aside className="flex-shrink-0 border-r border-line bg-white overflow-y-auto"
+          style={{ width: 360 }}>
+          <div className="border-b border-line sticky top-0 bg-white z-10"
+            style={{ paddingLeft: 24, paddingRight: 24, paddingTop: 20, paddingBottom: 18 }}>
             <Eyebrow className="mb-1">Source · 原文</Eyebrow>
-            <h3 className="font-serif text-base text-ink-900">分句列表</h3>
+            <h3 className="font-serif text-ink-900"
+              style={{ fontSize: 16, fontFamily: 'var(--font-serif)', marginTop: 4 }}>分句列表</h3>
           </div>
           <div>
             {segments.map((seg, i) => {
@@ -317,24 +327,29 @@ export default function ParallelWorkbenchPage() {
               return (
                 <label key={seg.id}
                   className={cn(
-                    'flex gap-3 px-6 py-4 border-b border-line cursor-pointer transition-colors',
+                    'flex gap-3 border-b border-line cursor-pointer transition-colors',
                     selected ? 'bg-brand-50/70' : 'hover:bg-canvas/40'
-                  )}>
+                  )}
+                  style={{ paddingLeft: 24, paddingRight: 24, paddingTop: 18, paddingBottom: 18 }}>
                   <input type="checkbox" checked={selected} onChange={() => toggleSelect(seg.id)}
                     className="mt-1 w-4 h-4 accent-brand cursor-pointer flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1.5">
+                    <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
                       <Eyebrow tone="muted">{String(i + 1).padStart(2, '0')}</Eyebrow>
                       {adopted && (
-                        <span className="text-[10px] font-mono uppercase tracking-[0.12em] px-1.5 py-0.5 bg-green-100 text-green-700 rounded">已采用</span>
+                        <span className="font-mono uppercase bg-green-100 text-green-700 rounded"
+                          style={{ fontSize: 10, letterSpacing: '0.12em', paddingLeft: 6, paddingRight: 6, paddingTop: 2, paddingBottom: 2 }}>已采用</span>
                       )}
                       {seg.status === 'locked' && (
-                        <span className="text-[10px] font-mono uppercase tracking-[0.12em] px-1.5 py-0.5 bg-ink-900 text-white rounded">锁定</span>
+                        <span className="font-mono uppercase bg-ink-900 text-white rounded"
+                          style={{ fontSize: 10, letterSpacing: '0.12em', paddingLeft: 6, paddingRight: 6, paddingTop: 2, paddingBottom: 2 }}>锁定</span>
                       )}
                     </div>
-                    <p className="text-xs text-ink-900 leading-relaxed whitespace-pre-wrap break-words">{seg.source}</p>
+                    <p className="text-ink-900 leading-relaxed whitespace-pre-wrap break-words"
+                      style={{ fontSize: 13 }}>{seg.source}</p>
                     {seg.target && (
-                      <p className="text-[11px] text-ink-500 mt-2 leading-relaxed whitespace-pre-wrap break-words border-l-2 border-brand/30 pl-2.5">{seg.target}</p>
+                      <p className="text-ink-500 leading-relaxed whitespace-pre-wrap break-words border-l-2 border-brand/30"
+                        style={{ fontSize: 12, marginTop: 10, paddingLeft: 10 }}>{seg.target}</p>
                     )}
                   </div>
                 </label>
@@ -346,9 +361,12 @@ export default function ParallelWorkbenchPage() {
         {/* 右侧：模型矩阵 */}
         <section className="flex-1 overflow-auto">
           {/* 配置卡片行 */}
-          <div className="px-6 lg:px-8 py-5 border-b border-line bg-surface">
-            <Eyebrow className="mb-4">Models</Eyebrow>
-            <div className={cn('grid gap-4', gridCols)}>
+          <div className="border-b border-line bg-surface"
+            style={{ paddingLeft: 40, paddingRight: 40, paddingTop: 28, paddingBottom: 28 }}>
+            <div style={{ marginBottom: 16 }}>
+              <Eyebrow>Models</Eyebrow>
+            </div>
+            <div className={cn('grid', gridCols)} style={{ gap: 20 }}>
               {configs.map((cfg, i) => (
                 <ModelConfigPanel
                   key={cfg.id}
@@ -362,42 +380,48 @@ export default function ParallelWorkbenchPage() {
           </div>
 
           {/* 结果矩阵 */}
-          <div className="px-6 lg:px-8 py-6">
+          <div style={{ paddingLeft: 40, paddingRight: 40, paddingTop: 32, paddingBottom: 40 }}>
             {selectedIds.size === 0 && Array.from(results.values()).length === 0 ? (
-              <Card padding="lg" className="text-center py-16">
-                <h3 className="font-serif text-xl text-ink-900 mb-2">还没有翻译结果</h3>
-                <p className="text-ink-500 text-sm">
-                  在左侧勾选要翻译的句子，调整模型配置，然后点「翻译选中」
-                </p>
+              <Card padding="lg" className="text-center">
+                <div style={{ paddingTop: 32, paddingBottom: 32 }}>
+                  <h3 className="font-serif text-ink-900"
+                    style={{ fontSize: 20, fontFamily: 'var(--font-serif)', marginBottom: 10 }}>还没有翻译结果</h3>
+                  <p className="text-ink-500" style={{ fontSize: 13 }}>
+                    在左侧勾选要翻译的句子，调整模型配置，然后点「翻译选中」
+                  </p>
+                </div>
               </Card>
             ) : (
-              <div className="space-y-5">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {segments
                   .filter(seg => selectedIds.has(seg.id) || enabledConfigs.some(c => results.has(makeKey(seg.id, c.provider, c.model))))
                   .map(seg => (
                     <Card key={seg.id} padding="none" className="overflow-hidden">
                       {/* 行头：原文 */}
-                      <div className="px-6 py-4 bg-surface border-b border-line">
-                        <div className="flex items-baseline gap-2 mb-1.5">
+                      <div className="bg-surface border-b border-line"
+                        style={{ paddingLeft: 28, paddingRight: 28, paddingTop: 20, paddingBottom: 20 }}>
+                        <div className="flex items-baseline gap-2" style={{ marginBottom: 8 }}>
                           <Eyebrow tone="muted">SEG {String(segments.indexOf(seg) + 1).padStart(2, '0')}</Eyebrow>
                           {seg.target && (
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 bg-green-100 text-green-700 rounded truncate max-w-md">
+                            <span className="font-mono bg-green-100 text-green-700 rounded truncate"
+                              style={{ fontSize: 10, paddingLeft: 6, paddingRight: 6, paddingTop: 2, paddingBottom: 2, maxWidth: 400 }}>
                               主译文: {seg.target.slice(0, 30)}{seg.target.length > 30 ? '...' : ''}
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-ink-900 leading-relaxed">{seg.source}</p>
+                        <p className="text-ink-900 leading-relaxed" style={{ fontSize: 14 }}>{seg.source}</p>
                       </div>
                       {/* 矩阵 */}
-                      <div className={cn('grid gap-4 p-5', gridCols)}>
+                      <div className={cn('grid', gridCols)}
+                        style={{ gap: 20, padding: 24 }}>
                         {enabledConfigs.map(cfg => {
                           const key = makeKey(seg.id, cfg.provider, cfg.model)
                           const result = results.get(key) || null
                           return (
-                            <div key={cfg.id} className="flex flex-col gap-2">
+                            <div key={cfg.id} className="flex flex-col" style={{ gap: 10 }}>
                               <div className="flex items-center gap-2">
                                 <Eyebrow tone="muted">{windowLabel(configs.indexOf(cfg))}</Eyebrow>
-                                <span className="text-[10px] font-mono text-ink-500">{cfg.model}</span>
+                                <span className="font-mono text-ink-500" style={{ fontSize: 10 }}>{cfg.model}</span>
                               </div>
                               <ParallelTranslationCell
                                 result={result}
