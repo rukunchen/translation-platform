@@ -328,8 +328,8 @@ export default function DashboardPage() {
 
             {/* === 二、我的待办 === */}
             {projects.length > 0 && (
-              <section className="mb-24">
-                <div className="flex items-baseline justify-between mb-10 pb-6 border-b border-line">
+              <section style={{ marginBottom: 96 }}>
+                <div className="flex items-baseline justify-between border-b border-line" style={{ marginBottom: 40, paddingBottom: 24 }}>
                   <div>
                     <Eyebrow tone="muted" className="mb-2">My todos</Eyebrow>
                     <h2 className="font-serif text-xl text-ink-900 leading-tight">我的待办</h2>
@@ -340,12 +340,12 @@ export default function DashboardPage() {
                 </div>
 
                 {/* 类型计数 chip 行 */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-10">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4" style={{ marginBottom: 40 }}>
                   {(Object.keys(todoMeta) as Array<keyof typeof todoMeta>).map(k => {
                     const total = todos.filter(t => t.kind === k).reduce((a, t) => a + t.count, 0)
                     const meta = todoMeta[k]
                     return (
-                      <div key={k} className={cn('rounded-xl border px-5 py-4', meta.cls)}>
+                      <div key={k} className={cn('rounded-xl border', meta.cls)} style={{ padding: '16px 20px' }}>
                         <p className="text-[11px] uppercase tracking-wider font-medium opacity-80">{meta.label}</p>
                         <p className="font-serif text-2xl mt-2">{total}</p>
                       </div>
@@ -364,14 +364,10 @@ export default function DashboardPage() {
                       const meta = todoMeta[t.kind]
                       return (
                         <div key={`${t.kind}-${t.projectId}-${t.documentId ?? ''}-${i}`}
-                          className={cn(
-                            'flex items-center gap-5 px-7 py-5',
-                            i > 0 && 'border-t border-line'
-                          )}>
-                          <span className={cn(
-                            'text-[11px] font-medium px-2.5 py-1 rounded-md border whitespace-nowrap',
-                            meta.cls,
-                          )}>
+                          className={cn('flex items-center gap-5', i > 0 && 'border-t border-line')}
+                          style={{ paddingLeft: 28, paddingRight: 28, paddingTop: 20, paddingBottom: 20 }}>
+                          <span className={cn('text-[11px] font-medium rounded-md border whitespace-nowrap', meta.cls)}
+                            style={{ paddingLeft: 10, paddingRight: 10, paddingTop: 4, paddingBottom: 4 }}>
                             {meta.label}
                           </span>
                           <div className="min-w-0 flex-1">
@@ -393,7 +389,8 @@ export default function DashboardPage() {
                       )
                     })}
                     {todos.length > 10 && (
-                      <div className="px-7 py-4 bg-canvas/50 text-center text-xs text-ink-500 border-t border-line">
+                      <div className="bg-canvas/50 text-center text-xs text-ink-500 border-t border-line"
+                        style={{ paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16 }}>
                         还有 {todos.length - 10} 项待办 · 进入对应项目查看
                       </div>
                     )}
@@ -403,8 +400,8 @@ export default function DashboardPage() {
             )}
 
             {/* === 三、项目卡片 === */}
-            <section className="mb-24">
-              <div className="flex items-end justify-between mb-10 pb-6 border-b border-line">
+            <section style={{ marginBottom: 96 }}>
+              <div className="flex items-end justify-between border-b border-line" style={{ marginBottom: 40, paddingBottom: 24 }}>
                 <div>
                   <Eyebrow tone="muted" className="mb-2">Projects</Eyebrow>
                   <h2 className="font-serif text-xl text-ink-900 leading-tight">
@@ -439,8 +436,8 @@ export default function DashboardPage() {
 
             {/* === 四、最近 AI 翻译实验 === */}
             {experiments.length > 0 && (
-              <section className="mb-24">
-                <div className="flex items-end justify-between mb-10 pb-6 border-b border-line">
+              <section style={{ marginBottom: 96 }}>
+                <div className="flex items-end justify-between border-b border-line" style={{ marginBottom: 40, paddingBottom: 24 }}>
                   <div>
                     <Eyebrow tone="muted" className="mb-2">AI experiments</Eyebrow>
                     <h2 className="font-serif text-xl text-ink-900 leading-tight">最近 AI 翻译实验</h2>
@@ -449,7 +446,8 @@ export default function DashboardPage() {
                 </div>
 
                 <Card padding="none" className="overflow-hidden">
-                  <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-5 px-7 py-4 bg-canvas/60 border-b border-line text-[11px] uppercase tracking-wider text-ink-500 font-medium">
+                  <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-5 bg-canvas/60 border-b border-line text-[11px] uppercase tracking-wider text-ink-500 font-medium"
+                    style={{ paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16 }}>
                     <div>实验 / 项目 · 文档</div>
                     <div className="text-center">模型</div>
                     <div className="text-center">Temperature</div>
@@ -458,10 +456,8 @@ export default function DashboardPage() {
                   </div>
                   {experiments.map((e, i) => (
                     <div key={e.docId}
-                      className={cn(
-                        'grid grid-cols-[1fr_auto_auto_auto_auto] gap-5 px-7 py-5 items-center',
-                        i > 0 && 'border-t border-line'
-                      )}>
+                      className={cn('grid grid-cols-[1fr_auto_auto_auto_auto] gap-5 items-center', i > 0 && 'border-t border-line')}
+                      style={{ paddingLeft: 28, paddingRight: 28, paddingTop: 20, paddingBottom: 20 }}>
                       <div className="min-w-0">
                         <p className="text-sm text-ink-900 font-medium truncate">{e.docTitle}</p>
                         <p className="text-xs text-ink-500 mt-1 truncate">{e.projectName}</p>
@@ -543,7 +539,8 @@ function ProjectCard({ s, router }: {
   const pct = (n: number) => total > 0 ? Math.round((n / total) * 100) : 0
 
   return (
-    <article className="group bg-white border border-line rounded-2xl p-8 hover:border-brand/40 hover:shadow-[var(--shadow-card-hover)] transition-all flex flex-col">
+    <article className="group bg-white border border-line rounded-2xl hover:border-brand/40 hover:shadow-[var(--shadow-card-hover)] transition-all flex flex-col"
+      style={{ padding: '32px' }}>
 
       {/* 标题 + 语言对 badge */}
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -551,7 +548,8 @@ function ProjectCard({ s, router }: {
           {project.name}
         </h3>
         {langPair && (
-          <span className="text-[10px] font-mono text-ink-600 bg-canvas border border-line rounded-md px-2 py-1 whitespace-nowrap">
+          <span className="text-[10px] font-mono text-ink-600 bg-canvas border border-line rounded-md whitespace-nowrap"
+            style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4 }}>
             {langPair}
           </span>
         )}
@@ -585,7 +583,7 @@ function ProjectCard({ s, router }: {
       </div>
 
       {/* 操作按钮 */}
-      <div className="flex items-center gap-2 mt-auto pt-5 border-t border-line">
+      <div className="flex items-center gap-2 mt-auto border-t border-line" style={{ paddingTop: 20 }}>
         <Button size="sm" variant="primary" onClick={() => router.push(`/projects/${project.id}`)}>
           进入项目
         </Button>
