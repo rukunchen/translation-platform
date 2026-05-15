@@ -16,6 +16,7 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Eyebrow } from '@/components/ui/Eyebrow'
 import { cn } from '@/components/ui/cn'
+import { exportParallelMatrix, type ParallelExportFormat } from '@/lib/exportParallel'
 
 type Doc = {
   id: string
@@ -53,6 +54,7 @@ export default function ParallelWorkbenchPage() {
   const [adoptingIds, setAdoptingIds] = useState<Set<string>>(new Set())
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
+  const [exportOpen, setExportOpen] = useState(false)
 
   const segmentsRef = useRef<Segment[]>([])
   useEffect(() => { segmentsRef.current = segments }, [segments])
@@ -188,6 +190,26 @@ export default function ParallelWorkbenchPage() {
     await translateOne(seg, cfg)
   }
 
+  const handleExport = (format: ParallelExportFormat) => {
+    if (!doc) return
+    setExportOpen(false)
+    const hasAnyResult = Array.from(results.values()).some(r => r.status === 'success' && r.translated_text?.trim())
+    const hasAnyTarget = segments.some(s => s.target?.trim())
+    if (!hasAnyResult && !hasAnyTarget) {
+      alert('还没有任何翻译结果可导出。请先翻译一些句段。')
+      return
+    }
+    exportParallelMatrix({
+      title: doc.title,
+      sourceLang: doc.source_language,
+      targetLang: doc.target_language,
+      segments,
+      configs,
+      results,
+      format,
+    })
+  }
+
   const handleAdopt = async (resultId: string, segmentId: string, newText: string) => {
     const seg = segments.find(s => s.id === segmentId)
     if (!seg) return
@@ -307,6 +329,55 @@ export default function ParallelWorkbenchPage() {
         >
           ▶▶ 全文翻译
         </Button>
+
+        {/* 导出（右侧） */}
+        <div className="relative" style={{ marginLeft: 'auto' }}>
+          <Button
+            size="sm" variant="secondary"
+            onClick={() => setExportOpen(o => !o)}
+            disabled={segments.length === 0}
+            leftIcon={
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
+              </svg>
+            }
+          >
+            导出对比表 {exportOpen ? '▴' : '▾'}
+          </Button>
+          {exportOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
+              <div className="absolute right-0 top-full z-20 bg-white border border-line rounded-xl shadow-[var(--shadow-card)] overflow-hidden"
+                style={{ marginTop: 6, width: 240 }}>
+                <div style={{ paddingLeft: 14, paddingRight: 14, paddingTop: 10, paddingBottom: 8, borderBottom: '1px solid var(--color-line)' }}>
+                  <div style={{ fontSize: 10, letterSpacing: '0.14em', color: 'var(--color-ink-400)', textTransform: 'uppercase' }}>Export</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-ink-500)', marginTop: 4 }}>
+                    含原文 + 各模型译文 + 已采用译文
+                  </div>
+                </div>
+                <button onClick={() => handleExport('xlsx')}
+                  className="w-full text-left transition-colors hover:bg-canvas"
+                  style={{ paddingLeft: 14, paddingRight: 14, paddingTop: 10, paddingBottom: 10, fontSize: 13, color: 'var(--color-ink-900)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 16 }}>📊</span>
+                  <span style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 500 }}>Excel (.xlsx)</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-ink-500)', marginTop: 2 }}>表格对比，适合筛选 / 评分</div>
+                  </span>
+                </button>
+                <button onClick={() => handleExport('word')}
+                  className="w-full text-left transition-colors hover:bg-canvas"
+                  style={{ paddingLeft: 14, paddingRight: 14, paddingTop: 10, paddingBottom: 10, fontSize: 13, color: 'var(--color-ink-900)', display: 'flex', alignItems: 'center', gap: 10, borderTop: '1px solid var(--color-line)' }}>
+                  <span style={{ fontSize: 16 }}>📄</span>
+                  <span style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 500 }}>Word (.doc)</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-ink-500)', marginTop: 2 }}>横向 A3 表格，适合打印批注</div>
+                  </span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* 主体 */}
