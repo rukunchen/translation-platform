@@ -46,6 +46,7 @@ export default function GlossaryPage() {
   const [terms, setTerms] = useState<Term[]>([])
   const [projectName, setProjectName] = useState('')
   const [loading, setLoading] = useState(true)
+  const [accessDenied, setAccessDenied] = useState(false)
   const [matching, setMatching] = useState(false)
   const [importing, setImporting] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
@@ -69,13 +70,26 @@ export default function GlossaryPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { router.push('/'); return }
+      void load(user.id)
     })
-    void load()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
-  async function load() {
+  async function load(userId: string) {
     setLoading(true)
+    const { data: memberRow } = await supabase
+      .from('project_members')
+      .select('role')
+      .eq('project_id', projectId)
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (!memberRow) {
+      setAccessDenied(true)
+      setProjectName(''); setTerms([]); setLoading(false)
+      return
+    }
+    setAccessDenied(false)
+
     const [{ data: proj }, { data: rows }] = await Promise.all([
       supabase.from('projects').select('name').eq('id', projectId).maybeSingle(),
       supabase.from('glossary_terms').select('*').eq('project_id', projectId)
@@ -174,7 +188,8 @@ export default function GlossaryPage() {
       )
       if (error) { alert('导入失败：' + error); return }
       alert(`导入完成：新增 ${data?.inserted ?? 0} 条，跳过重复 ${data?.skipped ?? 0} 条`)
-      await load()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) await load(user.id)
     } catch (err) {
       alert('解析文件失败：' + (err instanceof Error ? err.message : String(err)))
     } finally {
@@ -194,7 +209,8 @@ export default function GlossaryPage() {
     if (s) {
       alert(`匹配完成（共 ${data?.total ?? 0} 条）：\n· 已匹配 ${s.matched}\n· 可能未统一 ${s.possibly_inconsistent}\n· 未出现 ${s.not_found}`)
     }
-    await load()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) await load(user.id)
   }
 
   // 筛选 & 搜索
@@ -215,6 +231,20 @@ export default function GlossaryPage() {
       return true
     })
   }, [terms, q, filterCategory, filterMatch, filterQ])
+
+  if (accessDenied) return (
+    <div className="flex h-screen bg-canvas">
+      <Sidebar />
+      <main className="flex-1 overflow-auto p-5">
+        <div className="bg-white rounded-2xl border border-line min-h-[calc(100vh-40px)] flex items-center justify-center">
+          <Card padding="lg" className="text-center max-w-sm">
+            <h3 className="font-serif text-xl text-ink-900 mb-2">无权访问</h3>
+            <Button onClick={() => router.push('/dashboard')}>返回工作台</Button>
+          </Card>
+        </div>
+      </main>
+    </div>
+  )
 
   return (
     <div className="flex h-screen bg-canvas">

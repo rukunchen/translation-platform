@@ -87,10 +87,20 @@ export default function DashboardPage() {
   const [description, setDescription] = useState('')
   const [creating, setCreating] = useState(false)
 
-  const loadAll = useCallback(async () => {
-    // 仅拉用户能看到的项目（RLS 自动过滤）
+  const loadAll = useCallback(async (userId: string) => {
+    const { data: myMemberships } = await supabase
+      .from('project_members')
+      .select('project_id')
+      .eq('user_id', userId)
+    const ids = Array.from(new Set((myMemberships ?? []).map(m => m.project_id as string).filter(Boolean)))
+
+    if (ids.length === 0) {
+      setProjects([]); setDocuments([]); setSegments([]); setMembers([]); setParallel([])
+      return
+    }
+
     const { data: ps } = await supabase
-      .from('projects').select('*').order('created_at', { ascending: false })
+      .from('projects').select('*').in('id', ids).order('created_at', { ascending: false })
     const projectsList = (ps ?? []) as Project[]
     setProjects(projectsList)
 
@@ -98,11 +108,11 @@ export default function DashboardPage() {
       setDocuments([]); setSegments([]); setMembers([]); setParallel([])
       return
     }
-    const ids = projectsList.map(p => p.id)
+    const projectIds = projectsList.map(p => p.id)
 
     const [docsRes, membersRes] = await Promise.all([
-      supabase.from('documents').select('id, project_id, title, source_language, target_language, updated_at, created_at').in('project_id', ids),
-      supabase.from('project_members').select('project_id, user_id, role').in('project_id', ids),
+      supabase.from('documents').select('id, project_id, title, source_language, target_language, updated_at, created_at').in('project_id', projectIds),
+      supabase.from('project_members').select('project_id, user_id, role').in('project_id', projectIds),
     ])
     const docs = (docsRes.data ?? []) as DocumentRow[]
     setDocuments(docs)
@@ -130,7 +140,7 @@ export default function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/'); return }
     setUser(user as typeof user & { id: string })
-    await loadAll()
+    await loadAll(user.id)
     setLoading(false)
   }, [loadAll, router])
 

@@ -44,6 +44,7 @@ export default function ParallelWorkbenchPage() {
   const [doc, setDoc] = useState<Doc | null>(null)
   const [segments, setSegments] = useState<Segment[]>([])
   const [myRole, setMyRole] = useState<Role | null>(null)
+  const [accessDenied, setAccessDenied] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const [configs, setConfigs] = useState<WindowConfig[]>([])
@@ -65,15 +66,26 @@ export default function ParallelWorkbenchPage() {
 
       const { data: d } = await supabase.from('documents').select('*').eq('id', documentId).single()
       if (!d) { setLoading(false); return }
+      const { data: memberRow } = await supabase
+        .from('project_members')
+        .select('role')
+        .eq('project_id', d.project_id)
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (!memberRow) {
+        setAccessDenied(true)
+        setDoc(null); setSegments([]); setResults(new Map()); setLoading(false)
+        return
+      }
+      setAccessDenied(false)
       setDoc(d)
+      setMyRole((memberRow.role as Role) || null)
 
-      const [{ data: segs }, roleRes, resultsRes] = await Promise.all([
+      const [{ data: segs }, resultsRes] = await Promise.all([
         supabase.from('segments').select('*').eq('document_id', documentId).order('position'),
-        apiJSON<{ myRole: Role }>(`/api/projects/${d.project_id}/members`),
         apiJSON<{ results: ParallelResult[] }>(`/api/parallel-translate/results?documentId=${documentId}`),
       ])
       setSegments(segs || [])
-      setMyRole(roleRes.data?.myRole || null)
 
       const m: ResultMap = new Map()
       for (const r of resultsRes.data?.results || []) {
@@ -234,7 +246,7 @@ export default function ParallelWorkbenchPage() {
 
   if (!doc) return (
     <div className="h-screen flex items-center justify-center bg-canvas">
-      <p className="text-ink-500">文档不存在</p>
+      <p className="text-ink-500">{accessDenied ? '无权访问' : '文档不存在'}</p>
     </div>
   )
 

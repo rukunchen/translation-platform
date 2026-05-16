@@ -100,6 +100,7 @@ export default function ProjectPage() {
   const [segments, setSegments] = useState<SegmentRow[]>([])
   const [profiles, setProfiles] = useState<Record<string, Profile>>({})
   const [parallel, setParallel] = useState<ParallelRow[]>([])
+  const [accessDenied, setAccessDenied] = useState(false)
 
   // ---- 新建文档 modal ----
   const [showModal, setShowModal] = useState(false)
@@ -143,7 +144,21 @@ export default function ProjectPage() {
   useEffect(() => { try { localStorage.setItem('proj-tab', tab) } catch {} }, [tab])
   useEffect(() => { try { localStorage.setItem('doc-sort', sort) } catch {} }, [sort])
 
-  const loadAll = useCallback(async () => {
+  const loadAll = useCallback(async (userId: string) => {
+    const { data: memberRow } = await supabase
+      .from('project_members')
+      .select('role')
+      .eq('project_id', projectId)
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (!memberRow) {
+      setAccessDenied(true)
+      setProject(null); setDocuments([]); setSegments([]); setParallel([]); setProfiles({})
+      return
+    }
+    setAccessDenied(false)
+    setMyRole((memberRow.role as Role) || null)
+
     const [{ data: proj }, { data: docs }] = await Promise.all([
       supabase.from('projects').select('*').eq('id', projectId).single(),
       supabase.from('documents').select('id, title, source_language, target_language, created_at, updated_at, created_by').eq('project_id', projectId),
@@ -177,9 +192,8 @@ export default function ProjectPage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { router.push('/'); return }
       setUserId(user.id)
+      void loadAll(user.id)
     })
-    const timer = window.setTimeout(() => { void loadAll() }, 0)
-    return () => window.clearTimeout(timer)
   }, [loadAll, router])
 
   // ---- 文档维度聚合 ----
@@ -360,7 +374,7 @@ export default function ProjectPage() {
     const { error } = await supabase.from('documents').update({ title: editTitle, source_language: editSrc, target_language: editTgt }).eq('id', editingDoc.id)
     setEditSaving(false)
     if (error) { alert('保存失败：' + error.message); return }
-    setEditingDoc(null); await loadAll()
+    if (userId) { setEditingDoc(null); await loadAll(userId) }
   }
   async function confirmDelete() {
     if (!deletingDoc) return
@@ -368,7 +382,7 @@ export default function ProjectPage() {
     const { error } = await supabase.from('documents').delete().eq('id', deletingDoc.id)
     setDeleteBusy(false)
     if (error) { alert('删除失败：' + error.message); return }
-    setDeletingDoc(null); await loadAll()
+    if (userId) { setDeletingDoc(null); await loadAll(userId) }
   }
 
   const langPair = (() => {
@@ -376,6 +390,20 @@ export default function ProjectPage() {
     if (!d) return null
     return `${langNames[d.source_language] ?? d.source_language} → ${langNames[d.target_language] ?? d.target_language}`
   })()
+
+  if (accessDenied) return (
+    <div className="flex h-screen bg-canvas">
+      <Sidebar />
+      <main className="flex-1 overflow-auto p-5">
+        <div className="bg-white rounded-2xl border border-line min-h-[calc(100vh-40px)] flex items-center justify-center">
+          <Card padding="lg" className="text-center max-w-sm">
+            <h3 className="font-serif text-xl text-ink-900 mb-2">无权访问</h3>
+            <Button onClick={() => router.push('/dashboard')}>返回工作台</Button>
+          </Card>
+        </div>
+      </main>
+    </div>
+  )
 
   return (
     <div className="flex h-screen bg-canvas">

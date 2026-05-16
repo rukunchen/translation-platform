@@ -95,6 +95,7 @@ export default function DocumentPage() {
   const [myRole, setMyRole] = useState<Role | null>(null)
   const [doc, setDoc] = useState<Doc | null>(null)
   const [loading, setLoading] = useState(true)
+  const [accessDenied, setAccessDenied] = useState(false)
   const [segments, setSegments] = useState<Segment[]>([])
   const [glossary, setGlossary] = useState<GlossaryTerm[]>([])
   const [showGlossary, setShowGlossary] = useState(false)
@@ -183,9 +184,16 @@ export default function DocumentPage() {
     setUserId(user.id)
     const { data: docData } = await supabase.from('documents').select('*').eq('id', documentId).single()
     if (docData) {
-      setDoc(docData)
       const { data: memberRow } = await supabase.from('project_members')
         .select('role').eq('project_id', docData.project_id).eq('user_id', user.id).maybeSingle()
+      if (!memberRow) {
+        setAccessDenied(true)
+        setDoc(null); setSegments([]); setGlossary([])
+        setLoading(false)
+        return
+      }
+      setAccessDenied(false)
+      setDoc(docData)
       setMyRole((memberRow?.role as Role) || null)
       await loadSegments(docData.id)
       loadGlossary(docData.project_id)
@@ -483,7 +491,7 @@ export default function DocumentPage() {
   )
   if (!doc) return (
     <div className="h-screen flex items-center justify-center bg-canvas">
-      <p style={{ color: 'var(--color-ink-500)' }}>文档不存在</p>
+      <p style={{ color: 'var(--color-ink-500)' }}>{accessDenied ? '无权访问' : '文档不存在'}</p>
     </div>
   )
 
