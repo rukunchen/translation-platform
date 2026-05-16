@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { apiJSON } from '@/lib/apiFetch'
@@ -89,6 +89,7 @@ function deriveDisplayStatus(seg: Segment, comments?: { type: string; text: stri
 export default function DocumentPage() {
   const params = useParams()
   const router = useRouter()
+  const documentId = params.id as string
 
   const [userId, setUserId] = useState<string | null>(null)
   const [myRole, setMyRole] = useState<Role | null>(null)
@@ -127,30 +128,60 @@ export default function DocumentPage() {
   const [unread, setUnread] = useState(0)
 
   const segmentsRef = useRef<Segment[]>([])
+  const editorModeRef = useRef<EditorMode>(editorMode)
   const sourceFocusRef = useRef<Record<string, string>>({})
   const notesFocusRef = useRef<Record<string, string>>({})
 
   useEffect(() => { segmentsRef.current = segments }, [segments])
-  useEffect(() => { loadData() }, [params.id])
-
-  // 切到审校模式时把当前 target 当作「译者译文」快照
-  useEffect(() => {
-    if (editorMode === 'review' && segments.length) {
-      setOrigTargets(prev => {
-        const snap = { ...prev }
-        segments.forEach(s => { if (!(s.id in snap)) snap[s.id] = s.target })
-        return snap
-      })
-    }
-  }, [editorMode, segments.length])
+  useEffect(() => { editorModeRef.current = editorMode }, [editorMode])
 
   // ─── Data ───────────────────────────────────────────────────────────────────
 
-  const loadData = async () => {
+  const addMissingOrigTargets = useCallback((segs: Segment[]) => {
+    if (segs.length === 0) return
+    setOrigTargets(prev => {
+      const snap = { ...prev }
+      let changed = false
+      segs.forEach(s => {
+        if (!(s.id in snap)) {
+          snap[s.id] = s.target
+          changed = true
+        }
+      })
+      return changed ? snap : prev
+    })
+  }, [])
+
+  const loadGlossary = useCallback(async (projectId: string) => {
+    const { data } = await supabase.from('glossary_terms').select('*')
+      .eq('project_id', projectId).order('created_at', { ascending: false })
+    if (data) setGlossary(data)
+  }, [])
+
+  const loadSegments = useCallback(async (documentId: string) => {
+    const { data } = await supabase.from('segments').select('*')
+      .eq('document_id', documentId).order('position', { ascending: true })
+    const segs = (data || []) as Segment[]
+    setSegments(segs)
+    // 初始化「译者译文」快照（首次）
+    const snap: Record<string, string> = {}
+    segs.forEach(s => { snap[s.id] = s.target })
+    setOrigTargets(snap)
+    if (editorModeRef.current === 'review') addMissingOrigTargets(segs)
+    // 把已有的审校意见同步到本地态，便于编辑
+    const rc: Record<string, { type: string; text: string }> = {}
+    segs.forEach(s => {
+      const { reviewType, reviewText } = parseNotes(s.notes)
+      if (reviewType || reviewText) rc[s.id] = { type: reviewType, text: reviewText }
+    })
+    setReviewComments(rc)
+  }, [addMissingOrigTargets])
+
+  const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/'); return }
     setUserId(user.id)
-    const { data: docData } = await supabase.from('documents').select('*').eq('id', params.id).single()
+    const { data: docData } = await supabase.from('documents').select('*').eq('id', documentId).single()
     if (docData) {
       setDoc(docData)
       const { data: memberRow } = await supabase.from('project_members')
@@ -160,30 +191,16 @@ export default function DocumentPage() {
       loadGlossary(docData.project_id)
     }
     setLoading(false)
-  }
+  }, [documentId, loadGlossary, loadSegments, router])
 
-  const loadSegments = async (documentId: string) => {
-    const { data } = await supabase.from('segments').select('*')
-      .eq('document_id', documentId).order('position', { ascending: true })
-    const segs = (data || []) as Segment[]
-    setSegments(segs)
-    // 初始化「译者译文」快照（首次）
-    const snap: Record<string, string> = {}
-    segs.forEach(s => { snap[s.id] = s.target })
-    setOrigTargets(snap)
-    // 把已有的审校意见同步到本地态，便于编辑
-    const rc: Record<string, { type: string; text: string }> = {}
-    segs.forEach(s => {
-      const { reviewType, reviewText } = parseNotes(s.notes)
-      if (reviewType || reviewText) rc[s.id] = { type: reviewType, text: reviewText }
-    })
-    setReviewComments(rc)
-  }
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadData() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadData])
 
-  const loadGlossary = async (projectId: string) => {
-    const { data } = await supabase.from('glossary_terms').select('*')
-      .eq('project_id', projectId).order('created_at', { ascending: false })
-    if (data) setGlossary(data)
+  const switchEditorMode = (mode: EditorMode) => {
+    if (mode === 'review') addMissingOrigTargets(segmentsRef.current)
+    setEditorMode(mode)
   }
 
   // ─── Mutations ──────────────────────────────────────────────────────────────
@@ -239,8 +256,8 @@ export default function DocumentPage() {
         const r = await patchSegment(seg.id, { target: translation })
         if (r.segment) patchLocal(seg.id, r.segment)
       }
-    } catch (e: any) {
-      alert('翻译失败：' + (e?.message || '未知错误'))
+    } catch (e: unknown) {
+      alert('翻译失败：' + (e instanceof Error ? e.message : '未知错误'))
     } finally {
       setTranslatingIds(prev => { const n = new Set(prev); n.delete(seg.id); return n })
     }
@@ -405,7 +422,10 @@ export default function DocumentPage() {
   // ── Batch select ──
   const toggleSelectMode = () => setSelectMode(prev => { if (prev) setSelectedIds(new Set()); return !prev })
   const toggleSelectOne = (id: string) => setSelectedIds(prev => {
-    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n
+    const n = new Set(prev)
+    if (n.has(id)) n.delete(id)
+    else n.add(id)
+    return n
   })
   const selectAllVisible = () => setSelectedIds(new Set(
     segmentsRef.current.filter(s => s.status !== 'locked' || canManage(myRole)).map(s => s.id)
@@ -511,7 +531,7 @@ export default function DocumentPage() {
             {(['translate', 'review'] as EditorMode[]).map(mode => {
               const active = editorMode === mode
               return (
-                <button key={mode} onClick={() => setEditorMode(mode)}
+                <button key={mode} onClick={() => switchEditorMode(mode)}
                   className="transition-all"
                   style={{
                     fontSize: 13, fontWeight: 500, paddingLeft: 14, paddingRight: 14, paddingTop: 7, paddingBottom: 7,

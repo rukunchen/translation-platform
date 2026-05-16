@@ -4,6 +4,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
 import { getMyRole, canManage } from '@/lib/permissions'
 
+type SegmentContext = {
+  id: string
+  status: 'untranslated' | 'draft' | 'reviewed' | 'locked'
+  document_id: string
+  documents?: { project_id?: string | null } | { project_id?: string | null }[] | null
+}
+
 async function getSegmentContext(segmentId: string) {
   const admin = supabaseAdmin()
   const { data: seg } = await admin
@@ -12,9 +19,11 @@ async function getSegmentContext(segmentId: string) {
     .eq('id', segmentId)
     .maybeSingle()
   if (!seg) return null
-  const projectId = (seg.documents as any)?.project_id as string | undefined
+  const row = seg as SegmentContext
+  const document = Array.isArray(row.documents) ? row.documents[0] : row.documents
+  const projectId = document?.project_id || undefined
   if (!projectId) return null
-  return { segment: seg as any, projectId }
+  return { segment: row, projectId }
 }
 
 export async function PATCH(

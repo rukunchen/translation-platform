@@ -5,6 +5,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
 import { getMyRole } from '@/lib/permissions'
 
+type ProfileJoin = { name?: string | null; email?: string | null; avatar_url?: string | null }
+type MessageRow = {
+  id: string
+  content: string
+  created_at: string
+  user_id: string
+  profiles?: ProfileJoin | ProfileJoin[] | null
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
@@ -42,15 +51,18 @@ export async function GET(
   for (const m of members || []) roleMap[m.user_id] = m.role
 
   // 反转回时间正序（前端按时间显示）
-  const messages = (data || []).reverse().map(m => ({
+  const messages = ((data || []) as MessageRow[]).reverse().map(m => {
+    const profile = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles
+    return {
     id: m.id,
     content: m.content,
     created_at: m.created_at,
     user_id: m.user_id,
-    name: (m.profiles as any)?.name || (m.profiles as any)?.email?.split('@')[0] || '匿名',
-    email: (m.profiles as any)?.email,
+    name: profile?.name || profile?.email?.split('@')[0] || '匿名',
+    email: profile?.email,
     role: roleMap[m.user_id] || 'translator',
-  }))
+    }
+  })
 
   return NextResponse.json({ messages })
 }

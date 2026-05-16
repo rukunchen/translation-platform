@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { apiJSON } from '@/lib/apiFetch'
 import { renderInlineMd } from '@/lib/markdown'
@@ -40,12 +40,19 @@ export default function ChatPanel({ projectId, currentUserId, open, onClose, onU
   const openRef = useRef(open)
 
   useEffect(() => { openRef.current = open }, [open])
-  useEffect(() => { onUnreadChange?.(unread) }, [unread])
+  useEffect(() => { onUnreadChange?.(unread) }, [onUnreadChange, unread])
+
+  const scrollToBottom = useCallback(() => {
+    const el = listRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [])
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
     ;(async () => {
+      await Promise.resolve()
+      if (cancelled) return
+      setLoading(true)
       const [{ data: msgRes }, { data: memRes }] = await Promise.all([
         apiJSON<{ messages: ChatMessage[] }>(`/api/chat/${projectId}/messages`),
         apiJSON<{ members: { user_id: string; role: Role; profiles?: { name?: string; email?: string } }[] }>(`/api/projects/${projectId}/members`),
@@ -65,7 +72,7 @@ export default function ChatPanel({ projectId, currentUserId, open, onClose, onU
       setTimeout(() => scrollToBottom(), 30)
     })()
     return () => { cancelled = true }
-  }, [projectId])
+  }, [projectId, scrollToBottom])
 
   useEffect(() => {
     const channel = supabase.channel(`project:${projectId}:chat`)
@@ -85,19 +92,16 @@ export default function ChatPanel({ projectId, currentUserId, open, onClose, onU
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [projectId, currentUserId])
+  }, [projectId, currentUserId, scrollToBottom])
 
   useEffect(() => {
     if (open) {
-      setUnread(0)
-      setTimeout(() => scrollToBottom(), 30)
+      setTimeout(() => {
+        setUnread(0)
+        scrollToBottom()
+      }, 30)
     }
-  }, [open])
-
-  const scrollToBottom = () => {
-    const el = listRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }
+  }, [open, scrollToBottom])
 
   const send = async (e?: React.FormEvent) => {
     e?.preventDefault()

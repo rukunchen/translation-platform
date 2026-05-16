@@ -3,13 +3,17 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
+import { supabaseFromRequest } from '@/lib/supabaseServer'
 import { getMyRole } from '@/lib/permissions'
 
 const deepseek = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY,
   baseURL: 'https://api.deepseek.com'
 })
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,8 +55,8 @@ export async function POST(req: NextRequest) {
         match_status: 'unknown',
       }))
     return NextResponse.json({ terms })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Glossary error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
 }

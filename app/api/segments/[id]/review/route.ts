@@ -5,6 +5,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
 import { getMyRole, canReview } from '@/lib/permissions'
 
+type SegmentContext = {
+  id: string
+  status: 'untranslated' | 'draft' | 'reviewed' | 'locked'
+  target?: string | null
+  document_id: string
+  documents?: { project_id?: string | null } | { project_id?: string | null }[] | null
+}
+
 async function getCtx(segmentId: string) {
   const admin = supabaseAdmin()
   const { data: seg } = await admin
@@ -13,9 +21,11 @@ async function getCtx(segmentId: string) {
     .eq('id', segmentId)
     .maybeSingle()
   if (!seg) return null
-  const projectId = (seg.documents as any)?.project_id as string | undefined
+  const row = seg as SegmentContext
+  const document = Array.isArray(row.documents) ? row.documents[0] : row.documents
+  const projectId = document?.project_id || undefined
   if (!projectId) return null
-  return { segment: seg as any, projectId, admin }
+  return { segment: row, projectId, admin }
 }
 
 export async function POST(

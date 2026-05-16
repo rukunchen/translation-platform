@@ -41,7 +41,6 @@ export default function ParallelWorkbenchPage() {
   const router = useRouter()
   const documentId = params.id as string
 
-  const [userId, setUserId] = useState<string | null>(null)
   const [doc, setDoc] = useState<Doc | null>(null)
   const [segments, setSegments] = useState<Segment[]>([])
   const [myRole, setMyRole] = useState<Role | null>(null)
@@ -63,7 +62,6 @@ export default function ParallelWorkbenchPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/'); return }
-      setUserId(user.id)
 
       const { data: d } = await supabase.from('documents').select('*').eq('id', documentId).single()
       if (!d) { setLoading(false); return }
@@ -89,7 +87,7 @@ export default function ParallelWorkbenchPage() {
 
       setLoading(false)
     })()
-  }, [documentId])
+  }, [documentId, router])
 
   useEffect(() => {
     if (configs.length === 4) saveConfigsToLocal(documentId, configs)

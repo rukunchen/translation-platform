@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
@@ -11,7 +11,6 @@ import { type Role } from '@/lib/permissions'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea, Select } from '@/components/ui/Input'
-import { Eyebrow } from '@/components/ui/Eyebrow'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MainContent } from '@/components/ui/MainContent'
 import { cn } from '@/components/ui/cn'
@@ -127,31 +126,24 @@ export default function ProjectPage() {
   const [menuOpenForDoc, setMenuOpenForDoc] = useState<string | null>(null)
 
   // ---- Tab / 筛选 / 排序 ----
-  const [tab, setTab] = useState<Tab>('collab')
-  const [filter, setFilter] = useState<FilterKey>('all')
-  const [sort, setSort] = useState<SortKey>('updated_desc')
-
-  useEffect(() => {
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window === 'undefined') return 'collab'
     try {
       const t = localStorage.getItem('proj-tab') as Tab | null
-      const s = localStorage.getItem('doc-sort') as SortKey | null
-      if (t === 'collab' || t === 'experiment') setTab(t)
-      if (s) setSort(s)
-    } catch {}
-  }, [])
+      return t === 'collab' || t === 'experiment' ? t : 'collab'
+    } catch { return 'collab' }
+  })
+  const [filter, setFilter] = useState<FilterKey>('all')
+  const [sort, setSort] = useState<SortKey>(() => {
+    if (typeof window === 'undefined') return 'updated_desc'
+    try {
+      return (localStorage.getItem('doc-sort') as SortKey | null) || 'updated_desc'
+    } catch { return 'updated_desc' }
+  })
   useEffect(() => { try { localStorage.setItem('proj-tab', tab) } catch {} }, [tab])
   useEffect(() => { try { localStorage.setItem('doc-sort', sort) } catch {} }, [sort])
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { router.push('/'); return }
-      setUserId(user.id)
-    })
-    void loadAll()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
-
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     const [{ data: proj }, { data: docs }] = await Promise.all([
       supabase.from('projects').select('*').eq('id', projectId).single(),
       supabase.from('documents').select('id, title, source_language, target_language, created_at, updated_at, created_by').eq('project_id', projectId),
@@ -179,7 +171,16 @@ export default function ProjectPage() {
     const profMap: Record<string, Profile> = {}
     for (const p of (profRes.data ?? []) as Profile[]) profMap[p.id] = p
     setProfiles(profMap)
-  }
+  }, [projectId])
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { router.push('/'); return }
+      setUserId(user.id)
+    })
+    const timer = window.setTimeout(() => { void loadAll() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadAll, router])
 
   // ---- 文档维度聚合 ----
   type DocInfo = {
@@ -370,7 +371,6 @@ export default function ProjectPage() {
     setDeletingDoc(null); await loadAll()
   }
 
-  const pct = (n: number, total: number) => total > 0 ? Math.round((n / total) * 100) : 0
   const langPair = (() => {
     const d = documents[0]
     if (!d) return null

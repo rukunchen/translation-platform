@@ -43,7 +43,7 @@ export async function POST(
       project_id: invite.project_id,
       user_id: user.id,
       role: invite.assigned_role,
-      added_by: invite.inviter_user_id as any,
+      added_by: invite.inviter_user_id as string,
     }, { onConflict: 'project_id,user_id' })
 
   if (insertErr) {

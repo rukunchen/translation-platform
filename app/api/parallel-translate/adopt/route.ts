@@ -10,6 +10,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
 import { getMyRole, canManage } from '@/lib/permissions'
 
+type SegmentJoin = { id: string; status: string; target?: string | null }
+type DocumentJoin = { project_id?: string | null }
+
 export async function POST(req: NextRequest) {
   const { client, user } = await supabaseFromRequest(req)
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -36,8 +39,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '该候选译文为空或失败状态，无法采用' }, { status: 400 })
   }
 
-  const segment = pt.segments as any
-  const projectId = (pt.documents as any)?.project_id as string | undefined
+  const segment = (Array.isArray(pt.segments) ? pt.segments[0] : pt.segments) as SegmentJoin | null
+  const document = (Array.isArray(pt.documents) ? pt.documents[0] : pt.documents) as DocumentJoin | null
+  const projectId = document?.project_id || undefined
   if (!segment || !projectId) return NextResponse.json({ error: '关联数据缺失' }, { status: 500 })
 
   // 2) 权限校验

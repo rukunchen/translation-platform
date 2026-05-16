@@ -5,6 +5,12 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://translation-platform-omega.vercel.app'
 
+type ResendSendResult = { data?: { id?: string | null } | null }
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
+
 type InviteEmailParams = {
   to: string
   projectName: string
@@ -68,10 +74,10 @@ export async function sendInviteEmail(params: InviteEmailParams) {
       subject: `${inviterName} 邀请你加入翻译项目「${projectName}」`,
       html,
     })
-    return { ok: true, id: (result as any)?.data?.id, error: null }
-  } catch (e: any) {
+    return { ok: true, id: (result as ResendSendResult)?.data?.id, error: null }
+  } catch (e: unknown) {
     console.error('Resend send error:', e)
-    return { ok: false, id: null, error: e?.message || '发送失败' }
+    return { ok: false, id: null, error: errorMessage(e, '发送失败') }
   }
 }
 

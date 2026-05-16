@@ -31,7 +31,19 @@ export async function apiFetch(input: string, init: RequestInit = {}) {
   return fetch(input, { ...init, headers })
 }
 
-export async function apiJSON<T = any>(input: string, init: RequestInit = {}): Promise<{ data: T | null; error: string | null }> {
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
+
+function jsonError(json: unknown): string | null {
+  if (json && typeof json === 'object' && 'error' in json) {
+    const value = (json as { error?: unknown }).error
+    return typeof value === 'string' ? value : null
+  }
+  return null
+}
+
+export async function apiJSON<T = unknown>(input: string, init: RequestInit = {}): Promise<{ data: T | null; error: string | null }> {
   try {
     const res = await apiFetch(input, init)
     if (res.status === 401) {
@@ -40,9 +52,9 @@ export async function apiJSON<T = any>(input: string, init: RequestInit = {}): P
       return { data: null, error: '会话已失效，请重新登录' }
     }
     const json = await res.json().catch(() => ({}))
-    if (!res.ok) return { data: null, error: json.error || `HTTP ${res.status}` }
+    if (!res.ok) return { data: null, error: jsonError(json) || `HTTP ${res.status}` }
     return { data: json as T, error: null }
-  } catch (e: any) {
-    return { data: null, error: e?.message || '网络错误' }
+  } catch (e: unknown) {
+    return { data: null, error: errorMessage(e, '网络错误') }
   }
 }

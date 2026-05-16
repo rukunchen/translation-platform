@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { apiJSON } from '@/lib/apiFetch'
 import { type Role, roleLabel, canManage } from '@/lib/permissions'
 import RoleBadge from './RoleBadge'
@@ -30,7 +30,8 @@ export default function MembersPanel({ projectId, currentUserId, onRoleChanged }
   const [showInvite, setShowInvite] = useState(false)
   const [editingRoleFor, setEditingRoleFor] = useState<string | null>(null)
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    await Promise.resolve()
     setLoading(true)
     const { data } = await apiJSON<{ members: Member[]; myRole: Role }>(`/api/projects/${projectId}/members`)
     if (data) {
@@ -39,9 +40,12 @@ export default function MembersPanel({ projectId, currentUserId, onRoleChanged }
       onRoleChanged?.(data.myRole)
     }
     setLoading(false)
-  }
+  }, [onRoleChanged, projectId])
 
-  useEffect(() => { load() }, [projectId])
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [load])
 
   const changeRole = async (memberId: string, newRole: Role) => {
     setEditingRoleFor(null)

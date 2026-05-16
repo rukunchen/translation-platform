@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
@@ -87,17 +87,7 @@ export default function DashboardPage() {
   const [description, setDescription] = useState('')
   const [creating, setCreating] = useState(false)
 
-  useEffect(() => { void init() }, [])
-
-  async function init() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/'); return }
-    setUser(user as typeof user & { id: string })
-    await loadAll(user.id)
-    setLoading(false)
-  }
-
-  async function loadAll(userId: string) {
+  const loadAll = useCallback(async () => {
     // 仅拉用户能看到的项目（RLS 自动过滤）
     const { data: ps } = await supabase
       .from('projects').select('*').order('created_at', { ascending: false })
@@ -134,7 +124,20 @@ export default function DashboardPage() {
     } else {
       setSegments([]); setParallel([])
     }
-  }
+  }, [])
+
+  const init = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { router.push('/'); return }
+    setUser(user as typeof user & { id: string })
+    await loadAll()
+    setLoading(false)
+  }, [loadAll, router])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void init() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [init])
 
   async function createProject(e: React.FormEvent) {
     e.preventDefault()

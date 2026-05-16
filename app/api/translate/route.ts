@@ -20,6 +20,10 @@ const langNames: Record<string, string> = {
   fr: '法语', de: '德语', es: '西班牙语', ru: '俄语'
 }
 
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { client, user } = await supabaseFromRequest(req)
@@ -70,9 +74,9 @@ export async function POST(req: NextRequest) {
         ])
         const completion = res as { choices: Array<{ message: { content?: string } }> }
         translation = completion.choices[0]?.message?.content || ''
-      } catch (e: any) {
+      } catch (e: unknown) {
         // DeepSeek 失败（连接错误或超时）→ 自动降级到 Claude
-        console.warn('DeepSeek failed, falling back to Claude:', e?.message)
+        console.warn('DeepSeek failed, falling back to Claude:', errorMessage(e, 'unknown error'))
         translation = await callClaude()
       }
     } else {
@@ -80,8 +84,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ translation })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Translation error:', error)
-    return NextResponse.json({ error: error.message || '翻译失败，请重试' }, { status: 500 })
+    return NextResponse.json({ error: errorMessage(error, '翻译失败，请重试') }, { status: 500 })
   }
 }

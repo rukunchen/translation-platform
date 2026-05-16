@@ -24,6 +24,10 @@ export type TranslateResult = {
   error?: string
 }
 
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
+
 // ============ Anthropic (Claude) ============
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -35,11 +39,11 @@ async function callClaude(opts: TranslateOpts): Promise<TranslateResult> {
       temperature: opts.temperature,
       messages: [{ role: 'user', content: composePrompt(opts) }],
     })
-    const block = res.content[0] as any
-    const text = block?.text || ''
+    const block = res.content[0]
+    const text = block.type === 'text' ? block.text : ''
     return { text }
-  } catch (e: any) {
-    return { text: '', error: e?.message || 'Claude 调用失败' }
+  } catch (e: unknown) {
+    return { text: '', error: errorMessage(e, 'Claude 调用失败') }
   }
 }
 
@@ -58,8 +62,8 @@ async function callDeepseek(opts: TranslateOpts): Promise<TranslateResult> {
     })
     const text = res.choices[0]?.message?.content || ''
     return { text }
-  } catch (e: any) {
-    return { text: '', error: e?.message || 'DeepSeek 调用失败' }
+  } catch (e: unknown) {
+    return { text: '', error: errorMessage(e, 'DeepSeek 调用失败') }
   }
 }
 
@@ -93,8 +97,8 @@ async function callDoubao(opts: TranslateOpts): Promise<TranslateResult> {
     })
     const text = res.choices[0]?.message?.content || ''
     return { text }
-  } catch (e: any) {
-    return { text: '', error: e?.message || 'Doubao 调用失败' }
+  } catch (e: unknown) {
+    return { text: '', error: errorMessage(e, 'Doubao 调用失败') }
   }
 }
 
@@ -127,8 +131,8 @@ async function callOpenAI(opts: TranslateOpts): Promise<TranslateResult> {
     })
     const text = res.choices[0]?.message?.content || ''
     return { text }
-  } catch (e: any) {
-    return { text: '', error: e?.message || 'OpenAI 调用失败' }
+  } catch (e: unknown) {
+    return { text: '', error: errorMessage(e, 'OpenAI 调用失败') }
   }
 }
 

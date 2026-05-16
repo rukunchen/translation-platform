@@ -3,6 +3,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseServer'
 
+type ProjectJoin = { name?: string | null; description?: string | null }
+type ProfileJoin = { name?: string | null; email?: string | null }
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -25,12 +28,14 @@ export async function GET(
 
   const expired = new Date(data.expires_at).getTime() < Date.now()
   const effectiveStatus = expired && data.status === 'pending' ? 'expired' : data.status
+  const project = Array.isArray(data.projects) ? data.projects[0] as ProjectJoin | undefined : data.projects as ProjectJoin | null
+  const inviter = Array.isArray(data.profiles) ? data.profiles[0] as ProfileJoin | undefined : data.profiles as ProfileJoin | null
 
   return NextResponse.json({
     projectId: data.project_id,
-    projectName: (data.projects as any)?.name,
-    projectDescription: (data.projects as any)?.description,
-    inviterName: (data.profiles as any)?.name || (data.profiles as any)?.email,
+    projectName: project?.name,
+    projectDescription: project?.description,
+    inviterName: inviter?.name || inviter?.email,
     inviteeEmail: data.invitee_email,
     role: data.assigned_role,
     status: effectiveStatus,

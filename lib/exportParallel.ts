@@ -145,7 +145,6 @@ function exportWord({ title, sourceLang, targetLang, segments, configs, results 
   }
 
   const date = new Date().toLocaleDateString('zh-CN')
-  const colCount = 2 + enabled.length + 1  // # + 原文 + N 模型 + 已采用
 
   // 列宽分配（百分比）
   const numW = 4
