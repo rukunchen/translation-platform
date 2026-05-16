@@ -66,7 +66,8 @@ export default function AcceptInvitePage() {
 
   const decline = async () => {
     if (!confirm('确定拒绝这个邀请？')) return
-    await apiJSON(`/api/invitations/${token}/decline`, { method: 'POST' })
+    const { error } = await apiJSON(`/api/invitations/${token}/decline`, { method: 'POST' })
+    if (error) { setAuthError(error); return }
     setInvite(prev => prev ? { ...prev, status: 'declined' } : prev)
   }
 
@@ -205,7 +206,12 @@ export default function AcceptInvitePage() {
             )}
             {authError && <div className="bg-red-50 border border-red-100 text-red-700 rounded-xl px-5 py-3 text-sm mb-4">{authError}</div>}
             <div className="flex gap-3">
-              <Button variant="secondary" fullWidth onClick={decline} disabled={submitting}>
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={decline}
+                disabled={submitting || user.email?.toLowerCase() !== invite.inviteeEmail.toLowerCase()}
+              >
                 拒绝
               </Button>
               <Button

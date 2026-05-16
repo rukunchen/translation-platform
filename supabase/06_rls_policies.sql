@@ -45,9 +45,28 @@ $$;
 -- ============ profiles ============
 alter table public.profiles enable row level security;
 
+-- 当前用户只能读取自己，或读取与自己同项目的成员资料。
+-- 使用 security definer 避免 profiles policy 与 project_members policy 互相递归。
+create or replace function public.can_view_profile(p_profile_id uuid)
+returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    p_profile_id = auth.uid()
+    or exists (
+      select 1
+      from public.project_members viewer
+      join public.project_members target
+        on target.project_id = viewer.project_id
+      where viewer.user_id = auth.uid()
+        and target.user_id = p_profile_id
+    );
+$$;
+
 drop policy if exists profiles_select on public.profiles;
 create policy profiles_select on public.profiles
-  for select using (true);  -- 所有登录用户可读所有人的资料（用于显示头像/姓名）
+  for select using (public.can_view_profile(id));
 
 drop policy if exists profiles_update_self on public.profiles;
 create policy profiles_update_self on public.profiles

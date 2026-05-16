@@ -1,10 +1,10 @@
-// GET /api/invitations/[token]   查邀请详情（公开，给接受页用）
+// GET /api/invitations/[token]   查邀请详情（公开，token 本身是 bearer secret）
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseServer'
 
-type ProjectJoin = { name?: string | null; description?: string | null }
-type ProfileJoin = { name?: string | null; email?: string | null }
+type ProjectJoin = { name?: string | null }
+type ProfileJoin = { name?: string | null }
 
 export async function GET(
   _req: NextRequest,
@@ -17,8 +17,8 @@ export async function GET(
     .from('invitations')
     .select(`
       id, project_id, invitee_email, assigned_role, status, expires_at, created_at,
-      projects:project_id ( name, description ),
-      profiles:inviter_user_id ( name, email )
+      projects:project_id ( name ),
+      profiles:inviter_user_id ( name )
     `)
     .eq('token', token)
     .maybeSingle()
@@ -34,8 +34,8 @@ export async function GET(
   return NextResponse.json({
     projectId: data.project_id,
     projectName: project?.name,
-    projectDescription: project?.description,
-    inviterName: inviter?.name || inviter?.email,
+    projectDescription: null,
+    inviterName: inviter?.name || '项目成员',
     inviteeEmail: data.invitee_email,
     role: data.assigned_role,
     status: effectiveStatus,
