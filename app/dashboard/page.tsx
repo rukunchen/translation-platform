@@ -626,16 +626,6 @@ export default function DashboardPage() {
     return arr.slice(0, 5)
   }, [parallel, documents, projects])
 
-  useEffect(() => {
-    if (loading) return
-    const sectionId = window.location.hash.slice(1)
-    if (!sectionId) return
-    const frame = window.requestAnimationFrame(() => {
-      document.getElementById(sectionId)?.scrollIntoView({ block: 'start' })
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [loading])
-
   if (loading) return (
     <div className="dashboard-surface h-screen flex items-center justify-center bg-canvas">
       <div className="flex items-center gap-3 text-ink-600">

@@ -23,6 +23,8 @@ export default function Sidebar() {
 
   useEffect(() => {
     router.prefetch('/dashboard')
+    router.prefetch('/projects')
+    router.prefetch('/ai-experiments')
     router.prefetch('/practice')
     router.prefetch('/writing')
     router.prefetch('/writing/templates')
@@ -34,32 +36,11 @@ export default function Sidebar() {
     router.push('/')
   }
 
-  const [dashboardSection, setDashboardSection] = useState('')
-
-  useEffect(() => {
-    const syncSection = () => setDashboardSection(window.location.hash)
-    syncSection()
-    window.addEventListener('hashchange', syncSection)
-    return () => window.removeEventListener('hashchange', syncSection)
-  }, [pathname])
-
-  function openDashboardSection(sectionId: string) {
-    const href = `/dashboard#${sectionId}`
-    if (pathname === '/dashboard') {
-      window.history.replaceState(null, '', href)
-      setDashboardSection(`#${sectionId}`)
-      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      return
-    }
-    router.push(href)
-  }
-
   const isParallelPage = pathname.includes('/parallel')
-  const isProjectsActive = pathname.startsWith('/projects/')
+  const isProjectsActive = pathname.startsWith('/projects')
     || (pathname.startsWith('/documents/') && !isParallelPage)
-    || (pathname === '/dashboard' && dashboardSection !== '#ai-experiments')
   const isPracticeActive = pathname.startsWith('/practice')
-  const isExperimentsActive = isParallelPage || (pathname === '/dashboard' && dashboardSection === '#ai-experiments')
+  const isExperimentsActive = pathname.startsWith('/ai-experiments') || isParallelPage
   const isWritingActive = pathname.startsWith('/writing')
   const userName = user?.user_metadata?.name || (user?.email ? user.email.split('@')[0] : '用户')
   const initial = (userName[0] || '?').toUpperCase()
@@ -93,7 +74,7 @@ export default function Sidebar() {
         <div className="space-y-2">
           <WorkspaceItem
             active={isProjectsActive}
-            onClick={() => openDashboardSection('projects')}
+            onClick={() => router.push('/projects')}
             icon={<FolderIcon />}
             label="我的项目"
             detail="文档、术语与交付"
@@ -107,7 +88,7 @@ export default function Sidebar() {
           />
           <WorkspaceItem
             active={isExperimentsActive}
-            onClick={() => openDashboardSection('ai-experiments')}
+            onClick={() => router.push('/ai-experiments')}
             icon={<ExperimentIcon />}
             label="最近 AI 翻译实验"
             detail="多模型实验记录"
