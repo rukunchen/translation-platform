@@ -49,6 +49,13 @@ type ExpressionDraft = {
   note: string
 }
 
+type PracticeAiAnalysis = {
+  summary: string
+  issues: string[]
+  suggestions: string[]
+  improvedTranslation: string
+}
+
 export default function TranslationPracticeEditorPage() {
   const router = useRouter()
   const params = useParams()
@@ -63,6 +70,9 @@ export default function TranslationPracticeEditorPage() {
   const [issueDraft, setIssueDraft] = useState<IssueDraft | null>(null)
   const [expressionDraft, setExpressionDraft] = useState<ExpressionDraft | null>(null)
   const [modalSaving, setModalSaving] = useState(false)
+  const [aiAnalyzing, setAiAnalyzing] = useState(false)
+  const [aiAnalysis, setAiAnalysis] = useState<PracticeAiAnalysis | null>(null)
+  const [aiAnalysisError, setAiAnalysisError] = useState('')
 
   const [sourceText, setSourceText] = useState('')
   const [myTranslation, setMyTranslation] = useState('')
@@ -235,6 +245,32 @@ export default function TranslationPracticeEditorPage() {
       return
     }
     patchSegment(segment.id, data as TranslationPracticeSegment)
+  }
+
+  async function handleAiAnalyze() {
+    if (!item || aiAnalyzing) return
+    if (!sourceText.trim() || !myTranslation.trim()) {
+      setAiAnalysisError('请先填写原文和我的译文。')
+      return
+    }
+    setAiAnalyzing(true)
+    setAiAnalysisError('')
+    const response = await fetch('/api/practice/ai-analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceText,
+        userTranslation: myTranslation,
+        practiceType: item.text_type || item.exam_type || '翻译练习',
+      }),
+    })
+    const result = await response.json().catch(() => null) as PracticeAiAnalysis & { error?: string } | null
+    setAiAnalyzing(false)
+    if (!response.ok || !result) {
+      setAiAnalysisError(result?.error || 'AI 分析暂时不可用。')
+      return
+    }
+    setAiAnalysis(result)
   }
 
   function openIssue(segment: TranslationPracticeSegment) {
@@ -459,9 +495,24 @@ export default function TranslationPracticeEditorPage() {
                     <p className="text-xs text-ink-500 mb-3">AI 功能预留</p>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="ghost" disabled>生成 AI 参考译文</Button>
-                      <Button size="sm" variant="ghost" disabled>分析我的译文问题</Button>
+                      <Button size="sm" variant="ghost" loading={aiAnalyzing} onClick={handleAiAnalyze}>分析我的译文问题</Button>
                       <Button size="sm" variant="ghost" disabled>提取高频表达</Button>
                     </div>
+                    {aiAnalysisError && <p className="mt-3 text-xs text-red-600">{aiAnalysisError}</p>}
+                    {aiAnalysis && (
+                      <div className="mt-4 space-y-3 rounded-xl border border-line bg-white" style={{ padding: 16 }}>
+                        <div>
+                          <p className="text-xs text-ink-500 mb-1">Mock 分析</p>
+                          <p className="text-sm text-ink-800 leading-relaxed">{aiAnalysis.summary}</p>
+                        </div>
+                        <AiResultList title="问题" items={aiAnalysis.issues} />
+                        <AiResultList title="建议" items={aiAnalysis.suggestions} />
+                        <div>
+                          <p className="text-xs text-ink-500 mb-1">改写参考</p>
+                          <p className="text-sm text-ink-800 leading-relaxed whitespace-pre-wrap">{aiAnalysis.improvedTranslation}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -554,6 +605,17 @@ export default function TranslationPracticeEditorPage() {
           </form>
         </PracticeModal>
       )}
+    </div>
+  )
+}
+
+function AiResultList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div>
+      <p className="text-xs text-ink-500 mb-1">{title}</p>
+      <ul className="space-y-1 text-sm text-ink-800 list-disc pl-4">
+        {items.map(item => <li key={item}>{item}</li>)}
+      </ul>
     </div>
   )
 }
