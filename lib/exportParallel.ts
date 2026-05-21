@@ -8,6 +8,7 @@ import type { Segment } from './sentenceSplit'
 import type { ParallelResult } from '@/components/ParallelTranslationCell'
 import type { WindowConfig } from './modelPresets'
 import { windowLabel } from './modelPresets'
+import { parallelConfigRunKey, parallelResultKey } from './parallelKeys'
 
 export type ParallelExportFormat = 'word' | 'xlsx'
 
@@ -26,8 +27,8 @@ type Opts = {
   format: ParallelExportFormat
 }
 
-function makeKey(segmentId: string, provider: string, model: string) {
-  return `${segmentId}:${provider}:${model}`
+function makeKey(segmentId: string, config: WindowConfig) {
+  return parallelResultKey(segmentId, parallelConfigRunKey(config))
 }
 
 function escape(s: string): string {
@@ -70,7 +71,7 @@ function exportXlsx({ title, sourceLang, targetLang, segments, configs, results 
   segments.forEach((seg, idx) => {
     const row: (string | number)[] = [idx + 1, seg.source || '']
     enabled.forEach(({ c }) => {
-      const r = results.get(makeKey(seg.id, c.provider, c.model))
+      const r = results.get(makeKey(seg.id, c))
       if (!r) { row.push(''); return }
       if (r.status === 'failed') { row.push(`[失败] ${r.error_message || ''}`); return }
       if (r.status === 'running') { row.push('[翻译中]'); return }
@@ -168,7 +169,7 @@ function exportWord({ title, sourceLang, targetLang, segments, configs, results 
       `<td style="border:1px solid #ccc;padding:8px;vertical-align:top;">${escape(seg.source)}</td>`,
     ]
     enabled.forEach(({ c }) => {
-      const r = results.get(makeKey(seg.id, c.provider, c.model))
+      const r = results.get(makeKey(seg.id, c))
       let content = ''
       let style = 'border:1px solid #ccc;padding:8px;vertical-align:top;'
       if (!r) {

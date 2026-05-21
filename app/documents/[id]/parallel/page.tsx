@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button'
 import { Eyebrow } from '@/components/ui/Eyebrow'
 import { cn } from '@/components/ui/cn'
 import { exportParallelMatrix, type ParallelExportFormat } from '@/lib/exportParallel'
+import { parallelConfigRunKey, parallelResultKey, parallelRunKey } from '@/lib/parallelKeys'
 
 type Doc = {
   id: string
@@ -32,8 +33,12 @@ const langNames: Record<string, string> = {
 }
 
 type ResultMap = Map<string, ParallelResult>
-function makeKey(segmentId: string, provider: string, model: string) {
-  return `${segmentId}:${provider}:${model}`
+function makeKey(segmentId: string, cfg: WindowConfig) {
+  return parallelResultKey(segmentId, parallelConfigRunKey(cfg))
+}
+
+function resultKey(result: ParallelResult) {
+  return parallelResultKey(result.segment_id, parallelRunKey(result))
 }
 
 export default function ParallelWorkbenchPage() {
@@ -55,6 +60,7 @@ export default function ParallelWorkbenchPage() {
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [exportOpen, setExportOpen] = useState(false)
+  const [savingConfigs, setSavingConfigs] = useState(false)
 
   const segmentsRef = useRef<Segment[]>([])
   useEffect(() => { segmentsRef.current = segments }, [segments])
@@ -81,20 +87,26 @@ export default function ParallelWorkbenchPage() {
       setDoc(d)
       setMyRole((memberRow.role as Role) || null)
 
-      const [{ data: segs }, resultsRes] = await Promise.all([
+      const [{ data: segs }, resultsRes, configsRes] = await Promise.all([
         supabase.from('segments').select('*').eq('document_id', documentId).order('position'),
         apiJSON<{ results: ParallelResult[] }>(`/api/parallel-translate/results?documentId=${documentId}`),
+        apiJSON<{ configs: WindowConfig[] }>(`/api/parallel-translate/configs?documentId=${documentId}`),
       ])
       setSegments(segs || [])
 
       const m: ResultMap = new Map()
       for (const r of resultsRes.data?.results || []) {
-        m.set(makeKey(r.segment_id, r.provider, r.model), r)
+        m.set(resultKey(r), r)
       }
       setResults(m)
 
+      const serverConfigs = configsRes.data?.configs || []
       const stored = loadConfigsFromLocal(documentId)
-      if (stored && stored.length === 4) setConfigs(stored)
+      if (serverConfigs.length === 4) {
+        setConfigs(serverConfigs)
+        saveConfigsToLocal(documentId, serverConfigs)
+      }
+      else if (stored && stored.length === 4) setConfigs(stored)
       else setConfigs([0, 1, 2, 3].map(i => makeDefaultConfig(i)))
 
       setLoading(false)
@@ -114,6 +126,19 @@ export default function ParallelWorkbenchPage() {
     setConfigs(prev => prev.map((c, i) => i === idx ? { ...c, enabled: !c.enabled } : c))
   }
 
+  const saveWorkbenchConfigs = async () => {
+    if (!doc || configs.length !== 4) return
+    setSavingConfigs(true)
+    saveConfigsToLocal(documentId, configs)
+    const { error } = await apiJSON('/api/parallel-translate/configs', {
+      method: 'POST',
+      body: JSON.stringify({ documentId: doc.id, configs }),
+    })
+    setSavingConfigs(false)
+    if (error) { alert('保存实验设置失败：' + error); return }
+    alert('AI 翻译实验设置已保存。')
+  }
+
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -126,7 +151,7 @@ export default function ParallelWorkbenchPage() {
 
   const translateOne = async (seg: Segment, cfg: WindowConfig) => {
     if (!doc) return
-    const cellKey = makeKey(seg.id, cfg.provider, cfg.model)
+    const cellKey = makeKey(seg.id, cfg)
     setTranslatingCells(prev => new Set(prev).add(cellKey))
 
     setResults(prev => {
@@ -339,6 +364,21 @@ export default function ParallelWorkbenchPage() {
         >
           ▶▶ 全文翻译
         </Button>
+        <Button
+          size="sm" variant="secondary"
+          onClick={() => router.push(`/documents/${doc.id}/parallel/analysis`)}
+          disabled={segments.length === 0}
+        >
+          翻译案例分析
+        </Button>
+        <Button
+          size="sm" variant="primary"
+          onClick={saveWorkbenchConfigs}
+          disabled={configs.length !== 4 || savingConfigs}
+          loading={savingConfigs}
+        >
+          保存实验设置
+        </Button>
 
         {/* 导出（右侧） */}
         <div className="relative" style={{ marginLeft: 'auto' }}>
@@ -475,7 +515,7 @@ export default function ParallelWorkbenchPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {segments
-                  .filter(seg => selectedIds.has(seg.id) || enabledConfigs.some(c => results.has(makeKey(seg.id, c.provider, c.model))))
+                  .filter(seg => selectedIds.has(seg.id) || enabledConfigs.some(c => results.has(makeKey(seg.id, c))))
                   .map(seg => (
                     <Card key={seg.id} padding="none" className="overflow-hidden">
                       {/* 行头：原文 */}
@@ -496,7 +536,7 @@ export default function ParallelWorkbenchPage() {
                       <div className={cn('grid', gridCols)}
                         style={{ gap: 20, padding: 24 }}>
                         {enabledConfigs.map(cfg => {
-                          const key = makeKey(seg.id, cfg.provider, cfg.model)
+                          const key = makeKey(seg.id, cfg)
                           const result = results.get(key) || null
                           return (
                             <div key={cfg.id} className="flex flex-col" style={{ gap: 10 }}>

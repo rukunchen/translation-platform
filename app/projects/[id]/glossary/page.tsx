@@ -21,6 +21,11 @@ type Term = {
   category: string
   note: string
   definition?: string | null
+  revision_term: string
+  revision_reason: string
+  part_of_speech: string
+  source_evidence: string
+  project_context: string
   status: string
   is_questionable: boolean
   match_status: 'matched' | 'possibly_inconsistent' | 'not_found' | 'unknown'
@@ -31,11 +36,47 @@ type Term = {
 type MatchFilter = 'all' | 'matched' | 'possibly_inconsistent' | 'not_found' | 'unknown'
 type QuestionFilter = 'all' | 'questionable' | 'clean'
 
-const matchMeta: Record<Term['match_status'], { label: string; cls: string }> = {
-  matched:               { label: '✓ 已匹配',     cls: 'bg-green-50 text-green-700 border border-green-100' },
-  possibly_inconsistent: { label: '⚠ 可能未统一', cls: 'bg-amber-50 text-amber-700 border border-amber-100' },
-  not_found:             { label: '○ 未出现',     cls: 'bg-canvas text-ink-500 border border-line' },
-  unknown:               { label: '· 未检查',     cls: 'bg-canvas text-ink-400 border border-line' },
+const GLOSSARY_META_PREFIX = '__GLOSSARY_META_V1__\n'
+
+type GlossaryMeta = {
+  revision_term: string
+  revision_reason: string
+  part_of_speech: string
+  source_evidence: string
+  project_context: string
+  status: string
+}
+
+function emptyMeta(): GlossaryMeta {
+  return {
+    revision_term: '',
+    revision_reason: '',
+    part_of_speech: '',
+    source_evidence: '',
+    project_context: '',
+    status: '',
+  }
+}
+
+function parseGlossaryMeta(note?: string | null, definition?: string | null, category?: string | null): GlossaryMeta {
+  const raw = note || definition || ''
+  if (raw.startsWith(GLOSSARY_META_PREFIX)) {
+    try {
+      return { ...emptyMeta(), ...JSON.parse(raw.slice(GLOSSARY_META_PREFIX.length)) }
+    } catch {
+      return emptyMeta()
+    }
+  }
+  return {
+    ...emptyMeta(),
+    part_of_speech: category || '',
+    source_evidence: definition || '',
+    project_context: note || '',
+  }
+}
+
+function serializeGlossaryMeta(meta: GlossaryMeta): string {
+  return GLOSSARY_META_PREFIX + JSON.stringify(meta)
 }
 
 export default function GlossaryPage() {
@@ -48,6 +89,8 @@ export default function GlossaryPage() {
   const [loading, setLoading] = useState(true)
   const [accessDenied, setAccessDenied] = useState(false)
   const [matching, setMatching] = useState(false)
+  const [lastMatchSnapshot, setLastMatchSnapshot] = useState<Record<string, Term['match_status']> | null>(null)
+  const [undoingMatch, setUndoingMatch] = useState(false)
   const [importing, setImporting] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [newSrc, setNewSrc] = useState('')
@@ -55,6 +98,8 @@ export default function GlossaryPage() {
   const [newCat, setNewCat] = useState('')
   const [newNote, setNewNote] = useState('')
   const [adding, setAdding] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   // 筛选与搜索
   const [q, setQ] = useState('')
@@ -99,11 +144,17 @@ export default function GlossaryPage() {
     // 防御：旧行可能缺新字段（虽然 DB default 会回填，但 select 投影后类型上是 unknown）
     const normalized = (rows ?? []).map(r => {
       const row = r as Record<string, unknown>
+      const meta = parseGlossaryMeta(String(row.note ?? ''), String(row.definition ?? ''), String(row.category ?? ''))
       return {
         ...row,
         category: String(row.category ?? ''),
         note: String(row.note ?? row.definition ?? ''),
-        status: String(row.status ?? 'active'),
+        revision_term: meta.revision_term,
+        revision_reason: meta.revision_reason,
+        part_of_speech: meta.part_of_speech,
+        source_evidence: meta.source_evidence,
+        project_context: meta.project_context,
+        status: meta.status || String(row.status ?? 'active'),
         is_questionable: Boolean(row.is_questionable ?? false),
         match_status: (row.match_status as Term['match_status']) ?? 'unknown',
       } as Term
@@ -132,13 +183,34 @@ export default function GlossaryPage() {
     if (data?.term) patchLocal(id, data.term)
   }
 
-  async function toggleQuestionable(t: Term) {
-    const next = !t.is_questionable
-    patchLocal(t.id, { is_questionable: next })
-    const { error } = await apiJSON(`/api/glossary/${t.id}`, {
-      method: 'PATCH', body: JSON.stringify({ is_questionable: next }),
+  async function saveMetaField(id: string, field: keyof GlossaryMeta, value: string) {
+    const current = terms.find(t => t.id === id)
+    if (!current) return
+    const baseline = baselineRef.current[id]?.[field]
+    if (baseline !== undefined && baseline === value) return
+    const nextMeta: GlossaryMeta = {
+      revision_term: current.revision_term || '',
+      revision_reason: current.revision_reason || '',
+      part_of_speech: current.part_of_speech || '',
+      source_evidence: current.source_evidence || '',
+      project_context: current.project_context || '',
+      status: current.status || '',
+      [field]: value,
+    }
+    const patch: Partial<Term> = {
+      ...nextMeta,
+      note: serializeGlossaryMeta(nextMeta),
+      definition: serializeGlossaryMeta(nextMeta),
+      category: nextMeta.part_of_speech,
+    }
+    patchLocal(id, patch)
+    const { error } = await apiJSON(`/api/glossary/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        definition: serializeGlossaryMeta(nextMeta),
+      }),
     })
-    if (error) { alert('保存失败：' + error); patchLocal(t.id, { is_questionable: !next }) }
+    if (error) { alert('保存失败：' + error); return }
   }
 
   async function deleteTerm(t: Term) {
@@ -146,6 +218,39 @@ export default function GlossaryPage() {
     const { error } = await apiJSON(`/api/glossary/${t.id}`, { method: 'DELETE' })
     if (error) { alert('删除失败：' + error); return }
     setTerms(prev => prev.filter(x => x.id !== t.id))
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.delete(t.id)
+      return next
+    })
+  }
+
+  async function deleteSelectedTerms() {
+    const existingIds = new Set(terms.map(t => t.id))
+    const ids = Array.from(selectedIds).filter(id => existingIds.has(id))
+    if (ids.length === 0) { alert('请先选择要删除的术语。'); return }
+    if (!confirm(`确认删除选中的 ${ids.length} 条术语？此操作无法撤销。`)) return
+
+    setBulkDeleting(true)
+    const deletedIds: string[] = []
+    let failed = 0
+    for (const id of ids) {
+      const { error } = await apiJSON(`/api/glossary/${id}`, { method: 'DELETE' })
+      if (error) failed += 1
+      else deletedIds.push(id)
+    }
+    setBulkDeleting(false)
+
+    if (deletedIds.length > 0) {
+      const deleted = new Set(deletedIds)
+      setTerms(prev => prev.filter(t => !deleted.has(t.id)))
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        deletedIds.forEach(id => next.delete(id))
+        return next
+      })
+    }
+    if (failed > 0) alert(`${failed} 条术语删除失败，请刷新后重试。`)
   }
 
   async function addTerm(e: React.FormEvent) {
@@ -153,15 +258,20 @@ export default function GlossaryPage() {
     if (!newSrc.trim() || !newTgt.trim()) { alert('原文术语与译文术语必填'); return }
     setAdding(true)
     const { data: { user } } = await supabase.auth.getUser()
+    const meta = {
+      ...emptyMeta(),
+      part_of_speech: newCat.trim(),
+      project_context: newNote.trim(),
+      status: 'active',
+    }
     const { data, error } = await supabase.from('glossary_terms').insert({
       project_id: projectId, created_by: user?.id,
       source_term: newSrc.trim(), translated_term: newTgt.trim(),
-      category: newCat.trim(), note: newNote.trim(),
-      status: 'active', is_questionable: false, match_status: 'unknown',
+      definition: serializeGlossaryMeta(meta),
     }).select().single()
     setAdding(false)
     if (error) { alert('新增失败：' + error.message); return }
-    setTerms(prev => [data as Term, ...prev])
+    setTerms(prev => [{ ...(data as Term), ...meta, category: meta.part_of_speech, note: serializeGlossaryMeta(meta), status: 'active', is_questionable: false, match_status: 'unknown' }, ...prev])
     setShowAdd(false); setNewSrc(''); setNewTgt(''); setNewCat(''); setNewNote('')
   }
 
@@ -180,8 +290,8 @@ export default function GlossaryPage() {
       const sheet = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
       // 映射字段
-      const mapped = rows.map(mapRowToTerm).filter(r => r.source_term && r.translated_term)
-      if (mapped.length === 0) { alert('未识别到任何有效行。请确认表头包含原文术语 / 译文术语字段。'); return }
+      const mapped = rows.map(mapRowToTerm).filter(r => r.source_term)
+      if (mapped.length === 0) { alert('未识别到任何有效行。请确认表头包含中文 / 原文术语字段。'); return }
       const { data, error } = await apiJSON<{ inserted: number; skipped: number; total: number }>(
         '/api/glossary/import',
         { method: 'POST', body: JSON.stringify({ projectId, terms: mapped }) }
@@ -198,6 +308,8 @@ export default function GlossaryPage() {
   }
 
   async function runMatch() {
+    if (!confirm('全文匹配只会更新术语表的匹配状态，不会修改任何译文。是否继续？')) return
+    const snapshot = Object.fromEntries(terms.map(t => [t.id, t.match_status])) as Record<string, Term['match_status']>
     setMatching(true)
     const { data, error } = await apiJSON<{ summary: Record<string, number>; total: number }>(
       '/api/glossary/match',
@@ -205,9 +317,35 @@ export default function GlossaryPage() {
     )
     setMatching(false)
     if (error) { alert('匹配失败：' + error); return }
+    setLastMatchSnapshot(snapshot)
     const s = data?.summary
     if (s) {
-      alert(`匹配完成（共 ${data?.total ?? 0} 条）：\n· 已匹配 ${s.matched}\n· 可能未统一 ${s.possibly_inconsistent}\n· 未出现 ${s.not_found}`)
+      alert(`匹配完成（共 ${data?.total ?? 0} 条）：\n· 已匹配 ${s.matched}\n· 可能未统一 ${s.possibly_inconsistent}\n· 未出现 ${s.not_found}\n\n如果是误点，可以点击「撤销本次匹配」恢复之前的匹配状态。`)
+    }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) await load(user.id)
+  }
+
+  async function undoLastMatch() {
+    if (!lastMatchSnapshot) return
+    const ids = Object.keys(lastMatchSnapshot)
+    if (ids.length === 0) return
+    if (!confirm('确认撤销本次全文匹配？这只会恢复术语表的匹配状态，不会修改术语内容或译文。')) return
+    setUndoingMatch(true)
+    let failed = 0
+    await Promise.all(ids.map(async id => {
+      const { error } = await apiJSON(`/api/glossary/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ match_status: lastMatchSnapshot[id] }),
+      })
+      if (error) failed++
+    }))
+    setUndoingMatch(false)
+    if (failed > 0) {
+      alert(`${failed} 条术语匹配状态恢复失败，请刷新后检查。`)
+    } else {
+      alert('已撤销本次全文匹配，匹配状态已恢复。')
+      setLastMatchSnapshot(null)
     }
     const { data: { user } } = await supabase.auth.getUser()
     if (user) await load(user.id)
@@ -216,21 +354,43 @@ export default function GlossaryPage() {
   // 筛选 & 搜索
   const categories = useMemo(() => {
     const set = new Set<string>()
-    terms.forEach(t => t.category && set.add(t.category))
+    terms.forEach(t => t.part_of_speech && set.add(t.part_of_speech))
     return Array.from(set).sort()
   }, [terms])
 
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return terms.filter(t => {
-      if (filterCategory !== 'all' && t.category !== filterCategory) return false
+      if (filterCategory !== 'all' && t.part_of_speech !== filterCategory) return false
       if (filterMatch !== 'all' && t.match_status !== filterMatch) return false
       if (filterQ === 'questionable' && !t.is_questionable) return false
       if (filterQ === 'clean' && t.is_questionable) return false
-      if (needle && !`${t.source_term} ${t.translated_term}`.toLowerCase().includes(needle)) return false
+      if (needle && !`${t.source_term} ${t.translated_term} ${t.revision_term} ${t.project_context}`.toLowerCase().includes(needle)) return false
       return true
     })
   }, [terms, q, filterCategory, filterMatch, filterQ])
+
+  const visibleIds = useMemo(() => visible.map(t => t.id), [visible])
+  const selectedVisibleCount = visibleIds.filter(id => selectedIds.has(id)).length
+  const allVisibleSelected = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length
+
+  function toggleTermSelected(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleVisibleSelected() {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (allVisibleSelected) visibleIds.forEach(id => next.delete(id))
+      else visibleIds.forEach(id => next.add(id))
+      return next
+    })
+  }
 
   if (accessDenied) return (
     <div className="flex h-screen bg-canvas">
@@ -269,6 +429,11 @@ export default function GlossaryPage() {
                   <Button size="sm" variant="secondary" onClick={runMatch} loading={matching}>
                     {matching ? '匹配中...' : '全文匹配'}
                   </Button>
+                  {lastMatchSnapshot && (
+                    <Button size="sm" variant="ghost" onClick={undoLastMatch} loading={undoingMatch}>
+                      {undoingMatch ? '撤销中...' : '撤销本次匹配'}
+                    </Button>
+                  )}
                   <Button size="sm" variant="brand" onClick={() => setShowAdd(true)} leftIcon={<span>+</span>}>
                     新增术语
                   </Button>
@@ -285,9 +450,9 @@ export default function GlossaryPage() {
                   onChange={e => setQ(e.target.value)}
                   placeholder="输入关键字..."
                 />
-                <FilterSelect label="类别" value={filterCategory}
+                <FilterSelect label="词性" value={filterCategory}
                   onChange={setFilterCategory}
-                  options={[['all', '全部类别'], ...categories.map(c => [c, c] as [string, string])]}
+                  options={[['all', '全部词性'], ...categories.map(c => [c, c] as [string, string])]}
                 />
                 <FilterSelect label="疑点" value={filterQ}
                   onChange={v => setFilterQ(v as QuestionFilter)}
@@ -300,19 +465,43 @@ export default function GlossaryPage() {
               </div>
               <p className="mt-4 text-xs text-ink-500">
                 共 <span className="text-ink-900 font-medium">{terms.length}</span> 条 · 当前显示 <span className="text-ink-900 font-medium">{visible.length}</span> 条
+                {selectedIds.size > 0 && <> · 已选择 <span className="text-ink-900 font-medium">{selectedIds.size}</span> 条</>}
               </p>
+              {selectedIds.size > 0 && (
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="danger" onClick={deleteSelectedTerms} loading={bulkDeleting}>
+                    {bulkDeleting ? '删除中...' : `删除选中（${selectedIds.size}）`}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())} disabled={bulkDeleting}>
+                    取消选择
+                  </Button>
+                </div>
+              )}
             </Card>
 
             {/* 术语表格 */}
             <Card padding="none" className="overflow-hidden">
-              <div className="grid grid-cols-[48px_minmax(0,1.2fr)_minmax(0,1.2fr)_120px_minmax(0,1fr)_110px_110px_84px] bg-canvas border-b border-line text-[11px]">
+              <div className="overflow-x-auto">
+              <div className="min-w-[1530px] grid grid-cols-[44px_56px_minmax(130px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)_minmax(160px,1.1fr)_100px_minmax(160px,1.1fr)_minmax(180px,1.2fr)_110px_84px] bg-canvas border-b border-line text-[11px]">
+                <div className="px-3 py-3 flex justify-center">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleVisibleSelected}
+                    disabled={visible.length === 0 || bulkDeleting}
+                    aria-label="全选当前显示的术语"
+                    className="h-4 w-4 rounded border-line text-brand focus:ring-brand"
+                  />
+                </div>
                 <div className="px-4 py-3 flex justify-center"><Eyebrow tone="muted">#</Eyebrow></div>
-                <div className="px-4 py-3"><Eyebrow>原文术语</Eyebrow></div>
-                <div className="px-4 py-3 border-l border-line"><Eyebrow tone="brand">译文术语</Eyebrow></div>
-                <div className="px-4 py-3 border-l border-line"><Eyebrow>类别</Eyebrow></div>
-                <div className="px-4 py-3 border-l border-line"><Eyebrow>备注</Eyebrow></div>
-                <div className="px-3 py-3 border-l border-line"><Eyebrow tone="muted">疑点</Eyebrow></div>
-                <div className="px-3 py-3 border-l border-line"><Eyebrow tone="muted">匹配</Eyebrow></div>
+                <div className="px-4 py-3"><Eyebrow>中文</Eyebrow></div>
+                <div className="px-4 py-3 border-l border-line"><Eyebrow tone="brand">推荐译名</Eyebrow></div>
+                <div className="px-4 py-3 border-l border-line"><Eyebrow>修改译名</Eyebrow></div>
+                <div className="px-4 py-3 border-l border-line"><Eyebrow>修改原因</Eyebrow></div>
+                <div className="px-4 py-3 border-l border-line"><Eyebrow>词性</Eyebrow></div>
+                <div className="px-4 py-3 border-l border-line"><Eyebrow>溯源依据</Eyebrow></div>
+                <div className="px-4 py-3 border-l border-line"><Eyebrow>项目内应用上下文</Eyebrow></div>
+                <div className="px-3 py-3 border-l border-line"><Eyebrow tone="muted">状态</Eyebrow></div>
                 <div className="px-3 py-3 border-l border-line flex justify-center"><Eyebrow tone="muted">操作</Eyebrow></div>
               </div>
 
@@ -329,9 +518,19 @@ export default function GlossaryPage() {
                 visible.map((t, i) => (
                   <div key={t.id}
                     className={cn(
-                      'grid grid-cols-[48px_minmax(0,1.2fr)_minmax(0,1.2fr)_120px_minmax(0,1fr)_110px_110px_84px] border-b border-line last:border-b-0 transition-colors',
+                      'min-w-[1530px] grid grid-cols-[44px_56px_minmax(130px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)_minmax(160px,1.1fr)_100px_minmax(160px,1.1fr)_minmax(180px,1.2fr)_110px_84px] border-b border-line last:border-b-0 transition-colors',
                       t.is_questionable ? 'bg-amber-50/30' : 'hover:bg-canvas/30'
                     )}>
+                    <div className="px-3 py-3 flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(t.id)}
+                        onChange={() => toggleTermSelected(t.id)}
+                        disabled={bulkDeleting}
+                        aria-label={`选择术语 ${t.source_term}`}
+                        className="h-4 w-4 rounded border-line text-brand focus:ring-brand"
+                      />
+                    </div>
                     <div className="px-4 py-3 flex items-center justify-center text-[11px] font-mono text-ink-400">
                       {String(i + 1).padStart(2, '0')}
                     </div>
@@ -352,49 +551,56 @@ export default function GlossaryPage() {
                     />
                     <CellInput
                       borderLeft
-                      placeholder="—"
-                      value={t.category}
-                      onFocus={() => captureBaseline(t, 'category')}
-                      onChange={v => patchLocal(t.id, { category: v })}
-                      onBlur={() => saveField(t.id, 'category', terms.find(x => x.id === t.id)?.category ?? '')}
+                      brand
+                      placeholder="可选"
+                      value={t.revision_term}
+                      onFocus={() => captureBaseline(t, 'revision_term')}
+                      onChange={v => patchLocal(t.id, { revision_term: v })}
+                      onBlur={() => saveMetaField(t.id, 'revision_term', terms.find(x => x.id === t.id)?.revision_term ?? '')}
                     />
                     <CellInput
                       borderLeft
                       multiline
-                      placeholder="备注 / 处理说明"
-                      value={t.note || t.definition || ''}
-                      onFocus={() => captureBaseline(t, 'note')}
-                      onChange={v => patchLocal(t.id, { note: v })}
-                      onBlur={() => saveField(t.id, 'note', terms.find(x => x.id === t.id)?.note ?? '')}
+                      placeholder="说明为什么修改"
+                      value={t.revision_reason}
+                      onFocus={() => captureBaseline(t, 'revision_reason')}
+                      onChange={v => patchLocal(t.id, { revision_reason: v })}
+                      onBlur={() => saveMetaField(t.id, 'revision_reason', terms.find(x => x.id === t.id)?.revision_reason ?? '')}
                     />
-
-                    {/* 疑点 */}
-                    <div className="px-3 py-3 border-l border-line flex items-center justify-center">
-                      <button
-                        onClick={() => toggleQuestionable(t)}
-                        className={cn(
-                          'text-[10px] font-medium rounded-full px-2 py-1 transition-colors uppercase tracking-wider',
-                          t.is_questionable
-                            ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-200'
-                            : 'bg-canvas text-ink-400 hover:bg-canvas-2 border border-line'
-                        )}
-                        title={t.is_questionable ? '点击取消标注' : '点击标注为有疑点'}
-                      >
-                        {t.is_questionable ? '⚠ 有疑点' : '○ 标记'}
-                      </button>
-                    </div>
-
-                    {/* 匹配状态 */}
-                    <div className="px-3 py-3 border-l border-line flex items-center justify-center">
-                      {(() => {
-                        const meta = matchMeta[t.match_status] ?? matchMeta.unknown
-                        return (
-                          <span className={cn('text-[10px] font-medium rounded-full px-2 py-1 uppercase tracking-wider', meta.cls)}>
-                            {meta.label}
-                          </span>
-                        )
-                      })()}
-                    </div>
+                    <CellInput
+                      borderLeft
+                      placeholder="名词/动词..."
+                      value={t.part_of_speech}
+                      onFocus={() => captureBaseline(t, 'part_of_speech')}
+                      onChange={v => patchLocal(t.id, { part_of_speech: v, category: v })}
+                      onBlur={() => saveMetaField(t.id, 'part_of_speech', terms.find(x => x.id === t.id)?.part_of_speech ?? '')}
+                    />
+                    <CellInput
+                      borderLeft
+                      multiline
+                      placeholder="出处、原文依据..."
+                      value={t.source_evidence}
+                      onFocus={() => captureBaseline(t, 'source_evidence')}
+                      onChange={v => patchLocal(t.id, { source_evidence: v })}
+                      onBlur={() => saveMetaField(t.id, 'source_evidence', terms.find(x => x.id === t.id)?.source_evidence ?? '')}
+                    />
+                    <CellInput
+                      borderLeft
+                      multiline
+                      placeholder="项目内使用语境..."
+                      value={t.project_context}
+                      onFocus={() => captureBaseline(t, 'project_context')}
+                      onChange={v => patchLocal(t.id, { project_context: v })}
+                      onBlur={() => saveMetaField(t.id, 'project_context', terms.find(x => x.id === t.id)?.project_context ?? '')}
+                    />
+                    <CellInput
+                      borderLeft
+                      placeholder="active"
+                      value={t.status}
+                      onFocus={() => captureBaseline(t, 'status')}
+                      onChange={v => patchLocal(t.id, { status: v })}
+                      onBlur={() => saveMetaField(t.id, 'status', terms.find(x => x.id === t.id)?.status ?? '')}
+                    />
 
                     {/* 删除 */}
                     <div className="px-3 py-3 border-l border-line flex items-center justify-center">
@@ -410,6 +616,7 @@ export default function GlossaryPage() {
                   </div>
                 ))
               )}
+              </div>
             </Card>
 
           </MainContent>
@@ -422,10 +629,10 @@ export default function GlossaryPage() {
             <h3 className="font-serif text-2xl text-ink-900 mb-2 tracking-tight">新增术语</h3>
             <p className="text-ink-500 text-sm mb-7">手动添加一条术语到当前项目库。</p>
             <form onSubmit={addTerm} className="space-y-4">
-              <Input label="原文术语" value={newSrc} onChange={e => setNewSrc(e.target.value)} required />
-              <Input label="译文术语" value={newTgt} onChange={e => setNewTgt(e.target.value)} required />
-              <Input label="类别（可选）" value={newCat} onChange={e => setNewCat(e.target.value)} placeholder="例：法律 / 学术 / 业务" />
-              <Input label="备注（可选）" value={newNote} onChange={e => setNewNote(e.target.value)} placeholder="说明、出处、用法注意..." />
+              <Input label="中文" value={newSrc} onChange={e => setNewSrc(e.target.value)} required />
+              <Input label="推荐译名" value={newTgt} onChange={e => setNewTgt(e.target.value)} required />
+              <Input label="词性（可选）" value={newCat} onChange={e => setNewCat(e.target.value)} placeholder="例：名词 / 动词 / 短语" />
+              <Input label="项目内应用上下文（可选）" value={newNote} onChange={e => setNewNote(e.target.value)} placeholder="说明在本项目中的使用语境..." />
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" fullWidth type="button" onClick={() => setShowAdd(false)}>取消</Button>
                 <Button variant="primary" fullWidth type="submit" loading={adding}>{adding ? '添加中...' : '添加'}</Button>
@@ -519,18 +726,29 @@ function mapRowToTerm(row: Record<string, unknown>): {
   const keyMap: Record<string, string> = {}
   for (const k of Object.keys(row)) {
     const norm = k.trim().toLowerCase()
-    if (['原文术语', '原文', '术语', 'sourceterm', 'source_term', 'source'].includes(norm)) keyMap.source_term = k
-    else if (['译文术语', '译文', 'targetterm', 'target_term', 'target', 'translation', 'translated_term'].includes(norm)) keyMap.translated_term = k
-    else if (['类别', '分类', 'category', 'type'].includes(norm)) keyMap.category = k
-    else if (['备注', '说明', '注释', 'note', 'remark', 'comment', 'definition'].includes(norm)) keyMap.note = k
+    if (['中文', '原文术语', '原文', '术语', 'sourceterm', 'source_term', 'source'].includes(norm)) keyMap.source_term = k
+    else if (['推荐译名', '译文术语', '译文', 'targetterm', 'target_term', 'target', 'translation', 'translated_term'].includes(norm)) keyMap.translated_term = k
+    else if (['修改译名', '修订译名', 'revision_term', 'revised term'].includes(norm)) keyMap.revision_term = k
+    else if (['修改原因', '修订原因', 'revision_reason', 'reason'].includes(norm)) keyMap.revision_reason = k
+    else if (['词性', 'part_of_speech', 'pos', '类别', '分类', 'category', 'type'].includes(norm)) keyMap.part_of_speech = k
+    else if (['溯源依据', '出处', '来源', 'source_evidence', 'evidence', 'definition'].includes(norm)) keyMap.source_evidence = k
+    else if (['项目内应用上下文', '应用上下文', '上下文', '语境', 'project_context', 'context', '备注', '说明', '注释', 'note', 'remark', 'comment'].includes(norm)) keyMap.project_context = k
     else if (['状态', 'status'].includes(norm)) keyMap.status = k
   }
   const pick = (k: string) => String(keyMap[k] ? row[keyMap[k]] ?? '' : '').trim()
+  const meta: GlossaryMeta = {
+    revision_term: pick('revision_term'),
+    revision_reason: pick('revision_reason'),
+    part_of_speech: pick('part_of_speech'),
+    source_evidence: pick('source_evidence'),
+    project_context: pick('project_context'),
+    status: pick('status') || 'active',
+  }
   return {
     source_term: pick('source_term'),
     translated_term: pick('translated_term'),
-    category: pick('category'),
-    note: pick('note'),
-    status: pick('status') || 'active',
+    category: meta.part_of_speech,
+    note: serializeGlossaryMeta(meta),
+    status: meta.status,
   }
 }

@@ -13,9 +13,29 @@ type Term = {
   id: string
   source_term: string
   translated_term: string
+  definition?: string | null
+  note?: string | null
+  category?: string | null
 }
 
 type MatchStatus = 'matched' | 'possibly_inconsistent' | 'not_found'
+
+const GLOSSARY_META_PREFIX = '__GLOSSARY_META_V1__\n'
+
+function parseRevisionTerm(term: Pick<Term, 'definition' | 'note'>): string {
+  const raw = term.definition || term.note || ''
+  if (!raw.startsWith(GLOSSARY_META_PREFIX)) return ''
+  try {
+    const meta = JSON.parse(raw.slice(GLOSSARY_META_PREFIX.length)) as { revision_term?: unknown }
+    return String(meta.revision_term ?? '').trim()
+  } catch {
+    return ''
+  }
+}
+
+function preferredTargetTerm(term: Term): string {
+  return parseRevisionTerm(term) || String(term.translated_term || '').trim()
+}
 
 export async function POST(req: NextRequest) {
   const { client, user } = await supabaseFromRequest(req)
@@ -32,7 +52,7 @@ export async function POST(req: NextRequest) {
   // 拉所有术语
   const { data: terms, error: termErr } = await admin
     .from('glossary_terms')
-    .select('id, source_term, translated_term')
+    .select('id, source_term, translated_term, definition, note, category')
     .eq('project_id', projectId)
   if (termErr) return NextResponse.json({ error: termErr.message }, { status: 500 })
 
@@ -62,7 +82,7 @@ export async function POST(req: NextRequest) {
 
   await Promise.all(((terms ?? []) as Term[]).map(async t => {
     const src = (t.source_term || '').trim().toLowerCase()
-    const tgt = (t.translated_term || '').trim().toLowerCase()
+    const tgt = preferredTargetTerm(t).toLowerCase()
     if (!src) return
 
     const inSource = src.length > 0 && allSource.includes(src)

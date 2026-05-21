@@ -8,6 +8,11 @@ type SegmentContext = {
   id: string
   status: 'untranslated' | 'draft' | 'reviewed' | 'locked'
   document_id: string
+  source: string
+  target: string
+  translator_target?: string | null
+  review_target?: string | null
+  notes?: string | null
   documents?: { project_id?: string | null } | { project_id?: string | null }[] | null
 }
 
@@ -15,7 +20,7 @@ async function getSegmentContext(segmentId: string) {
   const admin = supabaseAdmin()
   const { data: seg } = await admin
     .from('segments')
-    .select(`id, status, document_id, documents:document_id ( project_id )`)
+    .select(`*, documents:document_id ( project_id )`)
     .eq('id', segmentId)
     .maybeSingle()
   if (!seg) return null
@@ -47,10 +52,12 @@ export async function PATCH(
 
   const body = await req.json().catch(() => ({}))
   const target = typeof body.target === 'string' ? body.target : null
+  const translatorTarget = typeof body.translator_target === 'string' ? body.translator_target : null
+  const reviewTarget = typeof body.review_target === 'string' ? body.review_target : null
   const source = typeof body.source === 'string' ? body.source : null
   const notes = typeof body.notes === 'string' ? body.notes : null
-  if (target === null && source === null && notes === null) {
-    return NextResponse.json({ error: 'target / source / notes required' }, { status: 400 })
+  if (target === null && translatorTarget === null && reviewTarget === null && source === null && notes === null) {
+    return NextResponse.json({ error: 'target / translator_target / review_target / source / notes required' }, { status: 400 })
   }
   if (source !== null && !source.trim()) {
     return NextResponse.json({ error: '原文不能为空' }, { status: 400 })
@@ -61,11 +68,19 @@ export async function PATCH(
   //   - 改 source：locked 维持；reviewed → draft（译文可能已不匹配新原文）
   //   - 仅改 notes：状态不变，审校信息也保留
   let newStatus = ctx.segment.status
-  const contentChanged = target !== null || source !== null
+  const targetChanged = target !== null && target !== ctx.segment.target
+  const translatorTargetChanged = translatorTarget !== null && translatorTarget !== (ctx.segment.translator_target ?? '')
+  const reviewTargetChanged = reviewTarget !== null && reviewTarget !== (ctx.segment.review_target ?? '')
+  const sourceChanged = source !== null && source !== ctx.segment.source
+  const contentChanged = targetChanged || translatorTargetChanged || reviewTargetChanged || sourceChanged
   if (ctx.segment.status !== 'locked') {
-    if (target !== null) {
+    if (targetChanged && target !== null) {
       newStatus = target.trim() ? 'draft' : 'untranslated'
-    } else if (source !== null && ctx.segment.status === 'reviewed') {
+    } else if (translatorTargetChanged && translatorTarget !== null) {
+      newStatus = translatorTarget.trim() ? 'draft' : newStatus
+    } else if (reviewTargetChanged && reviewTarget !== null) {
+      newStatus = reviewTarget.trim() ? 'draft' : newStatus
+    } else if (sourceChanged && ctx.segment.status === 'reviewed') {
       newStatus = 'draft'
     }
   }
@@ -75,6 +90,8 @@ export async function PATCH(
     last_edited_by: user.id,
   }
   if (target !== null) updatePayload.target = target
+  if (translatorTarget !== null) updatePayload.translator_target = translatorTarget
+  if (reviewTarget !== null) updatePayload.review_target = reviewTarget
   if (source !== null) updatePayload.source = source
   if (notes !== null) updatePayload.notes = notes
   if (contentChanged && ctx.segment.status === 'reviewed') {
@@ -83,12 +100,26 @@ export async function PATCH(
   }
 
   const admin = supabaseAdmin()
-  const { data, error } = await admin
+  let { data, error } = await admin
     .from('segments')
     .update(updatePayload)
     .eq('id', id)
     .select()
     .single()
+
+  if (error && /translator_target|review_target|schema cache|column/i.test(error.message)) {
+    const fallbackPayload = { ...updatePayload }
+    delete fallbackPayload.translator_target
+    delete fallbackPayload.review_target
+    const fallback = await admin
+      .from('segments')
+      .update(fallbackPayload)
+      .eq('id', id)
+      .select()
+      .single()
+    data = fallback.data
+    error = fallback.error
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ segment: data })

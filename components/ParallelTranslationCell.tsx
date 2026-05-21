@@ -9,6 +9,8 @@ export type ParallelResult = {
   segment_id: string
   provider: string
   model: string
+  temperature?: number | null
+  prompt?: string | null
   translated_text: string
   status: CellStatus
   error_message?: string | null

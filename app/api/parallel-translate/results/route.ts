@@ -25,8 +25,17 @@ export async function GET(req: NextRequest) {
     .from('parallel_translations')
     .select('id, segment_id, provider, model, temperature, prompt, translated_text, status, error_message, updated_at')
     .eq('document_id', documentId)
+    .neq('provider', '__config__')
     .order('updated_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ results: data || [] })
+  const results = (data || []).map(row => ({
+    ...row,
+    model: displayModel(row.model),
+  }))
+  return NextResponse.json({ results })
+}
+
+function displayModel(model: string): string {
+  return model.replace(/__run_[a-z0-9]+$/, '')
 }

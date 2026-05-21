@@ -7,7 +7,7 @@ import { getMyRole } from '@/lib/permissions'
 
 const ALLOWED_FIELDS = new Set([
   'source_term', 'translated_term', 'category', 'note',
-  'status', 'is_questionable', 'match_status',
+  'definition', 'status', 'is_questionable', 'match_status',
 ])
 
 async function loadProjectId(termId: string): Promise<string | null> {
@@ -43,8 +43,8 @@ export async function PATCH(
     return NextResponse.json({ error: 'no editable fields' }, { status: 400 })
   }
 
-  // 改了原文/译文后，匹配状态置为 unknown，待重新匹配
-  if ('source_term' in payload || 'translated_term' in payload) {
+  // 改了术语原文、推荐译名或元信息里的修改译名后，匹配状态置为 unknown，待重新匹配
+  if ('source_term' in payload || 'translated_term' in payload || 'definition' in payload || 'note' in payload) {
     payload.match_status = 'unknown'
   }
 

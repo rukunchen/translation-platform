@@ -16,6 +16,13 @@ export type ProviderPreset = {
   models: ModelOption[]
 }
 
+export const DEFAULT_MODEL_BY_PROVIDER: Record<ProviderId, string> = {
+  deepseek: 'deepseek-chat',
+  claude: 'claude-opus-4-7',
+  doubao: 'doubao-seed-1-6-250615',
+  openai: 'gpt-5.5',
+}
+
 export const PROVIDERS: ProviderPreset[] = [
   {
     id: 'deepseek',
@@ -41,10 +48,10 @@ export const PROVIDERS: ProviderPreset[] = [
     label: 'Doubao',
     color: '#3656DF',
     models: [
-      { value: 'doubao-1-5-pro-32k', label: 'Doubao 1.5 Pro 32k', hint: '通用主力' },
-      { value: 'doubao-1-5-pro-256k', label: 'Doubao 1.5 Pro 256k', hint: '长文本' },
-      { value: 'doubao-1-5-lite-32k', label: 'Doubao 1.5 Lite 32k', hint: '轻量、便宜' },
-      { value: 'doubao-pro-32k', label: 'Doubao Pro 32k', hint: '老版本兜底' },
+      { value: 'doubao-seed-1-6-250615', label: 'Doubao Seed 1.6', hint: '通用主力' },
+      { value: 'doubao-seed-1-6-flash-250615', label: 'Doubao Seed 1.6 Flash', hint: '更快' },
+      { value: 'doubao-1-5-pro-32k-250115', label: 'Doubao 1.5 Pro 32k', hint: '经典稳定' },
+      { value: 'doubao-1-5-lite-32k-250115', label: 'Doubao 1.5 Lite 32k', hint: '轻量、便宜' },
     ],
   },
   {
@@ -52,10 +59,12 @@ export const PROVIDERS: ProviderPreset[] = [
     label: 'OpenAI',
     color: '#10A37F',
     models: [
+      { value: 'gpt-5.5', label: 'GPT-5.5 Thinking', hint: '最强推理' },
+      { value: 'gpt-5.2', label: 'GPT-5.2 Thinking', hint: '推理增强' },
+      { value: 'gpt-5.1', label: 'GPT-5.1 Thinking', hint: '推理增强' },
+      { value: 'gpt-5', label: 'GPT-5 Thinking', hint: '推理模型' },
       { value: 'gpt-4o', label: 'GPT-4o', hint: '主力多模态' },
       { value: 'gpt-4o-mini', label: 'GPT-4o mini', hint: '便宜、快' },
-      { value: 'gpt-4-turbo', label: 'GPT-4 Turbo', hint: '老版本' },
-      { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', hint: '最便宜' },
     ],
   },
 ]
@@ -106,8 +115,8 @@ export function makeDefaultConfig(idx: number): WindowConfig {
   const slot: { provider: ProviderId; model: string }[] = [
     { provider: 'deepseek', model: 'deepseek-chat' },
     { provider: 'claude',   model: 'claude-opus-4-7' },
-    { provider: 'doubao',   model: 'doubao-1-5-pro-32k' },
-    { provider: 'openai',   model: 'gpt-4o' },
+    { provider: 'doubao',   model: DEFAULT_MODEL_BY_PROVIDER.doubao },
+    { provider: 'openai',   model: DEFAULT_MODEL_BY_PROVIDER.openai },
   ]
   const { provider, model } = slot[idx] ?? slot[0]
   return {

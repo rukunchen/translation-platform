@@ -93,3 +93,123 @@ html, body {
 
 /* 链接默认样式 */
 a { color: inherit; text-decoration: none; }
+
+/* Dashboard 只使用微软雅黑与宋体，状态强调与按钮也收束在同一套低饱和体系内。 */
+.dashboard-surface {
+  --font-dashboard-sans: "Microsoft YaHei", "微软雅黑", sans-serif;
+  --font-dashboard-serif: SimSun, "宋体", serif;
+  font-family: var(--font-dashboard-sans);
+}
+
+.dashboard-surface .font-sans,
+.dashboard-surface .font-mono,
+.dashboard-surface button,
+.dashboard-surface input,
+.dashboard-surface textarea,
+.dashboard-surface select {
+  font-family: var(--font-dashboard-sans);
+}
+
+.dashboard-surface .font-serif {
+  font-family: var(--font-dashboard-serif);
+}
+
+.dashboard-surface .dashboard-action {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface-2);
+  color: var(--color-ink-800);
+}
+
+.dashboard-surface .dashboard-action:hover {
+  border-color: var(--color-brand-200);
+  background: var(--color-brand-50);
+  color: var(--color-ink-900);
+}
+
+.dashboard-surface .dashboard-action-primary {
+  border: 1px solid var(--color-brand);
+  background: var(--color-brand);
+  color: #fff;
+}
+
+.dashboard-surface .dashboard-action-primary:hover {
+  border-color: var(--color-brand-600);
+  background: var(--color-brand-600);
+  color: #fff;
+}
+
+.dashboard-surface .dashboard-action-danger {
+  border: 1px solid #f0c8c3;
+  background: #fff6f4;
+  color: #9a453b;
+}
+
+.dashboard-surface .dashboard-action-danger:hover {
+  border-color: #ddb0aa;
+  background: #fcebe7;
+  color: #7f352c;
+}
+
+/* 论文写作工坊富内容编辑区 */
+.writing-rich-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-ink-300);
+  pointer-events: none;
+}
+
+.writing-rich-editor p {
+  margin: 0 0 0.9rem;
+}
+
+.writing-rich-editor figure {
+  margin: 1.2rem auto;
+  text-align: center;
+}
+
+.writing-rich-editor img {
+  display: block;
+  max-width: 92%;
+  height: auto;
+  margin: 0 auto;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.writing-rich-editor figcaption {
+  margin-top: 0.5rem;
+  color: var(--color-ink-700);
+  font-size: 0.86rem;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.writing-rich-editor .report-table-caption {
+  margin: 1.1rem 0 0.35rem;
+  color: var(--color-ink-700);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.writing-rich-editor table {
+  width: 100%;
+  margin: 0.35rem 0 1.1rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: var(--color-surface-2);
+}
+
+.writing-rich-editor td,
+.writing-rich-editor th {
+  min-width: 96px;
+  border: 1px solid var(--color-line);
+  padding: 11px 13px;
+  vertical-align: top;
+  line-height: 1.7;
+}
+
+.writing-rich-editor th {
+  background: var(--color-canvas-2);
+  font-weight: 600;
+}

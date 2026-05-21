@@ -15,7 +15,9 @@
 // 返回: { result: { id, segment_id, provider, model, status, translated_text, error_message } }
 //
 // 设计：每次调用只翻译 1 条；前端按 (segment × model) 笛卡尔积发 N 次请求，自己控制并发。
-// 同一 (segment, provider, model) 重复翻译会 upsert 覆盖旧记录。
+// 同一 (segment, provider, model, temperature, prompt) 重复翻译会覆盖旧记录。
+// 数据库历史唯一键仍是 (segment_id, provider, model)，所以写库时会把 prompt/temperature
+// 压进内部 model key；实际调用 AI 仍使用用户选择的原始 model。
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
@@ -70,15 +72,17 @@ export async function POST(req: NextRequest) {
 
   // 3) 先写一条 running 记录（让前端能立刻看到进行中状态）
   const temp = clampTemp(temperature)
+  const promptText = (prompt ?? '').trim()
+  const storageModel = storageModelKey(model, temp, promptText)
   const { data: upserted } = await admin
     .from('parallel_translations')
     .upsert({
       document_id: documentId,
       segment_id: segmentId,
       provider,
-      model,
+      model: storageModel,
       temperature: temp,
-      prompt: prompt ?? '',
+      prompt: promptText,
       source_text: seg.source,
       translated_text: '',
       status: 'running',
@@ -92,7 +96,7 @@ export async function POST(req: NextRequest) {
   const { text, error: aiErr } = await translateWith(provider, {
     model,
     temperature: temp,
-    prompt: prompt ?? '',
+    prompt: promptText,
     source: seg.source,
     sourceLang,
     targetLang,
@@ -111,10 +115,24 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
-  return NextResponse.json({ result: final })
+  return NextResponse.json({ result: final ? { ...final, model } : final })
 }
 
 function clampTemp(t?: number): number {
   if (typeof t !== 'number' || isNaN(t)) return 0.3
   return Math.max(0, Math.min(2, t))
+}
+
+function storageModelKey(model: string, temperature: number, prompt: string): string {
+  const normalizedPrompt = prompt.trim()
+  if (!normalizedPrompt && temperature === 0.3) return model
+  return `${model}__run_${shortHash(`${temperature.toFixed(2)}\n${normalizedPrompt}`)}`
+}
+
+function shortHash(input: string): string {
+  let hash = 5381
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) + hash) ^ input.charCodeAt(i)
+  }
+  return (hash >>> 0).toString(36)
 }

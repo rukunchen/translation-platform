@@ -1,5 +1,6 @@
 // POST /api/glossary/import
 // 批量导入术语；与同项目下已有 source_term（不区分大小写）重复的跳过
+// 只要求原文术语存在，其他列允许为空，避免导入时丢失用户表格中的条目。
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
@@ -10,7 +11,25 @@ type Incoming = {
   translated_term: string
   category?: string
   note?: string
+  revision_term?: string
+  revision_reason?: string
+  part_of_speech?: string
+  source_evidence?: string
+  project_context?: string
   status?: string
+}
+
+const GLOSSARY_META_PREFIX = '__GLOSSARY_META_V1__\n'
+
+function serializeGlossaryMeta(t: Incoming): string {
+  if (typeof t.note === 'string' && t.note.startsWith(GLOSSARY_META_PREFIX)) return t.note
+  return GLOSSARY_META_PREFIX + JSON.stringify({
+    revision_term: String(t.revision_term ?? '').trim(),
+    revision_reason: String(t.revision_reason ?? '').trim(),
+    part_of_speech: String(t.part_of_speech ?? t.category ?? '').trim(),
+    source_evidence: String(t.source_evidence ?? '').trim(),
+    project_context: String(t.project_context ?? t.note ?? '').trim(),
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -31,11 +50,16 @@ export async function POST(req: NextRequest) {
     .map(t => ({
       source_term: String(t.source_term ?? '').trim(),
       translated_term: String(t.translated_term ?? '').trim(),
-      category: String(t.category ?? '').trim(),
+      category: String(t.category ?? t.part_of_speech ?? '').trim(),
       note: String(t.note ?? '').trim(),
+      revision_term: String(t.revision_term ?? '').trim(),
+      revision_reason: String(t.revision_reason ?? '').trim(),
+      part_of_speech: String(t.part_of_speech ?? t.category ?? '').trim(),
+      source_evidence: String(t.source_evidence ?? '').trim(),
+      project_context: String(t.project_context ?? '').trim(),
       status: String(t.status ?? 'active').trim() || 'active',
     }))
-    .filter(t => t.source_term && t.translated_term)
+    .filter(t => t.source_term)
 
   if (incoming.length === 0) {
     return NextResponse.json({ inserted: 0, skipped: 0, total: 0 })
@@ -70,11 +94,7 @@ export async function POST(req: NextRequest) {
     created_by: user.id,
     source_term: t.source_term,
     translated_term: t.translated_term,
-    category: t.category ?? '',
-    note: t.note ?? '',
-    status: t.status ?? 'active',
-    match_status: 'unknown',
-    is_questionable: false,
+    definition: serializeGlossaryMeta(t),
   }))
 
   const { error } = await admin.from('glossary_terms').insert(rows)

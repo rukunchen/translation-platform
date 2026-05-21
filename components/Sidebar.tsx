@@ -21,12 +21,46 @@ export default function Sidebar() {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user as User | null))
   }, [])
 
+  useEffect(() => {
+    router.prefetch('/dashboard')
+    router.prefetch('/practice')
+    router.prefetch('/writing')
+    router.prefetch('/writing/templates')
+    router.prefetch('/writing/library')
+  }, [router])
+
   const logout = async () => {
     await supabase.auth.signOut()
     router.push('/')
   }
 
-  const isProjectsActive = pathname === '/dashboard' || pathname.startsWith('/projects/')
+  const [dashboardSection, setDashboardSection] = useState('')
+
+  useEffect(() => {
+    const syncSection = () => setDashboardSection(window.location.hash)
+    syncSection()
+    window.addEventListener('hashchange', syncSection)
+    return () => window.removeEventListener('hashchange', syncSection)
+  }, [pathname])
+
+  function openDashboardSection(sectionId: string) {
+    const href = `/dashboard#${sectionId}`
+    if (pathname === '/dashboard') {
+      window.history.replaceState(null, '', href)
+      setDashboardSection(`#${sectionId}`)
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+    router.push(href)
+  }
+
+  const isParallelPage = pathname.includes('/parallel')
+  const isProjectsActive = pathname.startsWith('/projects/')
+    || (pathname.startsWith('/documents/') && !isParallelPage)
+    || (pathname === '/dashboard' && dashboardSection !== '#ai-experiments')
+  const isPracticeActive = pathname.startsWith('/practice')
+  const isExperimentsActive = isParallelPage || (pathname === '/dashboard' && dashboardSection === '#ai-experiments')
+  const isWritingActive = pathname.startsWith('/writing')
   const userName = user?.user_metadata?.name || (user?.email ? user.email.split('@')[0] : '用户')
   const initial = (userName[0] || '?').toUpperCase()
 
@@ -49,19 +83,43 @@ export default function Sidebar() {
 
       <div style={{ margin: '0 24px' }} className="h-px bg-white/8" />
 
-      {/* 导航 */}
-      <nav className="flex-1 space-y-1" style={{ padding: '20px 16px' }}>
-        <NavItem
-          active={isProjectsActive}
-          onClick={() => router.push('/dashboard')}
-          icon={
-            <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-          }
-          label="所有项目"
-        />
+      {/* 工作入口 */}
+      <nav className="flex-1" style={{ padding: '20px 16px' }}>
+        <div className="mb-4 px-2">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-white/35">Workspace</p>
+          <p className="text-[12px] text-ink-400 mt-1">进入具体工作</p>
+        </div>
+
+        <div className="space-y-2">
+          <WorkspaceItem
+            active={isProjectsActive}
+            onClick={() => openDashboardSection('projects')}
+            icon={<FolderIcon />}
+            label="我的项目"
+            detail="文档、术语与交付"
+          />
+          <WorkspaceItem
+            active={isPracticeActive}
+            onClick={() => router.push('/practice')}
+            icon={<PracticeIcon />}
+            label="译训库"
+            detail="练习与复盘"
+          />
+          <WorkspaceItem
+            active={isExperimentsActive}
+            onClick={() => openDashboardSection('ai-experiments')}
+            icon={<ExperimentIcon />}
+            label="最近 AI 翻译实验"
+            detail="多模型实验记录"
+          />
+          <WorkspaceItem
+            active={isWritingActive}
+            onClick={() => router.push('/writing')}
+            icon={<WritingIcon />}
+            label="论文写作工坊"
+            detail="模板与写作项目"
+          />
+        </div>
       </nav>
 
       <div style={{ margin: '0 24px' }} className="h-px bg-white/8" />
@@ -93,6 +151,47 @@ export default function Sidebar() {
   )
 }
 
+function WorkspaceItem({
+  active, onClick, icon, label, detail,
+}: {
+  active?: boolean
+  onClick: () => void
+  icon: React.ReactNode
+  label: string
+  detail: string
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'group relative w-full overflow-hidden rounded-xl border text-left transition-all duration-200',
+        active
+          ? 'border-white/12 bg-white/[0.09] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
+          : 'border-transparent text-ink-300 hover:border-white/8 hover:bg-white/[0.055] hover:text-white'
+      )}
+      style={{ padding: '12px 11px' }}
+    >
+      {active && <span className="absolute left-0 top-3 bottom-3 w-0.5 rounded-r-full bg-brand" />}
+      <span className="flex items-center gap-3">
+        <span className={cn(
+          'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border transition-colors',
+          active
+            ? 'border-brand/30 bg-brand/15 text-brand'
+            : 'border-white/8 bg-white/[0.045] text-ink-400 group-hover:text-brand'
+        )}>
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13.5px] font-medium leading-tight">{label}</span>
+          <span className={cn('mt-1 block truncate text-[11px] leading-tight', active ? 'text-white/50' : 'text-ink-400')}>
+            {detail}
+          </span>
+        </span>
+      </span>
+    </button>
+  )
+}
+
 function NavItem({
   active, onClick, icon, label, subtle,
 }: {
@@ -119,5 +218,44 @@ function NavItem({
       <span className="truncate">{label}</span>
       {active && <span className="ml-auto w-1 h-5 rounded-full bg-brand" />}
     </button>
+  )
+}
+
+function FolderIcon() {
+  return (
+    <svg className="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
+        d="M3.75 7.5A2.25 2.25 0 016 5.25h4.1c.56 0 1.1.21 1.5.59l1.3 1.22c.28.27.66.44 1.05.44H18A2.25 2.25 0 0120.25 9.75v7.5A2.25 2.25 0 0118 19.5H6a2.25 2.25 0 01-2.25-2.25V7.5z" />
+    </svg>
+  )
+}
+
+function PracticeIcon() {
+  return (
+    <svg className="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
+        d="M6.75 5.25h7.5A2.25 2.25 0 0116.5 7.5v11.25l-3.38-2.25-3.37 2.25V7.5A2.25 2.25 0 017.5 5.25h-.75z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M7.5 8.25h5.25M7.5 11.25h5.25" />
+    </svg>
+  )
+}
+
+function ExperimentIcon() {
+  return (
+    <svg className="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
+        d="M9.75 4.5v4.2l-4.2 7.02A2.25 2.25 0 007.48 19.5h9.04a2.25 2.25 0 001.93-3.78l-4.2-7.02V4.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M8.25 4.5h7.5M7.55 14.25h8.9" />
+    </svg>
+  )
+}
+
+function WritingIcon() {
+  return (
+    <svg className="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
+        d="M6.75 4.5h7.5l3 3v12H6.75a2.25 2.25 0 01-2.25-2.25V6.75A2.25 2.25 0 016.75 4.5z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M14.25 4.5v3h3M8.25 11.25h5.25M8.25 14.25h6.75" />
+    </svg>
   )
 }

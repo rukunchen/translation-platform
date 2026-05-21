@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -9,11 +9,14 @@ import { Input } from '@/components/ui/Input'
 import { Eyebrow } from '@/components/ui/Eyebrow'
 import Logo from '@/components/Logo'
 
-const features = [
-  { zh: '小组翻译与审校协作', en: 'In-team translation & review' },
-  { zh: '多模型 AI 翻译实验', en: 'Multi-model translation experiments' },
-  { zh: '术语库、版本记录与数据导出', en: 'Glossary, history & research export' },
-]
+function friendlyAuthError(message: string) {
+  if (/invalid login credentials/i.test(message)) return '邮箱或密码错误，请重试。'
+  if (/email not confirmed/i.test(message)) return '邮箱尚未验证，请先打开验证邮件完成确认后再登录。'
+  if (/signup disabled/i.test(message)) return '当前 Supabase 项目关闭了注册，请联系管理员创建账号。'
+  if (/user already registered|already registered/i.test(message)) return '这个邮箱已经注册，请直接登录。'
+  if (/password/i.test(message)) return '密码不符合要求，请确认至少 6 位。'
+  return message || '操作失败，请稍后重试。'
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -25,17 +28,38 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
+  useEffect(() => {
+    let alive = true
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!alive) return
+      if (data.session) {
+        router.replace('/dashboard')
+        return
+      }
+      if (error && /refresh token|invalid token|expired/i.test(error.message)) {
+        void supabase.auth.signOut()
+      }
+    })
+    return () => { alive = false }
+  }, [router])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true); setError(''); setMessage('')
     if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setError('邮箱或密码错误，请重试')
+      if (error) setError(friendlyAuthError(error.message))
       else router.push('/dashboard')
     } else {
-      const { error } = await supabase.auth.signUp({ email, password, options: { data: { name } } })
-      if (error) setError('注册失败：' + error.message)
-      else { setMessage('注册成功！请登录。'); setIsLogin(true) }
+      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name } } })
+      if (error) {
+        setError('注册失败：' + friendlyAuthError(error.message))
+      } else if (data.session) {
+        router.push('/dashboard')
+      } else {
+        setMessage('注册成功！请检查邮箱完成验证后再登录。')
+        setIsLogin(true)
+      }
     }
     setLoading(false)
   }
@@ -49,12 +73,12 @@ export default function LoginPage() {
           <Logo size={40} priority className="flex-shrink-0" />
           <div className="flex flex-col leading-tight min-w-0">
             <span className="text-ink-900 font-semibold text-base tracking-tight">译境</span>
-            <span className="hidden sm:inline text-ink-500 text-[11px] mt-0.5 truncate">深技大25级 MTI 翻译协作与研究平台</span>
+            <span className="hidden sm:inline text-ink-500 text-[11px] mt-0.5 truncate">深圳技术大学2025级MTI翻译写作与研究平台</span>
           </div>
         </div>
 
         {/* 中部主内容 */}
-        <div className="w-full max-w-xl">
+        <div className="w-full max-w-xl" style={{ transform: 'translateY(18px)' }}>
           {/* 头图 — mix-blend-multiply 让米白底融入 canvas 色 */}
           <div className="mb-10 -mx-2">
             <Image
@@ -110,17 +134,6 @@ export default function LoginPage() {
             支持分句翻译、多人审校、多模型 AI 译文对比、<wbr />Prompt 与 Temperature 实验记录，以及研究数据导出。
           </p>
 
-          <div className="mt-8 mx-auto max-w-md pt-6 border-t border-ink-900/10">
-            <ul className="space-y-3 text-sm">
-              {features.map(f => (
-                <li key={f.zh} className="flex items-center gap-3 whitespace-nowrap">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand flex-shrink-0" />
-                  <span className="text-ink-900">{f.zh}</span>
-                  <span className="text-ink-400 text-[11px] italic ml-auto">{f.en}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
         </div>
 
         {/* 底部版权 */}

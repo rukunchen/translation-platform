@@ -9,6 +9,8 @@ export type Segment = {
   position?: number
   source: string
   target: string
+  translator_target?: string | null
+  review_target?: string | null
   notes?: string
   status?: SegmentStatus
   reviewed_by?: string | null

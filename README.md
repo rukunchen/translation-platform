@@ -99,7 +99,7 @@ npm run build
 - DeepSeek：配置 `DEEPSEEK_API_KEY`。
 - Anthropic Claude：配置 `ANTHROPIC_API_KEY`。
 - OpenAI：配置 `OPENAI_API_KEY`，如使用代理或兼容服务可配置 `OPENAI_BASE_URL`。
-- Doubao：配置 `DOUBAO_API_KEY`，必要时配置 `DOUBAO_BASE_URL`。
+- Doubao：配置 `DOUBAO_API_KEY`，必要时配置 `DOUBAO_BASE_URL`。也兼容火山方舟官方文档里的 `ARK_API_KEY` / `ARK_BASE_URL` 命名。
 
 多模型并行翻译工作台会根据前端模型配置调用对应 provider。未配置的 provider 会在 API 返回配置缺失错误。
 
