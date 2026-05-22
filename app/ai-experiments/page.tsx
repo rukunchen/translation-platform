@@ -148,7 +148,10 @@ export default function AiExperimentsPage() {
             ) : (
               <Card padding="none" className="overflow-hidden">
                 <div className="overflow-x-auto">
-                  <div className="grid min-w-[760px] grid-cols-[minmax(240px,1fr)_auto_auto_auto_auto] gap-5 border-b border-line bg-canvas/60 px-7 py-4 text-[11px] font-medium uppercase tracking-wider text-ink-500">
+                  <div
+                    className="grid min-w-[760px] grid-cols-[minmax(240px,1fr)_auto_auto_auto_auto] gap-5 border-b border-line bg-canvas/60 text-[11px] font-medium uppercase tracking-wider text-ink-500"
+                    style={{ paddingLeft: 42, paddingRight: 28, paddingTop: 16, paddingBottom: 16 }}
+                  >
                     <div>实验 / 项目 · 文档</div>
                     <div className="text-center">模型</div>
                     <div className="text-center">Temperature</div>
@@ -156,8 +159,11 @@ export default function AiExperimentsPage() {
                     <div className="text-right">操作</div>
                   </div>
                   {experiments.map((experiment, index) => (
-                    <div key={experiment.docId}
-                      className={cn('grid min-w-[760px] grid-cols-[minmax(240px,1fr)_auto_auto_auto_auto] items-center gap-5 px-7 py-5', index > 0 && 'border-t border-line')}>
+                    <div
+                      key={experiment.docId}
+                      className={cn('grid min-w-[760px] grid-cols-[minmax(240px,1fr)_auto_auto_auto_auto] items-center gap-5', index > 0 && 'border-t border-line')}
+                      style={{ paddingLeft: 42, paddingRight: 28, paddingTop: 20, paddingBottom: 20 }}
+                    >
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-ink-900 truncate">{experiment.docTitle}</p>
                         <p className="text-xs text-ink-500 mt-1 truncate">{experiment.projectName}</p>

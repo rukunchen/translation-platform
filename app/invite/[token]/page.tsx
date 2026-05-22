@@ -35,8 +35,6 @@ export default function AcceptInvitePage() {
   const [error, setError] = useState('')
   const [user, setUser] = useState<User | null>(null)
 
-  const [mode, setMode] = useState<'login' | 'signup'>('signup')
-  const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [authError, setAuthError] = useState('')
@@ -76,26 +74,13 @@ export default function AcceptInvitePage() {
     if (!invite) return
     setSubmitting(true); setAuthError('')
 
-    if (mode === 'signup') {
-      const { error: err } = await supabase.auth.signUp({
-        email: invite.inviteeEmail, password,
-        options: { data: { name } },
-      })
-      if (err) { setAuthError('注册失败：' + err.message); setSubmitting(false); return }
-      const { data: { user: u } } = await supabase.auth.getUser()
-      if (u) { setUser(u as User); setSubmitting(false); return }
-      setAuthError('注册成功！请检查邮箱完成验证后回来登录。')
-      setMode('login')
-      setSubmitting(false)
-    } else {
-      const { error: err } = await supabase.auth.signInWithPassword({
-        email: invite.inviteeEmail, password,
-      })
-      if (err) { setAuthError('登录失败：' + err.message); setSubmitting(false); return }
-      const { data: { user: u } } = await supabase.auth.getUser()
-      setUser(u as User)
-      setSubmitting(false)
-    }
+    const { error: err } = await supabase.auth.signInWithPassword({
+      email: invite.inviteeEmail, password,
+    })
+    if (err) { setAuthError('登录失败：' + err.message); setSubmitting(false); return }
+    const { data: { user: u } } = await supabase.auth.getUser()
+    setUser(u as User)
+    setSubmitting(false)
   }
 
   if (loading) return (
@@ -236,19 +221,9 @@ export default function AcceptInvitePage() {
         ) : (
           <>
             <p className="text-ink-500 text-sm mb-5">
-              {mode === 'signup' ? '请用邀请邮箱注册账号，注册后会自动加入项目。' : '请用邀请邮箱登录。'}
+              请使用平台管理员已创建的账号登录。尚未开通账号时，请联系平台管理员。
             </p>
             <form onSubmit={handleAuth} className="space-y-4">
-              {mode === 'signup' && (
-                <Input
-                  label="姓名"
-                  type="text"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="请输入你的姓名"
-                  required
-                />
-              )}
               <Input
                 label="邮箱"
                 type="email"
@@ -261,23 +236,14 @@ export default function AcceptInvitePage() {
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder={mode === 'signup' ? '至少 6 位' : '输入你的密码'}
+                placeholder="输入你的密码"
                 required
               />
               {authError && <div className="bg-red-50 border border-red-100 text-red-700 rounded-xl px-5 py-3 text-sm">{authError}</div>}
               <Button variant="primary" size="lg" fullWidth type="submit" loading={submitting}>
-                {submitting ? '处理中...' : mode === 'signup' ? '注册并加入项目' : '登录并加入项目'}
+                {submitting ? '处理中...' : '登录并加入项目'}
               </Button>
             </form>
-            <p className="text-center text-sm text-ink-500 mt-5">
-              {mode === 'signup' ? '已有账号？' : '还没有账号？'}
-              <button
-                onClick={() => { setMode(mode === 'signup' ? 'login' : 'signup'); setAuthError('') }}
-                className="text-brand hover:text-brand-600 font-medium ml-1.5"
-              >
-                {mode === 'signup' ? '去登录' : '去注册'}
-              </button>
-            </p>
           </>
         )}
 

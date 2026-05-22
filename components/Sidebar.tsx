@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
+import { isPlatformAdmin } from '@/lib/platformAdmin'
 import { cn } from './ui/cn'
 import Logo from './Logo'
 
@@ -29,6 +30,7 @@ export default function Sidebar() {
     router.prefetch('/writing')
     router.prefetch('/writing/templates')
     router.prefetch('/writing/library')
+    router.prefetch('/admin')
   }, [router])
 
   const logout = async () => {
@@ -42,6 +44,7 @@ export default function Sidebar() {
   const isPracticeActive = pathname.startsWith('/practice')
   const isExperimentsActive = pathname.startsWith('/ai-experiments') || isParallelPage
   const isWritingActive = pathname.startsWith('/writing')
+  const isAdminActive = pathname.startsWith('/admin')
   const userName = user?.user_metadata?.name || (user?.email ? user.email.split('@')[0] : '用户')
   const initial = (userName[0] || '?').toUpperCase()
 
@@ -100,6 +103,15 @@ export default function Sidebar() {
             label="论文写作工坊"
             detail="模板与写作项目"
           />
+          {isPlatformAdmin(user) && (
+            <WorkspaceItem
+              active={isAdminActive}
+              onClick={() => router.push('/admin')}
+              icon={<AdminIcon />}
+              label="管理控制台"
+              detail="成员与活动观察"
+            />
+          )}
         </div>
       </nav>
 
@@ -237,6 +249,17 @@ function WritingIcon() {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
         d="M6.75 4.5h7.5l3 3v12H6.75a2.25 2.25 0 01-2.25-2.25V6.75A2.25 2.25 0 016.75 4.5z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M14.25 4.5v3h3M8.25 11.25h5.25M8.25 14.25h6.75" />
+    </svg>
+  )
+}
+
+function AdminIcon() {
+  return (
+    <svg className="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
+        d="M12 4.5l6.75 2.25v4.8c0 4.23-2.7 6.95-6.75 7.95-4.05-1-6.75-3.72-6.75-7.95v-4.8L12 4.5z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
+        d="M9.75 12l1.5 1.5 3.25-3.5" />
     </svg>
   )
 }

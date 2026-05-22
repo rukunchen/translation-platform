@@ -1,11 +1,17 @@
-// GET /api/projects/[id]/members          列成员
-// POST /api/projects/[id]/members         发送邀请（manager only）
+// GET /api/projects/[id]/members          列成员（project members）
+// POST /api/projects/[id]/members         发送邀请（platform admin + manager）
 
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
 import { getMyRole, canManage } from '@/lib/permissions'
 import { sendInviteEmail } from '@/lib/email'
+import { getInviteUrl } from '@/lib/siteUrl'
+import { isPlatformAdmin } from '@/lib/platformAdmin'
+
+function linkErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : '生成邀请链接失败'
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: projectId } = await params
@@ -35,6 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id: projectId } = await params
   const { client, user } = await supabaseFromRequest(req)
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  if (!isPlatformAdmin(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const role = await getMyRole(client, projectId, user.id)
   if (!canManage(role)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
@@ -48,6 +55,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   if (assignedRole !== 'translator' && assignedRole !== 'reviewer') {
     return NextResponse.json({ error: '角色必须是 translator 或 reviewer' }, { status: 400 })
+  }
+
+  try {
+    getInviteUrl('site-url-check')
+  } catch (error: unknown) {
+    return NextResponse.json({ error: linkErrorMessage(error) }, { status: 500 })
   }
 
   const admin = supabaseAdmin()
@@ -87,6 +100,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (existingInvite) {
     token = existingInvite.token
     inviteId = existingInvite.id
+    const { error: updateErr } = await admin
+      .from('invitations')
+      .update({ assigned_role: assignedRole })
+      .eq('id', inviteId)
+    if (updateErr) {
+      return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    }
   } else {
     token = crypto.randomBytes(24).toString('base64url')
     const { data: created, error: createErr } = await admin
@@ -107,6 +127,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     token = created.token
   }
 
+  const acceptUrl = getInviteUrl(token)
+
   // 5) 发邮件
   const emailResult = await sendInviteEmail({
     to: email,
@@ -116,11 +138,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     token,
   })
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   return NextResponse.json({
     inviteId,
     token,
-    acceptUrl: `${siteUrl}/invite/${token}`,
+    acceptUrl,
     emailSent: emailResult.ok,
     emailError: emailResult.error,
   })

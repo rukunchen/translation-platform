@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { generateWith } from '@/lib/aiProviders'
 import { DEFAULT_MODEL_BY_PROVIDER } from '@/lib/modelPresets'
+import { supabaseFromRequest } from '@/lib/supabaseServer'
 
 export const maxDuration = 60
 
@@ -17,7 +18,10 @@ type AnalysisResponse = {
   improvedTranslation: string
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const { user } = await supabaseFromRequest(request)
+  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+
   const body = await request.json().catch(() => ({})) as AnalyzeRequest
   const sourceText = body.sourceText?.trim()
   const userTranslation = body.userTranslation?.trim()
@@ -27,8 +31,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '缺少原文或我的译文。' }, { status: 400 })
   }
 
-  const result = await generateWith('openai', {
-    model: DEFAULT_MODEL_BY_PROVIDER.openai,
+  const result = await generateWith('deepseek', {
+    model: DEFAULT_MODEL_BY_PROVIDER.deepseek,
     temperature: 0.2,
     prompt: buildAnalysisPrompt({ sourceText, userTranslation, practiceType }),
   })

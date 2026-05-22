@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import { Card } from '@/components/ui/Card'
@@ -10,6 +10,7 @@ import { Eyebrow } from '@/components/ui/Eyebrow'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MainContent } from '@/components/ui/MainContent'
 import { cn } from '@/components/ui/cn'
+import { apiJSON } from '@/lib/apiFetch'
 import { supabase } from '@/lib/supabase'
 import {
   EXPRESSION_CARD_CATEGORIES,
@@ -39,7 +40,7 @@ type IssueDraft = {
 }
 
 type ExpressionDraft = {
-  segment: TranslationPracticeSegment
+  segment: TranslationPracticeSegment | null
   source_expression: string
   target_expression: string
   context_sentence: string
@@ -56,6 +57,25 @@ type PracticeAiAnalysis = {
   improvedTranslation: string
 }
 
+const PRACTICE_EXPRESSION_CATEGORIES = ['专有名词', '重点名词', '动词', '形容词'] as const
+
+type PracticeExpressionCategory = typeof PRACTICE_EXPRESSION_CATEGORIES[number]
+
+type PracticeAiExpression = {
+  category: PracticeExpressionCategory
+  sourceExpression: string
+  referenceTranslation: string
+  note: string
+}
+
+type PracticeAiExpressions = {
+  expressions: PracticeAiExpression[]
+}
+
+type PracticeAiTranslation = {
+  translation: string
+}
+
 export default function TranslationPracticeEditorPage() {
   const router = useRouter()
   const params = useParams()
@@ -70,9 +90,16 @@ export default function TranslationPracticeEditorPage() {
   const [issueDraft, setIssueDraft] = useState<IssueDraft | null>(null)
   const [expressionDraft, setExpressionDraft] = useState<ExpressionDraft | null>(null)
   const [modalSaving, setModalSaving] = useState(false)
+  const [aiTranslating, setAiTranslating] = useState(false)
+  const [aiTranslationError, setAiTranslationError] = useState('')
   const [aiAnalyzing, setAiAnalyzing] = useState(false)
   const [aiAnalysis, setAiAnalysis] = useState<PracticeAiAnalysis | null>(null)
   const [aiAnalysisError, setAiAnalysisError] = useState('')
+  const [aiExpressionExtracting, setAiExpressionExtracting] = useState(false)
+  const [aiExpressions, setAiExpressions] = useState<PracticeAiExpressions | null>(null)
+  const [aiExpressionError, setAiExpressionError] = useState('')
+  const aiAnalysisRef = useRef<HTMLElement | null>(null)
+  const aiExpressionsRef = useRef<HTMLElement | null>(null)
 
   const [sourceText, setSourceText] = useState('')
   const [myTranslation, setMyTranslation] = useState('')
@@ -255,22 +282,80 @@ export default function TranslationPracticeEditorPage() {
     }
     setAiAnalyzing(true)
     setAiAnalysisError('')
-    const response = await fetch('/api/practice/ai-analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sourceText,
-        userTranslation: myTranslation,
-        practiceType: item.text_type || item.exam_type || '翻译练习',
-      }),
-    })
-    const result = await response.json().catch(() => null) as PracticeAiAnalysis & { error?: string } | null
-    setAiAnalyzing(false)
-    if (!response.ok || !result) {
-      setAiAnalysisError(result?.error || 'AI 分析暂时不可用。')
+    try {
+      const { data, error } = await apiJSON<PracticeAiAnalysis>('/api/practice/ai-analyze', {
+        method: 'POST',
+        body: JSON.stringify({
+          sourceText,
+          userTranslation: myTranslation,
+          practiceType: item.text_type || item.exam_type || '翻译练习',
+        }),
+      })
+      if (error || !data) {
+        setAiAnalysisError(error || 'AI 分析暂时不可用。')
+        return
+      }
+      setAiAnalysis(data)
+      window.setTimeout(() => aiAnalysisRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+    } finally {
+      setAiAnalyzing(false)
+    }
+  }
+
+  async function handleAiTranslate() {
+    if (!item || aiTranslating) return
+    if (!sourceText.trim()) {
+      setAiTranslationError('请先填写原文。')
       return
     }
-    setAiAnalysis(result)
+
+    setAiTranslating(true)
+    setAiTranslationError('')
+    try {
+      const { data, error } = await apiJSON<PracticeAiTranslation>('/api/practice/ai-translation', {
+        method: 'POST',
+        body: JSON.stringify({
+          sourceText,
+          direction: item.direction,
+          practiceType: item.text_type || item.exam_type || '翻译练习',
+        }),
+      })
+      if (error || !data) {
+        setAiTranslationError(error || 'AI 参考译文暂时不可用。')
+        return
+      }
+      setAiTranslation(data.translation)
+    } finally {
+      setAiTranslating(false)
+    }
+  }
+
+  async function handleAiExtractExpressions() {
+    if (!item || aiExpressionExtracting) return
+    if (!sourceText.trim() || !referenceTranslation.trim()) {
+      setAiExpressionError('请先填写原文和参考译文。')
+      return
+    }
+    setAiExpressionExtracting(true)
+    setAiExpressionError('')
+    try {
+      const { data, error } = await apiJSON<PracticeAiExpressions>('/api/practice/ai-expressions', {
+        method: 'POST',
+        body: JSON.stringify({
+          sourceText,
+          referenceTranslation,
+          practiceType: item.text_type || item.exam_type || '翻译练习',
+        }),
+      })
+      if (error || !data) {
+        setAiExpressionError(error || '高频表达提取暂时不可用。')
+        return
+      }
+      setAiExpressions(data)
+      window.setTimeout(() => aiExpressionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+    } finally {
+      setAiExpressionExtracting(false)
+    }
   }
 
   function openIssue(segment: TranslationPracticeSegment) {
@@ -358,6 +443,24 @@ export default function TranslationPracticeEditorPage() {
     })
   }
 
+  function openAiExpression(expression: PracticeAiExpression) {
+    const segment = segments.find(row => expressionTextIncludes(row.source_text, expression.sourceExpression)) ?? null
+    const contextSentence = segment?.source_text
+      || splitPracticeText(sourceText, 'sentence').find(part => expressionTextIncludes(part, expression.sourceExpression))
+      || sourceText.trim()
+
+    setExpressionDraft({
+      segment,
+      source_expression: expression.sourceExpression,
+      target_expression: expression.referenceTranslation,
+      context_sentence: contextSentence,
+      usage_context: item?.text_type || item?.exam_type || '',
+      category: expressionCardCategory(expression.category),
+      tags: tagsToText(item?.tags),
+      note: expression.note,
+    })
+  }
+
   async function createExpressionCard(e: React.FormEvent) {
     e.preventDefault()
     if (!expressionDraft || !item) return
@@ -371,7 +474,7 @@ export default function TranslationPracticeEditorPage() {
       .insert({
         user_id: item.user_id,
         practice_item_id: item.id,
-        segment_id: expressionDraft.segment.id,
+        segment_id: expressionDraft.segment?.id ?? null,
         source_expression: expressionDraft.source_expression.trim(),
         target_expression: expressionDraft.target_expression.trim(),
         context_sentence: expressionDraft.context_sentence.trim(),
@@ -459,11 +562,11 @@ export default function TranslationPracticeEditorPage() {
                   />
                   <Textarea
                     className="mt-4"
-                    label={`AI 译文预留 · ${countPracticeWords(aiTranslation)} 字`}
+                    label={`AI 译文 · ${countPracticeWords(aiTranslation)} 字`}
                     value={aiTranslation}
                     onChange={e => setAiTranslation(e.target.value)}
                     rows={5}
-                    placeholder="可先手动保存已有 AI 参考结果"
+                    placeholder="生成 AI 参考译文后可继续修改并保存"
                   />
                 </Card>
               </div>
@@ -492,31 +595,69 @@ export default function TranslationPracticeEditorPage() {
                     <Button variant="secondary" fullWidth loading={splitting} onClick={() => splitSegments('sentence')}>按句号切分</Button>
                   </div>
                   <div className="border-t border-line pt-4">
-                    <p className="text-xs text-ink-500 mb-3">AI 功能预留</p>
+                    <p className="text-xs text-ink-500 mb-3">AI 辅助</p>
                     <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="ghost" disabled>生成 AI 参考译文</Button>
+                      <Button size="sm" variant="ghost" loading={aiTranslating} onClick={handleAiTranslate}>生成 AI 参考译文</Button>
                       <Button size="sm" variant="ghost" loading={aiAnalyzing} onClick={handleAiAnalyze}>分析我的译文问题</Button>
-                      <Button size="sm" variant="ghost" disabled>提取高频表达</Button>
+                      <Button size="sm" variant="ghost" loading={aiExpressionExtracting} onClick={handleAiExtractExpressions}>提取高频表达</Button>
                     </div>
+                    {aiTranslationError && <p className="mt-3 text-xs text-red-600">{aiTranslationError}</p>}
                     {aiAnalysisError && <p className="mt-3 text-xs text-red-600">{aiAnalysisError}</p>}
-                    {aiAnalysis && (
-                      <div className="mt-4 space-y-3 rounded-xl border border-line bg-white" style={{ padding: 16 }}>
-                        <div>
-                          <p className="text-xs text-ink-500 mb-1">Mock 分析</p>
-                          <p className="text-sm text-ink-800 leading-relaxed">{aiAnalysis.summary}</p>
-                        </div>
-                        <AiResultList title="问题" items={aiAnalysis.issues} />
-                        <AiResultList title="建议" items={aiAnalysis.suggestions} />
-                        <div>
-                          <p className="text-xs text-ink-500 mb-1">改写参考</p>
-                          <p className="text-sm text-ink-800 leading-relaxed whitespace-pre-wrap">{aiAnalysis.improvedTranslation}</p>
-                        </div>
-                      </div>
-                    )}
+                    {aiExpressionError && <p className="mt-3 text-xs text-red-600">{aiExpressionError}</p>}
                   </div>
                 </div>
               </Card>
             </section>
+
+            {aiAnalysis && (
+              <section ref={aiAnalysisRef} className="mb-8 scroll-mt-6">
+                <Card padding="lg" variant="surface">
+                  <div className="flex flex-col gap-5 border-b border-line pb-5 mb-6 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <Eyebrow tone="brand" className="mb-2">AI Analysis</Eyebrow>
+                      <h2 className="font-serif text-xl text-ink-900">译文问题分析</h2>
+                    </div>
+                    <p className="max-w-3xl text-sm text-ink-700 leading-relaxed">{aiAnalysis.summary}</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(320px,1.2fr)]">
+                    <AiResultList title="问题" items={aiAnalysis.issues} />
+                    <AiResultList title="建议" items={aiAnalysis.suggestions} />
+                    <div>
+                      <p className="text-xs text-ink-500 mb-2">改写参考</p>
+                      <p className="rounded-xl border border-line bg-white text-sm text-ink-800 leading-relaxed whitespace-pre-wrap" style={{ padding: 18 }}>
+                        {aiAnalysis.improvedTranslation}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              </section>
+            )}
+
+            {aiExpressions && (
+              <section ref={aiExpressionsRef} className="mb-8 scroll-mt-6">
+                <Card padding="lg" variant="surface">
+                  <div className="flex flex-col gap-5 border-b border-line pb-5 mb-6 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <Eyebrow tone="brand" className="mb-2">AI Expressions</Eyebrow>
+                      <h2 className="font-serif text-xl text-ink-900">高频表达提取</h2>
+                    </div>
+                    <p className="max-w-3xl text-sm text-ink-700 leading-relaxed">
+                      从原文筛选专有名词、重点名词、动词和形容词，译法按参考译文对齐。
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4">
+                    {PRACTICE_EXPRESSION_CATEGORIES.map(category => (
+                      <AiExpressionGroup
+                        key={category}
+                        category={category}
+                        items={aiExpressions.expressions.filter(expression => expression.category === category)}
+                        onCreateCard={openAiExpression}
+                      />
+                    ))}
+                  </div>
+                </Card>
+              </section>
+            )}
 
             <section id="practice-compare">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between border-b border-line pb-5 mb-6">
@@ -583,7 +724,7 @@ export default function TranslationPracticeEditorPage() {
       )}
 
       {expressionDraft && (
-        <PracticeModal title="加入表达卡片" description="手动截取值得积累的原文表达和推荐译法。" onClose={() => setExpressionDraft(null)}>
+        <PracticeModal title="加入表达卡片" description="检查原文表达、推荐译法和使用场景后加入复习。" onClose={() => setExpressionDraft(null)}>
           <form onSubmit={createExpressionCard} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Textarea label="原文表达" value={expressionDraft.source_expression} onChange={e => setExpressionDraft(prev => prev && ({ ...prev, source_expression: e.target.value }))} rows={3} placeholder="复制原文中的表达" />
@@ -618,6 +759,54 @@ function AiResultList({ title, items }: { title: string; items: string[] }) {
       </ul>
     </div>
   )
+}
+
+function AiExpressionGroup({
+  category,
+  items,
+  onCreateCard,
+}: {
+  category: PracticeExpressionCategory
+  items: PracticeAiExpression[]
+  onCreateCard: (item: PracticeAiExpression) => void
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-line bg-white">
+      <div className="flex items-center justify-between gap-3 border-b border-line bg-canvas/60" style={{ padding: '14px 16px' }}>
+        <p className="text-sm font-medium text-ink-900">{category}</p>
+        <span className="rounded-full border border-line bg-white px-2 py-0.5 font-mono text-[11px] text-ink-500">{items.length}</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-sm text-ink-500" style={{ padding: 16 }}>未提取到合适表达</p>
+      ) : (
+        <div className="divide-y divide-line">
+          {items.map((item, index) => (
+            <article key={`${item.sourceExpression}-${item.referenceTranslation}-${index}`} style={{ padding: 16 }}>
+              <p className="text-sm font-medium text-ink-900 leading-relaxed break-words">{item.sourceExpression}</p>
+              <p className="mt-2 text-sm text-ink-700 leading-relaxed break-words">
+                <span className="mr-2 text-xs text-ink-500">参考译法</span>
+                {item.referenceTranslation}
+              </p>
+              {item.note && <p className="mt-2 text-xs text-ink-500 leading-relaxed">{item.note}</p>}
+              <Button className="mt-3" size="sm" variant="ghost" onClick={() => onCreateCard(item)}>加入表达卡片</Button>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function expressionCardCategory(category: PracticeExpressionCategory) {
+  return category === '动词' || category === '形容词' ? '高频词组' : '术语表达'
+}
+
+function expressionTextIncludes(text: string, expression: string) {
+  return compactExpressionText(text).includes(compactExpressionText(expression))
+}
+
+function compactExpressionText(value: string) {
+  return value.replace(/\s+/g, ' ').trim().toLocaleLowerCase()
 }
 
 function TextPane({

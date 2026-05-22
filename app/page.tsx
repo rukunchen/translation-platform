@@ -12,28 +12,32 @@ import Logo from '@/components/Logo'
 function friendlyAuthError(message: string) {
   if (/invalid login credentials/i.test(message)) return '邮箱或密码错误，请重试。'
   if (/email not confirmed/i.test(message)) return '邮箱尚未验证，请先打开验证邮件完成确认后再登录。'
-  if (/signup disabled/i.test(message)) return '当前 Supabase 项目关闭了注册，请联系管理员创建账号。'
-  if (/user already registered|already registered/i.test(message)) return '这个邮箱已经注册，请直接登录。'
   if (/password/i.test(message)) return '密码不符合要求，请确认至少 6 位。'
   return message || '操作失败，请稍后重试。'
 }
 
+function loginDestination(): string {
+  if (typeof window === 'undefined') return '/dashboard'
+
+  const next = new URLSearchParams(window.location.search).get('next')
+  return next && next.startsWith('/') && !next.startsWith('//')
+    ? next
+    : '/dashboard'
+}
+
 export default function LoginPage() {
   const router = useRouter()
-  const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [message, setMessage] = useState('')
 
   useEffect(() => {
     let alive = true
     supabase.auth.getSession().then(({ data, error }) => {
       if (!alive) return
       if (data.session) {
-        router.replace('/dashboard')
+        router.replace(loginDestination())
         return
       }
       if (error && /refresh token|invalid token|expired/i.test(error.message)) {
@@ -45,22 +49,11 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true); setError(''); setMessage('')
-    if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setError(friendlyAuthError(error.message))
-      else router.push('/dashboard')
-    } else {
-      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name } } })
-      if (error) {
-        setError('注册失败：' + friendlyAuthError(error.message))
-      } else if (data.session) {
-        router.push('/dashboard')
-      } else {
-        setMessage('注册成功！请检查邮箱完成验证后再登录。')
-        setIsLogin(true)
-      }
-    }
+    setLoading(true)
+    setError('')
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) setError(friendlyAuthError(error.message))
+    else router.push(loginDestination())
     setLoading(false)
   }
 
@@ -146,17 +139,7 @@ export default function LoginPage() {
       <section className="lg:w-1/2 bg-white relative flex items-center justify-center px-10 sm:px-12 lg:px-16 py-24 min-h-screen">
         {/* 顶部说明：私域平台、不开放公开注册 */}
         <div className="absolute top-8 right-6 sm:top-10 sm:right-10 lg:top-12 lg:right-16">
-          {isLogin ? (
-            <p className="text-ink-400 text-xs">新成员？联系项目管理员</p>
-          ) : (
-            <p className="text-ink-400 text-xs">
-              已有账号？
-              <button onClick={() => { setIsLogin(true); setError(''); setMessage('') }}
-                className="text-ink-700 hover:text-ink-900 font-medium ml-1.5 underline underline-offset-4">
-                返回登录
-              </button>
-            </p>
-          )}
+          <p className="text-ink-400 text-xs">新成员？联系平台管理员</p>
         </div>
 
         {/* 表单 card：固定 420px，padding 32px，rounded-2xl，border + 轻微阴影 */}
@@ -165,30 +148,17 @@ export default function LoginPage() {
           style={{ maxWidth: 440, padding: '40px' }}
         >
           <div className="mb-10">
-            <Eyebrow className="mb-3">{isLogin ? 'Sign in' : 'Admin sign-up'}</Eyebrow>
+            <Eyebrow className="mb-3">Sign in</Eyebrow>
             <h2 className="font-serif text-3xl text-ink-900 tracking-tight leading-tight">
-              {isLogin ? '欢迎回来' : '创建账号'}
+              欢迎回来
             </h2>
             <p className="text-ink-500 mt-2.5 text-sm leading-relaxed">
-              {isLogin
-                ? '登录后进入你的翻译项目、审校任务和 AI 实验记录。'
-                : '此入口仅供项目管理员为新成员创建账号。'}
+              登录后进入你的翻译项目、审校任务和 AI 实验记录。
             </p>
           </div>
 
           <form onSubmit={handleSubmit}
             style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {!isLogin && (
-              <Input
-                label="姓名"
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="请输入姓名"
-                required={!isLogin}
-                style={{ height: 44, paddingTop: 0, paddingBottom: 0 }}
-              />
-            )}
             <Input
               label="邮箱"
               type="email"
@@ -214,34 +184,25 @@ export default function LoginPage() {
                 {error}
               </div>
             )}
-            {message && (
-              <div className="bg-green-50 border border-green-100 text-green-700 rounded-xl"
-                style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 12, paddingBottom: 12, fontSize: 13 }}>
-                {message}
-              </div>
-            )}
-
             {/* 按钮上方留出明显空隙，与密码框分开 */}
             <div style={{ marginTop: 14 }}>
               <Button variant="primary" type="submit" loading={loading} fullWidth className="h-11 py-0">
-                {loading ? '处理中' : isLogin ? '登录' : '创建账号'}
+                {loading ? '处理中' : '登录'}
               </Button>
             </div>
           </form>
 
-          {/* 弱化的管理员注册入口：仅供需要时手动切换 */}
-          {isLogin && (
-            <p className="mt-6 pt-5 border-t border-line text-center text-[11px] text-ink-400">
-              管理员可在此
-              <button
-                type="button"
-                onClick={() => { setIsLogin(false); setError(''); setMessage('') }}
-                className="text-ink-500 hover:text-ink-900 underline underline-offset-4 ml-1"
-              >
-                为成员创建账号
-              </button>
-            </p>
-          )}
+          <button
+            type="button"
+            onClick={() => router.push('/admin')}
+            className="mt-6 w-full border-t border-line pt-5 text-left transition-colors group"
+          >
+            <span className="block text-sm font-medium text-ink-900 group-hover:text-brand">管理员入口</span>
+            <span className="mt-1.5 block text-xs leading-relaxed text-ink-500">
+              为新成员创建账号，查看团队活动与项目进展
+            </span>
+            <span className="mt-3 block text-sm text-ink-700 group-hover:text-brand">进入管理控制台 →</span>
+          </button>
         </div>
 
         {/* 底部 */}

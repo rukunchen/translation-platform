@@ -1,9 +1,10 @@
-// PATCH /api/projects/[id]/members/[memberId]   改角色（manager only）
-// DELETE /api/projects/[id]/members/[memberId]  移除成员（manager 或本人）
+// PATCH /api/projects/[id]/members/[memberId]   改角色（platform admin + manager）
+// DELETE /api/projects/[id]/members/[memberId]  移除成员（platform admin + manager，或本人）
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
 import { getMyRole, canManage, countManagers, type Role } from '@/lib/permissions'
+import { isPlatformAdmin } from '@/lib/platformAdmin'
 
 export async function PATCH(
   req: NextRequest,
@@ -12,6 +13,7 @@ export async function PATCH(
   const { id: projectId, memberId } = await params
   const { client, user } = await supabaseFromRequest(req)
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  if (!isPlatformAdmin(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const myRole = await getMyRole(client, projectId, user.id)
   if (!canManage(myRole)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
@@ -67,7 +69,7 @@ export async function DELETE(
   if (!target) return NextResponse.json({ error: 'member not found' }, { status: 404 })
 
   const isSelf = target.user_id === user.id
-  if (!canManage(myRole) && !isSelf) {
+  if (!isSelf && (!isPlatformAdmin(user) || !canManage(myRole))) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 

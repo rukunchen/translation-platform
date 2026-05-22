@@ -1,9 +1,8 @@
 // Resend 邮件发送封装
 import { Resend } from 'resend'
+import { getInviteUrl } from '@/lib/siteUrl'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://translation-platform-omega.vercel.app'
 
 type ResendSendResult = { data?: { id?: string | null } | null }
 
@@ -21,7 +20,7 @@ type InviteEmailParams = {
 
 export async function sendInviteEmail(params: InviteEmailParams) {
   const { to, projectName, inviterName, role, token } = params
-  const acceptUrl = `${SITE_URL}/invite/${token}`
+  const acceptUrl = getInviteUrl(token)
 
   const html = `
 <!DOCTYPE html>
@@ -46,7 +45,7 @@ export async function sendInviteEmail(params: InviteEmailParams) {
         的身份加入项目「<strong>${escape(projectName)}</strong>」。
       </p>
       <p style="color:#7A7872;font-size:14px;line-height:1.7;margin:0 0 28px;">
-        点击下方按钮接受邀请。如果你还没有账号，会引导你先注册再自动加入项目。
+        点击下方按钮接受邀请。请使用平台管理员已创建的账号登录；如果还没有账号，请联系平台管理员。
       </p>
       <a href="${acceptUrl}" style="display:inline-block;background:#1F1E1D;color:#fff;padding:14px 28px;text-decoration:none;border-radius:10px;font-weight:500;font-size:14px;">
         接受邀请 →

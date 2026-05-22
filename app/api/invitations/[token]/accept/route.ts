@@ -31,7 +31,7 @@ export async function POST(
   // 校验邮箱匹配（防止 A 转发给 B，B 用自己账号接受）
   if (user.email?.toLowerCase() !== invite.invitee_email.toLowerCase()) {
     return NextResponse.json(
-      { error: `此邀请发给 ${invite.invitee_email}，请使用该邮箱注册或登录的账号接受。当前登录 ${user.email}` },
+      { error: `此邀请发给 ${invite.invitee_email}，请使用该邮箱对应的平台账号登录后接受。当前登录 ${user.email}` },
       { status: 403 }
     )
   }

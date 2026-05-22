@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { apiJSON } from '@/lib/apiFetch'
+import { isPlatformAdmin } from '@/lib/platformAdmin'
+import { supabase } from '@/lib/supabase'
 import { type Role, roleLabel, canManage } from '@/lib/permissions'
 import RoleBadge from './RoleBadge'
 import InviteMemberModal from './InviteMemberModal'
@@ -29,6 +31,7 @@ export default function MembersPanel({ projectId, currentUserId, onRoleChanged }
   const [loading, setLoading] = useState(true)
   const [showInvite, setShowInvite] = useState(false)
   const [editingRoleFor, setEditingRoleFor] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   const load = useCallback(async () => {
     await Promise.resolve()
@@ -46,6 +49,10 @@ export default function MembersPanel({ projectId, currentUserId, onRoleChanged }
     const timer = window.setTimeout(() => { void load() }, 0)
     return () => window.clearTimeout(timer)
   }, [load])
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setIsAdmin(isPlatformAdmin(user)))
+  }, [])
 
   const changeRole = async (memberId: string, newRole: Role) => {
     setEditingRoleFor(null)
@@ -82,7 +89,7 @@ export default function MembersPanel({ projectId, currentUserId, onRoleChanged }
               成员 <span className="text-xs text-ink-400 font-sans font-normal ml-1">{members.length} 人</span>
             </h3>
           </div>
-          {canManage(myRole) && (
+          {isAdmin && canManage(myRole) && (
             <Button size="sm" variant="primary" onClick={() => setShowInvite(true)} leftIcon={<span className="text-base leading-none">+</span>}>
               邀请
             </Button>
@@ -114,7 +121,7 @@ export default function MembersPanel({ projectId, currentUserId, onRoleChanged }
                     <p className="text-[11px] text-ink-400 truncate font-mono">{m.profiles?.email}</p>
                   </div>
 
-                  {editingRoleFor === m.id && canManage(myRole) ? (
+                  {editingRoleFor === m.id && isAdmin && canManage(myRole) ? (
                     <select
                       autoFocus
                       defaultValue={m.role}
@@ -128,16 +135,16 @@ export default function MembersPanel({ projectId, currentUserId, onRoleChanged }
                     </select>
                   ) : (
                     <button
-                      disabled={!canManage(myRole)}
+                      disabled={!isAdmin || !canManage(myRole)}
                       onClick={() => setEditingRoleFor(m.id)}
-                      className={canManage(myRole) ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}
-                      title={canManage(myRole) ? '点击修改角色' : ''}
+                      className={isAdmin && canManage(myRole) ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}
+                      title={isAdmin && canManage(myRole) ? '点击修改角色' : ''}
                     >
                       <RoleBadge role={m.role} />
                     </button>
                   )}
 
-                  {(canManage(myRole) || isSelf) && (
+                  {((isAdmin && canManage(myRole)) || isSelf) && (
                     <button
                       onClick={() => removeMember(m.id, isSelf)}
                       title={isSelf ? '退出项目' : '移除成员'}

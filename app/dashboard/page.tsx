@@ -782,7 +782,7 @@ export default function DashboardPage() {
               {experiments.length > 0 ? (
                 <Card padding="none" className="overflow-hidden">
                   <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-5 bg-canvas/60 border-b border-line text-[11px] uppercase tracking-wider text-ink-500 font-medium"
-                    style={{ paddingLeft: 28, paddingRight: 28, paddingTop: 16, paddingBottom: 16 }}>
+                    style={{ paddingLeft: 42, paddingRight: 28, paddingTop: 16, paddingBottom: 16 }}>
                     <div>实验 / 项目 · 文档</div>
                     <div className="text-center">模型</div>
                     <div className="text-center">Temperature</div>
@@ -792,7 +792,7 @@ export default function DashboardPage() {
                   {experiments.map((e, i) => (
                     <div key={e.docId}
                       className={cn('grid grid-cols-[1fr_auto_auto_auto_auto] gap-5 items-center', i > 0 && 'border-t border-line')}
-                      style={{ paddingLeft: 28, paddingRight: 28, paddingTop: 20, paddingBottom: 20 }}>
+                      style={{ paddingLeft: 42, paddingRight: 28, paddingTop: 20, paddingBottom: 20 }}>
                       <div className="min-w-0">
                         <p className="text-sm text-ink-900 font-medium truncate">{e.docTitle}</p>
                         <p className="text-xs text-ink-500 mt-1 truncate">{e.projectName}</p>
