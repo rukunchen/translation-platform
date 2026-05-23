@@ -8,7 +8,6 @@ type ProjectRow = {
   description: string | null
   created_by: string | null
   created_at: string
-  updated_at: string | null
 }
 
 type MemberRow = {
@@ -36,8 +35,8 @@ export async function GET(req: NextRequest) {
   const admin = supabaseAdmin()
   const { data: projectData, error: projectError } = await admin
     .from('projects')
-    .select('id, name, description, created_by, created_at, updated_at')
-    .order('updated_at', { ascending: false })
+    .select('id, name, description, created_by, created_at')
+    .order('created_at', { ascending: false })
 
   if (projectError) return NextResponse.json({ error: projectError.message }, { status: 500 })
 
@@ -83,7 +82,7 @@ export async function GET(req: NextRequest) {
     const memberTotals = membersByProject.get(project.id) || { members: 0, managers: 0 }
     const documentTotals = documentsByProject.get(project.id) || { documents: 0, latestAt: null }
     const creator = project.created_by ? creatorsById.get(project.created_by) : null
-    const latestActivityAt = latestTimestamp(project.updated_at, documentTotals.latestAt)
+    const latestActivityAt = latestTimestamp(project.created_at, documentTotals.latestAt)
 
     return {
       id: project.id,
