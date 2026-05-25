@@ -1,4 +1,4 @@
-// 导出并行翻译矩阵：原文 + 各模型译文 + 已采用译文
+// 导出并行翻译矩阵：原文 + 各模型译文 + 最终译文
 // 支持两种格式：
 //   - word  → .doc（HTML 表格，Word 直接打开）
 //   - xlsx  → .xlsx（SheetJS 生成）
@@ -61,10 +61,10 @@ function exportXlsx({ title, sourceLang, targetLang, segments, configs, results 
     return
   }
 
-  // 表头：# | 原文 | Model A · xxx | Model B · xxx | ... | 已采用译文
+  // 表头：# | 原文 | Model A · xxx | Model B · xxx | ... | 最终译文
   const header: string[] = ['#', `原文（${langNames[sourceLang] || sourceLang}）`]
   enabled.forEach(({ c, i }) => header.push(columnHeader(c, i)))
-  header.push(`已采用译文（${langNames[targetLang] || targetLang}）`)
+  header.push(`最终译文（${langNames[targetLang] || targetLang}）`)
 
   const rows: (string | number)[][] = [header]
 
@@ -83,7 +83,7 @@ function exportXlsx({ title, sourceLang, targetLang, segments, configs, results 
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
 
-  // 列宽：#=5, 原文=42, 各模型=42, 已采用=42
+  // 列宽：#=5, 原文=42, 各模型=42, 最终译文=42
   const colCount = header.length
   ws['!cols'] = Array.from({ length: colCount }, (_, i) =>
     i === 0 ? { wch: 5 } : { wch: 42 }
@@ -149,8 +149,8 @@ function exportWord({ title, sourceLang, targetLang, segments, configs, results 
 
   // 列宽分配（百分比）
   const numW = 4
-  const adoptedW = 18
-  const restW = 100 - numW - adoptedW           // 78
+  const finalW = 18
+  const restW = 100 - numW - finalW             // 78
   const sourceW = Math.floor(restW / (enabled.length + 1))
   const modelW = sourceW
 
@@ -160,7 +160,7 @@ function exportWord({ title, sourceLang, targetLang, segments, configs, results 
     ...enabled.map(({ c, i }) =>
       `<th style="width:${modelW}%;">${escape(columnHeader(c, i))}</th>`
     ),
-    `<th style="width:${adoptedW}%;">已采用译文</th>`,
+    `<th style="width:${finalW}%;">最终译文</th>`,
   ].join('')
 
   const bodyRows = segments.map((seg, idx) => {

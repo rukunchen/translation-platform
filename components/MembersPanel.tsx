@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { apiJSON } from '@/lib/apiFetch'
-import { isPlatformAdmin } from '@/lib/platformAdmin'
-import { supabase } from '@/lib/supabase'
 import { type Role, roleLabel, canManage } from '@/lib/permissions'
 import RoleBadge from './RoleBadge'
 import InviteMemberModal from './InviteMemberModal'
@@ -36,10 +34,11 @@ export default function MembersPanel({ projectId, currentUserId, onRoleChanged }
   const load = useCallback(async () => {
     await Promise.resolve()
     setLoading(true)
-    const { data } = await apiJSON<{ members: Member[]; myRole: Role }>(`/api/projects/${projectId}/members`)
+    const { data } = await apiJSON<{ members: Member[]; myRole: Role; isPlatformAdmin: boolean }>(`/api/projects/${projectId}/members`)
     if (data) {
       setMembers(data.members || [])
       setMyRole(data.myRole)
+      setIsAdmin(Boolean(data.isPlatformAdmin))
       onRoleChanged?.(data.myRole)
     }
     setLoading(false)
@@ -49,10 +48,6 @@ export default function MembersPanel({ projectId, currentUserId, onRoleChanged }
     const timer = window.setTimeout(() => { void load() }, 0)
     return () => window.clearTimeout(timer)
   }, [load])
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setIsAdmin(isPlatformAdmin(user)))
-  }, [])
 
   const changeRole = async (memberId: string, newRole: Role) => {
     setEditingRoleFor(null)

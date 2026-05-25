@@ -103,6 +103,12 @@ const PPT_PROMPT = `请将以下 PPT 商务文本翻译为自然、专业、简�
 - 图表标签的清晰度；
 - 译文不要过长。`
 
+const PPTX_NS = {
+  a: 'http://schemas.openxmlformats.org/drawingml/2006/main',
+  p: 'http://schemas.openxmlformats.org/presentationml/2006/main',
+  r: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+}
+
 function fallbackSegmentMetadata(source: string): PptMetadata {
   if (!source.startsWith(SEGMENT_FALLBACK_PREFIX)) return {}
   const firstLine = source.split('\n')[0] || ''
@@ -174,6 +180,19 @@ function cleanXmlText(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+function safeFileName(value: string): string {
+  return (value || 'PPT项目').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_').slice(0, 80)
+}
+
 function fallbackMetadata(description?: string | null): Record<string, unknown> {
   if (!description?.startsWith(PPT_FALLBACK_PREFIX)) return {}
   const firstLine = description.split('\n')[0] || ''
@@ -229,6 +248,244 @@ async function parsePptx(file: File): Promise<PreviewItem[]> {
   return items
 }
 
+function pptParagraphs(text: string, options: { size: number; color?: string; bold?: boolean }) {
+  const lines = text
+    .replace(/\r/g, '')
+    .split('\n')
+    .slice(0, 80)
+  const safeLines = lines.length > 0 ? lines : ['']
+  return safeLines.map(line => `
+        <a:p>
+          <a:r>
+            <a:rPr lang="zh-CN" sz="${options.size}"${options.bold ? ' b="1"' : ''}>
+              <a:solidFill><a:srgbClr val="${options.color || '1F1E1D'}"/></a:solidFill>
+            </a:rPr>
+            <a:t>${escapeXml(line || ' ')}</a:t>
+          </a:r>
+          <a:endParaRPr lang="zh-CN" sz="${options.size}"/>
+        </a:p>`).join('')
+}
+
+function pptTextShape({
+  id,
+  name,
+  x,
+  y,
+  cx,
+  cy,
+  text,
+  size,
+  color = '1F1E1D',
+  bold = false,
+  fill,
+  line = 'E0DDD3',
+}: {
+  id: number
+  name: string
+  x: number
+  y: number
+  cx: number
+  cy: number
+  text: string
+  size: number
+  color?: string
+  bold?: boolean
+  fill?: string
+  line?: string
+}) {
+  return `
+      <p:sp>
+        <p:nvSpPr>
+          <p:cNvPr id="${id}" name="${escapeXml(name)}"/>
+          <p:cNvSpPr txBox="1"/>
+          <p:nvPr/>
+        </p:nvSpPr>
+        <p:spPr>
+          <a:xfrm>
+            <a:off x="${x}" y="${y}"/>
+            <a:ext cx="${cx}" cy="${cy}"/>
+          </a:xfrm>
+          <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          ${fill ? `<a:solidFill><a:srgbClr val="${fill}"/></a:solidFill>` : '<a:noFill/>'}
+          <a:ln w="6350"><a:solidFill><a:srgbClr val="${line}"/></a:solidFill></a:ln>
+        </p:spPr>
+        <p:txBody>
+          <a:bodyPr wrap="square" anchor="t" lIns="91440" tIns="91440" rIns="91440" bIns="91440">
+            <a:normAutofit fontScale="76000" lnSpcReduction="18000"/>
+          </a:bodyPr>
+          <a:lstStyle/>
+          ${pptParagraphs(text, { size, color, bold })}
+        </p:txBody>
+      </p:sp>`
+}
+
+function pptColumnText(rows: SegmentRow[], side: 'source' | 'target') {
+  return rows.map(row => {
+    const meta = metadataOf(row)
+    const label = `${meta.element_order}. ${ELEMENT_LABEL[meta.element_type]}`
+    const text = side === 'source' ? sourceTextOf(row) : finalTranslation(row)
+    return `${label}\n${text.trim() || '未记录'}`
+  }).join('\n\n')
+}
+
+function bilingualSlideXml(params: {
+  slideNumber: number
+  rows: SegmentRow[]
+  sourceLabel: string
+  targetLabel: string
+  projectName: string
+  documentTitle: string
+}) {
+  const width = 12192000
+  const margin = 457200
+  const gap = 228600
+  const colWidth = Math.floor((width - margin * 2 - gap) / 2)
+  const headerY = 960000
+  const headerH = 365760
+  const bodyY = headerY + headerH + 91440
+  const bodyH = 4922520
+  const leftX = margin
+  const rightX = margin + colWidth + gap
+  const title = `Slide ${params.slideNumber} · ${params.documentTitle}`
+  const footer = `${params.projectName} · 由译境导出`
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="${PPTX_NS.a}" xmlns:r="${PPTX_NS.r}" xmlns:p="${PPTX_NS.p}">
+  <p:cSld>
+    <p:bg><p:bgPr><a:solidFill><a:srgbClr val="FAF9F6"/></a:solidFill></p:bgPr></p:bg>
+    <p:spTree>
+      <p:nvGrpSpPr>
+        <p:cNvPr id="1" name=""/>
+        <p:cNvGrpSpPr/>
+        <p:nvPr/>
+      </p:nvGrpSpPr>
+      <p:grpSpPr>
+        <a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm>
+      </p:grpSpPr>
+      ${pptTextShape({ id: 2, name: 'Slide Title', x: margin, y: 274320, cx: width - margin * 2, cy: 457200, text: title, size: 2200, bold: true, line: 'FAF9F6' })}
+      ${pptTextShape({ id: 3, name: 'Source Header', x: leftX, y: headerY, cx: colWidth, cy: headerH, text: params.sourceLabel, size: 1300, bold: true, fill: 'F0EEE5' })}
+      ${pptTextShape({ id: 4, name: 'Target Header', x: rightX, y: headerY, cx: colWidth, cy: headerH, text: params.targetLabel, size: 1300, bold: true, fill: 'F0EEE5' })}
+      ${pptTextShape({ id: 5, name: 'Source Text', x: leftX, y: bodyY, cx: colWidth, cy: bodyH, text: pptColumnText(params.rows, 'source'), size: 1050, fill: 'FFFFFF' })}
+      ${pptTextShape({ id: 6, name: 'Target Text', x: rightX, y: bodyY, cx: colWidth, cy: bodyH, text: pptColumnText(params.rows, 'target'), size: 1050, fill: 'FFFFFF' })}
+      ${pptTextShape({ id: 7, name: 'Footer', x: margin, y: 6507480, cx: width - margin * 2, cy: 274320, text: footer, size: 900, color: '7A7872', line: 'FAF9F6' })}
+    </p:spTree>
+  </p:cSld>
+  <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
+</p:sld>`
+}
+
+async function buildBilingualPptxBlob(params: {
+  grouped: ReadonlyArray<readonly [number, SegmentRow[]]>
+  projectName: string
+  documentTitle: string
+  sourceLang: string
+  targetLang: string
+}) {
+  const zip = new JSZip()
+  const slides = params.grouped
+    .slice()
+    .sort(([a], [b]) => a - b)
+    .map(([slideNumber, rows]) => [slideNumber, rows.slice().sort((a, b) => metadataOf(a).element_order - metadataOf(b).element_order)] as const)
+  const slideOverrides = slides.map((_, index) => `<Override PartName="/ppt/slides/slide${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join('')
+  const slideIds = slides.map((_, index) => `<p:sldId id="${256 + index}" r:id="rId${index + 2}"/>`).join('')
+  const slideRels = slides.map((_, index) => `<Relationship Id="rId${index + 2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${index + 1}.xml"/>`).join('')
+  const sourceLabel = LANG_NAMES[params.sourceLang] || params.sourceLang || '原文'
+  const targetLabel = LANG_NAMES[params.targetLang] || params.targetLang || '译文'
+
+  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  <Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
+  <Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
+  <Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+  ${slideOverrides}
+</Types>`)
+  zip.file('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+</Relationships>`)
+  zip.file('docProps/core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <dc:title>${escapeXml(params.documentTitle)}</dc:title>
+  <dc:creator>译境</dc:creator>
+  <cp:lastModifiedBy>译境</cp:lastModifiedBy>
+  <dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
+  <dcterms:modified xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:modified>
+</cp:coreProperties>`)
+  zip.file('docProps/app.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <Application>译境</Application>
+  <PresentationFormat>On-screen Show (16:9)</PresentationFormat>
+  <Slides>${slides.length}</Slides>
+</Properties>`)
+  zip.file('ppt/presentation.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:a="${PPTX_NS.a}" xmlns:r="${PPTX_NS.r}" xmlns:p="${PPTX_NS.p}">
+  <p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>
+  <p:sldIdLst>${slideIds}</p:sldIdLst>
+  <p:sldSz cx="12192000" cy="6858000" type="wide"/>
+  <p:notesSz cx="6858000" cy="9144000"/>
+</p:presentation>`)
+  zip.file('ppt/_rels/presentation.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>
+  ${slideRels}
+</Relationships>`)
+  zip.file('ppt/slideMasters/slideMaster1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldMaster xmlns:a="${PPTX_NS.a}" xmlns:r="${PPTX_NS.r}" xmlns:p="${PPTX_NS.p}">
+  <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld>
+  <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>
+  <p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>
+  <p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles>
+</p:sldMaster>`)
+  zip.file('ppt/slideMasters/_rels/slideMaster1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>
+</Relationships>`)
+  zip.file('ppt/slideLayouts/slideLayout1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldLayout xmlns:a="${PPTX_NS.a}" xmlns:r="${PPTX_NS.r}" xmlns:p="${PPTX_NS.p}" type="blank" preserve="1">
+  <p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld>
+  <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
+</p:sldLayout>`)
+  zip.file('ppt/slideLayouts/_rels/slideLayout1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>
+</Relationships>`)
+  zip.file('ppt/theme/theme1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:theme xmlns:a="${PPTX_NS.a}" name="YiJing">
+  <a:themeElements>
+    <a:clrScheme name="YiJing"><a:dk1><a:srgbClr val="1F1E1D"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="3D3D3A"/></a:dk2><a:lt2><a:srgbClr val="FAF9F6"/></a:lt2><a:accent1><a:srgbClr val="D97757"/></a:accent1><a:accent2><a:srgbClr val="5470D6"/></a:accent2><a:accent3><a:srgbClr val="91CC75"/></a:accent3><a:accent4><a:srgbClr val="FAC858"/></a:accent4><a:accent5><a:srgbClr val="EE6666"/></a:accent5><a:accent6><a:srgbClr val="73C0DE"/></a:accent6><a:hlink><a:srgbClr val="5470D6"/></a:hlink><a:folHlink><a:srgbClr val="7A7872"/></a:folHlink></a:clrScheme>
+    <a:fontScheme name="YiJing"><a:majorFont><a:latin typeface="Arial"/><a:ea typeface="Microsoft YaHei"/><a:cs typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/><a:ea typeface="Microsoft YaHei"/><a:cs typeface="Arial"/></a:minorFont></a:fontScheme>
+    <a:fmtScheme name="YiJing"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme>
+  </a:themeElements>
+</a:theme>`)
+
+  slides.forEach(([slideNumber, rows], index) => {
+    zip.file(`ppt/slides/slide${index + 1}.xml`, bilingualSlideXml({
+      slideNumber,
+      rows,
+      sourceLabel,
+      targetLabel,
+      projectName: params.projectName,
+      documentTitle: params.documentTitle,
+    }))
+    zip.file(`ppt/slides/_rels/slide${index + 1}.xml.rels`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+</Relationships>`)
+  })
+
+  return zip.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  })
+}
+
 export default function PptProjectPage() {
   const router = useRouter()
   const params = useParams()
@@ -252,6 +509,7 @@ export default function PptProjectPage() {
   const [mode, setMode] = useState<EditorMode>('translate')
   const [provider, setProvider] = useState<ProviderId>('deepseek')
   const [translatingIds, setTranslatingIds] = useState<Set<string>>(new Set())
+  const [exportingPptx, setExportingPptx] = useState(false)
   const [exportingExcel, setExportingExcel] = useState(false)
   const [slideDrafts, setSlideDrafts] = useState<Record<number, SlideDraft>>({})
 
@@ -561,6 +819,33 @@ export default function PptProjectPage() {
     }
   }
 
+  async function exportBilingualPptx() {
+    if (!activeDoc || grouped.length === 0) { alert('暂无可导出的 PPT 分页文本'); return }
+    setExportingPptx(true)
+    try {
+      const blob = await buildBilingualPptxBlob({
+        grouped,
+        projectName: project?.name || 'PPT项目',
+        documentTitle: activeDoc.title,
+        sourceLang,
+        targetLang,
+      })
+      const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${safeFileName(project?.name || 'PPT项目')}_${safeFileName(activeDoc.title)}_中英对照_${date}.pptx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      alert('导出 PPTX 失败：' + (err instanceof Error ? err.message : '未知错误'))
+    } finally {
+      setExportingPptx(false)
+    }
+  }
+
   if (loading) {
     return <div className="h-screen flex items-center justify-center bg-canvas text-sm text-ink-600">加载中...</div>
   }
@@ -608,7 +893,7 @@ export default function PptProjectPage() {
               <div className="flex flex-wrap xl:justify-end gap-3">
                 <input ref={fileRef} type="file" accept=".pptx" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) void handleFile(file); e.currentTarget.value = '' }} />
                 <Button size="sm" variant="brand" loading={parsing} onClick={() => fileRef.current?.click()}>一键导入 PPT 文档</Button>
-                <Button size="sm" variant="secondary" onClick={() => alert('中英对照 PPTX 导出已预留，将在第二步实现。')}>导出中英对照 PPT</Button>
+                <Button size="sm" variant="secondary" loading={exportingPptx} onClick={exportBilingualPptx}>导出中英对照 PPT</Button>
                 <Button size="sm" variant="secondary" loading={exportingExcel} onClick={exportExcel}>导出 Excel 对照表</Button>
               </div>
             </div>

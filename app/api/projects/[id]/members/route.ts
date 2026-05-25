@@ -23,6 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   // 用 admin 查（避免 RLS 二次过滤），JOIN profiles 拿用户信息
   const admin = supabaseAdmin()
+  const platformAdmin = await isPlatformAdmin(user, admin)
   const { data, error } = await admin
     .from('project_members')
     .select(`
@@ -34,14 +35,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ members: data, myRole: role })
+  return NextResponse.json({ members: data, myRole: role, isPlatformAdmin: platformAdmin })
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: projectId } = await params
   const { client, user } = await supabaseFromRequest(req)
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (!isPlatformAdmin(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  const admin = supabaseAdmin()
+  if (!(await isPlatformAdmin(user, admin))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const role = await getMyRole(client, projectId, user.id)
   if (!canManage(role)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
@@ -62,8 +64,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (error: unknown) {
     return NextResponse.json({ error: linkErrorMessage(error) }, { status: 500 })
   }
-
-  const admin = supabaseAdmin()
 
   // 1) 检查该邮箱是否已是项目成员
   const { data: existingProfile } = await admin

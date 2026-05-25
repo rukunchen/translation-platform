@@ -3,7 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
-import { isPlatformAdmin } from '@/lib/platformAdmin'
+import { apiJSON } from '@/lib/apiFetch'
 import { cn } from './ui/cn'
 import Logo from './Logo'
 
@@ -17,9 +17,21 @@ export default function Sidebar() {
   const router = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState<User | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUser(user as User | null))
+    let alive = true
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!alive) return
+      setUser(user as User | null)
+      if (!user) {
+        setIsAdmin(false)
+        return
+      }
+      const { data } = await apiJSON<{ isAdmin: boolean }>('/api/admin/me')
+      if (alive) setIsAdmin(Boolean(data?.isAdmin))
+    })
+    return () => { alive = false }
   }, [])
 
   useEffect(() => {
@@ -27,6 +39,7 @@ export default function Sidebar() {
     router.prefetch('/projects')
     router.prefetch('/ai-experiments')
     router.prefetch('/practice')
+    router.prefetch('/reading')
     router.prefetch('/writing')
     router.prefetch('/writing/templates')
     router.prefetch('/writing/library')
@@ -42,6 +55,7 @@ export default function Sidebar() {
   const isProjectsActive = pathname.startsWith('/projects')
     || (pathname.startsWith('/documents/') && !isParallelPage)
   const isPracticeActive = pathname.startsWith('/practice')
+  const isReadingActive = pathname.startsWith('/reading')
   const isExperimentsActive = pathname.startsWith('/ai-experiments') || isParallelPage
   const isWritingActive = pathname.startsWith('/writing')
   const isAdminActive = pathname.startsWith('/admin')
@@ -90,6 +104,13 @@ export default function Sidebar() {
             detail="练习与复盘"
           />
           <WorkspaceItem
+            active={isReadingActive}
+            onClick={() => router.push('/reading')}
+            icon={<ReadingIcon />}
+            label="深读室"
+            detail="原文精读与札记"
+          />
+          <WorkspaceItem
             active={isExperimentsActive}
             onClick={() => router.push('/ai-experiments')}
             icon={<ExperimentIcon />}
@@ -103,7 +124,7 @@ export default function Sidebar() {
             label="论文写作工坊"
             detail="模板与写作项目"
           />
-          {isPlatformAdmin(user) && (
+          {isAdmin && (
             <WorkspaceItem
               active={isAdminActive}
               onClick={() => router.push('/admin')}
@@ -229,6 +250,17 @@ function PracticeIcon() {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
         d="M6.75 5.25h7.5A2.25 2.25 0 0116.5 7.5v11.25l-3.38-2.25-3.37 2.25V7.5A2.25 2.25 0 017.5 5.25h-.75z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M7.5 8.25h5.25M7.5 11.25h5.25" />
+    </svg>
+  )
+}
+
+function ReadingIcon() {
+  return (
+    <svg className="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
+        d="M5.25 5.25h5.25c1.24 0 2.25 1.01 2.25 2.25v11.25c0-1.24-1.01-2.25-2.25-2.25H5.25V5.25z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
+        d="M18.75 5.25H13.5A2.25 2.25 0 0011.25 7.5v11.25c0-1.24 1.01-2.25 2.25-2.25h5.25V5.25zM7.5 8.75h2.25M7.5 11.5h2.25M14.25 8.75h2.25M14.25 11.5h2.25" />
     </svg>
   )
 }

@@ -28,9 +28,9 @@ type ProfileRow = {
 export async function GET(req: NextRequest) {
   const { user } = await supabaseFromRequest(req)
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (!isPlatformAdmin(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
-
   const admin = supabaseAdmin()
+  if (!(await isPlatformAdmin(user, admin))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+
   const { data: invitationData, error: invitationError } = await admin
     .from('invitations')
     .select('id, project_id, inviter_user_id, invitee_email, assigned_role, status, created_at, expires_at, accepted_at')

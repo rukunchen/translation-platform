@@ -5,9 +5,9 @@ import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
 export async function GET(req: NextRequest) {
   const { user } = await supabaseFromRequest(req)
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (!isPlatformAdmin(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
-
   const admin = supabaseAdmin()
+  if (!(await isPlatformAdmin(user, admin))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+
   const now = new Date().toISOString()
   const [members, projects, documents, pendingInvitations] = await Promise.all([
     admin.from('profiles').select('id', { count: 'exact', head: true }),

@@ -57,6 +57,8 @@ export default function ParallelWorkbenchPage() {
   const [results, setResults] = useState<ResultMap>(new Map())
   const [, setTranslatingCells] = useState<Set<string>>(new Set())
   const [adoptingIds, setAdoptingIds] = useState<Set<string>>(new Set())
+  const [finalDrafts, setFinalDrafts] = useState<Record<string, string>>({})
+  const [savingFinalIds, setSavingFinalIds] = useState<Set<string>>(new Set())
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [exportOpen, setExportOpen] = useState(false)
@@ -248,8 +250,9 @@ export default function ParallelWorkbenchPage() {
   const handleAdopt = async (resultId: string, segmentId: string, newText: string) => {
     const seg = segments.find(s => s.id === segmentId)
     if (!seg) return
-    if (seg.target?.trim() && seg.target.trim() !== newText.trim()) {
-      if (!confirm('该句段已有译文，采用此候选会覆盖现有译文，确定继续？')) return
+    const currentFinal = finalDrafts[segmentId] ?? seg.target ?? ''
+    if (currentFinal.trim() && currentFinal.trim() !== newText.trim()) {
+      if (!confirm('该句段已有最终译文，采用此候选会覆盖现有译文，确定继续？')) return
     }
     setAdoptingIds(prev => new Set(prev).add(resultId))
     const { data, error } = await apiJSON<{ segment: Segment }>('/api/parallel-translate/adopt', {
@@ -257,7 +260,42 @@ export default function ParallelWorkbenchPage() {
     })
     setAdoptingIds(prev => { const s = new Set(prev); s.delete(resultId); return s })
     if (error) { alert('采用失败：' + error); return }
-    if (data?.segment) setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, ...data.segment } : s))
+    if (data?.segment) {
+      setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, ...data.segment } : s))
+      setFinalDrafts(prev => {
+        const next = { ...prev }
+        delete next[segmentId]
+        return next
+      })
+    }
+  }
+
+  const finalTextFor = (seg: Segment) => finalDrafts[seg.id] ?? seg.target ?? ''
+
+  const updateFinalDraft = (segmentId: string, value: string) => {
+    setFinalDrafts(prev => ({ ...prev, [segmentId]: value }))
+  }
+
+  const saveFinalTranslation = async (seg: Segment) => {
+    const target = finalTextFor(seg)
+    if (target === (seg.target ?? '')) return
+
+    setSavingFinalIds(prev => new Set(prev).add(seg.id))
+    const { data, error } = await apiJSON<{ segment: Segment }>(`/api/segments/${seg.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ target }),
+    })
+    setSavingFinalIds(prev => { const next = new Set(prev); next.delete(seg.id); return next })
+
+    if (error) { alert('保存最终译文失败：' + error); return }
+    if (data?.segment) {
+      setSegments(prev => prev.map(s => s.id === seg.id ? { ...s, ...data.segment } : s))
+      setFinalDrafts(prev => {
+        const next = { ...prev }
+        delete next[seg.id]
+        return next
+      })
+    }
   }
 
   if (loading) return (
@@ -403,7 +441,7 @@ export default function ParallelWorkbenchPage() {
                 <div style={{ paddingLeft: 14, paddingRight: 14, paddingTop: 10, paddingBottom: 8, borderBottom: '1px solid var(--color-line)' }}>
                   <div style={{ fontSize: 10, letterSpacing: '0.14em', color: 'var(--color-ink-400)', textTransform: 'uppercase' }}>Export</div>
                   <div style={{ fontSize: 12, color: 'var(--color-ink-500)', marginTop: 4 }}>
-                    含原文 + 各模型译文 + 已采用译文
+                    含原文 + 各模型译文 + 最终译文
                   </div>
                 </div>
                 <button onClick={() => handleExport('xlsx')}
@@ -459,7 +497,7 @@ export default function ParallelWorkbenchPage() {
                       <Eyebrow tone="muted">{String(i + 1).padStart(2, '0')}</Eyebrow>
                       {adopted && (
                         <span className="font-mono uppercase bg-green-100 text-green-700 rounded"
-                          style={{ fontSize: 10, letterSpacing: '0.12em', paddingLeft: 6, paddingRight: 6, paddingTop: 2, paddingBottom: 2 }}>已采用</span>
+                          style={{ fontSize: 10, letterSpacing: '0.12em', paddingLeft: 6, paddingRight: 6, paddingTop: 2, paddingBottom: 2 }}>最终</span>
                       )}
                       {seg.status === 'locked' && (
                         <span className="font-mono uppercase bg-ink-900 text-white rounded"
@@ -516,7 +554,11 @@ export default function ParallelWorkbenchPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {segments
                   .filter(seg => selectedIds.has(seg.id) || enabledConfigs.some(c => results.has(makeKey(seg.id, c))))
-                  .map(seg => (
+                  .map(seg => {
+                    const finalText = finalTextFor(seg)
+                    const finalDirty = finalText !== (seg.target ?? '')
+                    const finalSaving = savingFinalIds.has(seg.id)
+                    return (
                     <Card key={seg.id} padding="none" className="overflow-hidden">
                       {/* 行头：原文 */}
                       <div className="bg-surface border-b border-line"
@@ -526,7 +568,7 @@ export default function ParallelWorkbenchPage() {
                           {seg.target && (
                             <span className="font-mono bg-green-100 text-green-700 rounded truncate"
                               style={{ fontSize: 10, paddingLeft: 6, paddingRight: 6, paddingTop: 2, paddingBottom: 2, maxWidth: 400 }}>
-                              主译文: {seg.target.slice(0, 30)}{seg.target.length > 30 ? '...' : ''}
+                              最终译文: {seg.target.slice(0, 30)}{seg.target.length > 30 ? '...' : ''}
                             </span>
                           )}
                         </div>
@@ -555,8 +597,60 @@ export default function ParallelWorkbenchPage() {
                           )
                         })}
                       </div>
+                      <div className="border-t border-line bg-white" style={{ padding: 24 }}>
+                        <div className="flex items-center justify-between gap-3" style={{ marginBottom: 10 }}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Eyebrow tone="muted">Final Translation</Eyebrow>
+                            <span className="font-mono text-ink-500 truncate" style={{ fontSize: 10 }}>
+                              最终译后编辑译文
+                            </span>
+                          </div>
+                          <span
+                            className={cn(
+                              'font-mono uppercase rounded flex-shrink-0',
+                              finalDirty ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                            )}
+                            style={{ fontSize: 10, letterSpacing: '0.12em', paddingLeft: 8, paddingRight: 8, paddingTop: 3, paddingBottom: 3 }}
+                          >
+                            {finalDirty ? '未保存' : '已保存'}
+                          </span>
+                        </div>
+                        <div className="rounded-xl border border-line bg-white overflow-hidden">
+                          <textarea
+                            value={finalText}
+                            onChange={e => updateFinalDraft(seg.id, e.target.value)}
+                            placeholder="输入最终译文"
+                            className="w-full resize-y bg-white text-ink-900 placeholder-ink-300 focus:outline-none"
+                            style={{
+                              minHeight: 132,
+                              paddingLeft: 18,
+                              paddingRight: 18,
+                              paddingTop: 16,
+                              paddingBottom: 16,
+                              fontSize: 14,
+                              lineHeight: 1.75,
+                            }}
+                          />
+                          <div className="flex items-center justify-between border-t border-line bg-white/85"
+                            style={{ gap: 12, paddingLeft: 12, paddingRight: 12, paddingTop: 8, paddingBottom: 8 }}>
+                            <span className="text-ink-400" style={{ fontSize: 11 }}>
+                              {finalText.trim() ? `${finalText.length} 字符` : '暂无最终译文'}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              loading={finalSaving}
+                              disabled={!finalDirty || finalSaving}
+                              onClick={() => { void saveFinalTranslation(seg) }}
+                            >
+                              保存最终译文
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     </Card>
-                  ))}
+                    )
+                  })}
               </div>
             )}
           </div>

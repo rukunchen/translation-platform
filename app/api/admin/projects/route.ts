@@ -11,8 +11,18 @@ type ProjectRow = {
 }
 
 type MemberRow = {
+  id: string
   project_id: string
+  user_id: string
   role: string
+  profiles?: {
+    email: string | null
+    name: string | null
+  } | null
+}
+
+type RawMemberRow = Omit<MemberRow, 'profiles'> & {
+  profiles?: MemberRow['profiles'] | MemberRow['profiles'][]
 }
 
 type DocumentRow = {
@@ -30,9 +40,9 @@ type CreatorRow = {
 export async function GET(req: NextRequest) {
   const { user } = await supabaseFromRequest(req)
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (!isPlatformAdmin(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
-
   const admin = supabaseAdmin()
+  if (!(await isPlatformAdmin(user, admin))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+
   const { data: projectData, error: projectError } = await admin
     .from('projects')
     .select('id, name, description, created_by, created_at')
@@ -47,7 +57,10 @@ export async function GET(req: NextRequest) {
   if (projectIds.length === 0) return NextResponse.json({ projects: [] })
 
   const [memberResult, documentResult, creatorResult] = await Promise.all([
-    admin.from('project_members').select('project_id, role').in('project_id', projectIds),
+    admin
+      .from('project_members')
+      .select('id, project_id, user_id, role, profiles:user_id ( email, name )')
+      .in('project_id', projectIds),
     admin.from('documents').select('project_id, created_at, updated_at').in('project_id', projectIds),
     creatorIds.length > 0
       ? admin.from('profiles').select('id, email, name').in('id', creatorIds)
@@ -58,11 +71,20 @@ export async function GET(req: NextRequest) {
   if (queryError) return NextResponse.json({ error: queryError.message }, { status: 500 })
 
   const membersByProject = new Map<string, { members: number; managers: number }>()
-  for (const member of (memberResult.data || []) as MemberRow[]) {
+  const memberRowsByProject = new Map<string, MemberRow[]>()
+  for (const rawMember of (memberResult.data || []) as RawMemberRow[]) {
+    const member: MemberRow = {
+      ...rawMember,
+      profiles: Array.isArray(rawMember.profiles) ? rawMember.profiles[0] || null : rawMember.profiles || null,
+    }
     const totals = membersByProject.get(member.project_id) || { members: 0, managers: 0 }
     totals.members += 1
     if (member.role === 'manager') totals.managers += 1
     membersByProject.set(member.project_id, totals)
+
+    const rows = memberRowsByProject.get(member.project_id) || []
+    rows.push(member)
+    memberRowsByProject.set(member.project_id, rows)
   }
 
   const documentsByProject = new Map<string, { documents: number; latestAt: string | null }>()
@@ -94,6 +116,13 @@ export async function GET(req: NextRequest) {
       memberCount: memberTotals.members,
       managerCount: memberTotals.managers,
       documentCount: documentTotals.documents,
+      members: (memberRowsByProject.get(project.id) || []).map(member => ({
+        id: member.id,
+        userId: member.user_id,
+        role: member.role,
+        email: member.profiles?.email || null,
+        name: member.profiles?.name || null,
+      })),
     }
   }).sort((a, b) => (b.latestActivityAt || b.createdAt).localeCompare(a.latestActivityAt || a.createdAt))
 

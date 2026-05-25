@@ -18,9 +18,9 @@ type ProjectRow = {
 export async function GET(req: NextRequest) {
   const { user } = await supabaseFromRequest(req)
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (!isPlatformAdmin(user)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
-
   const admin = supabaseAdmin()
+  if (!(await isPlatformAdmin(user, admin))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+
   const { data: documentData, error: documentError } = await admin
     .from('documents')
     .select('id, title, project_id, created_at, updated_at')
