@@ -410,7 +410,8 @@ export default function DashboardPage() {
   }, [])
 
   const init = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) { router.push('/'); return }
     setUser(user as typeof user & { id: string })
     await Promise.all([loadAll(user.id), loadPracticeOverview(user.id)])

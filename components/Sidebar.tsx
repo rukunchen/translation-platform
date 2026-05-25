@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
@@ -13,37 +14,87 @@ type User = {
   user_metadata?: { name?: string }
 }
 
+const workspaceHrefs = [
+  '/dashboard',
+  '/projects',
+  '/ai-experiments',
+  '/practice',
+  '/reading',
+  '/writing',
+  '/writing/templates',
+  '/writing/library',
+  '/admin',
+]
+
+let workspacePrefetched = false
+let cachedUser: User | null | undefined
+let cachedUserId: string | null | undefined
+const cachedAdminByUser = new Map<string, boolean>()
+const pendingAdminByUser = new Map<string, Promise<boolean>>()
+
+async function loadAdminStatus(userId: string) {
+  const cached = cachedAdminByUser.get(userId)
+  if (cached !== undefined) return cached
+
+  const existing = pendingAdminByUser.get(userId)
+  if (existing) return existing
+
+  const pending = apiJSON<{ isAdmin: boolean }>('/api/admin/me')
+    .then(({ data }) => Boolean(data?.isAdmin))
+    .catch(() => false)
+    .then(isAdmin => {
+      cachedAdminByUser.set(userId, isAdmin)
+      pendingAdminByUser.delete(userId)
+      return isAdmin
+    })
+
+  pendingAdminByUser.set(userId, pending)
+  return pending
+}
+
 export default function Sidebar() {
   const router = useRouter()
   const pathname = usePathname()
-  const [user, setUser] = useState<User | null>(null)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [user, setUser] = useState<User | null>(() => cachedUser ?? null)
+  const [isAdmin, setIsAdmin] = useState(() => (
+    cachedUserId ? cachedAdminByUser.get(cachedUserId) ?? false : false
+  ))
 
   useEffect(() => {
     let alive = true
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!alive) return
-      setUser(user as User | null)
-      if (!user) {
+      const sessionUser = (session?.user ?? null) as User | null
+      cachedUser = sessionUser
+      cachedUserId = sessionUser?.id ?? null
+      setUser(sessionUser)
+
+      if (!sessionUser) {
         setIsAdmin(false)
         return
       }
-      const { data } = await apiJSON<{ isAdmin: boolean }>('/api/admin/me')
-      if (alive) setIsAdmin(Boolean(data?.isAdmin))
+
+      const nextIsAdmin = await loadAdminStatus(sessionUser.id)
+      if (alive) setIsAdmin(nextIsAdmin)
     })
     return () => { alive = false }
   }, [])
 
   useEffect(() => {
-    router.prefetch('/dashboard')
-    router.prefetch('/projects')
-    router.prefetch('/ai-experiments')
-    router.prefetch('/practice')
-    router.prefetch('/reading')
-    router.prefetch('/writing')
-    router.prefetch('/writing/templates')
-    router.prefetch('/writing/library')
-    router.prefetch('/admin')
+    if (workspacePrefetched) return
+    workspacePrefetched = true
+    const prefetch = () => {
+      workspaceHrefs.forEach(href => router.prefetch(href))
+    }
+    const requestIdle = (window as Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
+    }).requestIdleCallback
+    if (requestIdle) {
+      requestIdle(prefetch, { timeout: 1500 })
+    } else {
+      globalThis.setTimeout(prefetch, 300)
+    }
   }, [router])
 
   const logout = async () => {
@@ -67,8 +118,8 @@ export default function Sidebar() {
 
       {/* 品牌区 */}
       <div style={{ padding: '28px 24px' }}>
-        <div
-          onClick={() => router.push('/dashboard')}
+        <Link
+          href="/dashboard"
           className="flex items-center gap-3 cursor-pointer group"
         >
           <Logo size={40} priority className="flex-shrink-0 group-hover:scale-105 transition-transform" />
@@ -76,7 +127,7 @@ export default function Sidebar() {
             <span className="text-white font-semibold text-[15px] tracking-tight">译境</span>
             <span className="text-ink-400 text-[11px] mt-0.5 truncate">技大25级MTIer翻译平台</span>
           </div>
-        </div>
+        </Link>
       </div>
 
       <div style={{ margin: '0 24px' }} className="h-px bg-white/8" />
@@ -91,35 +142,35 @@ export default function Sidebar() {
         <div className="space-y-2">
           <WorkspaceItem
             active={isProjectsActive}
-            onClick={() => router.push('/projects')}
+            href="/projects"
             icon={<FolderIcon />}
             label="我的项目"
             detail="文档、术语与交付"
           />
           <WorkspaceItem
             active={isPracticeActive}
-            onClick={() => router.push('/practice')}
+            href="/practice"
             icon={<PracticeIcon />}
             label="译训库"
             detail="练习与复盘"
           />
           <WorkspaceItem
             active={isReadingActive}
-            onClick={() => router.push('/reading')}
+            href="/reading"
             icon={<ReadingIcon />}
             label="深读室"
             detail="原文精读与札记"
           />
           <WorkspaceItem
             active={isExperimentsActive}
-            onClick={() => router.push('/ai-experiments')}
+            href="/ai-experiments"
             icon={<ExperimentIcon />}
             label="最近 AI 翻译实验"
             detail="多模型实验记录"
           />
           <WorkspaceItem
             active={isWritingActive}
-            onClick={() => router.push('/writing')}
+            href="/writing"
             icon={<WritingIcon />}
             label="论文写作工坊"
             detail="模板与写作项目"
@@ -127,7 +178,7 @@ export default function Sidebar() {
           {isAdmin && (
             <WorkspaceItem
               active={isAdminActive}
-              onClick={() => router.push('/admin')}
+              href="/admin"
               icon={<AdminIcon />}
               label="管理控制台"
               detail="成员与活动观察"
@@ -166,19 +217,19 @@ export default function Sidebar() {
 }
 
 function WorkspaceItem({
-  active, onClick, icon, label, detail,
+  active, href, icon, label, detail,
 }: {
   active?: boolean
-  onClick: () => void
+  href: string
   icon: React.ReactNode
   label: string
   detail: string
 }) {
   return (
-    <button
-      onClick={onClick}
+    <Link
+      href={href}
       className={cn(
-        'group relative w-full overflow-hidden rounded-xl border text-left transition-all duration-200',
+        'group relative block w-full overflow-hidden rounded-xl border text-left transition-all duration-200',
         active
           ? 'border-white/12 bg-white/[0.09] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
           : 'border-transparent text-ink-300 hover:border-white/8 hover:bg-white/[0.055] hover:text-white'
@@ -202,7 +253,7 @@ function WorkspaceItem({
           </span>
         </span>
       </span>
-    </button>
+    </Link>
   )
 }
 

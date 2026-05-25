@@ -86,7 +86,8 @@ export default function TranslationPracticeHomePage() {
   }, [])
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const user = session?.user
       if (!user) { router.push('/'); return }
       setUserId(user.id)
       void load(user.id)

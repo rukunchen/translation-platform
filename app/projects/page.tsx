@@ -91,7 +91,8 @@ export default function ProjectsPage() {
   }, [])
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const user = session?.user
       if (!user) {
         router.push('/')
         return
