@@ -122,9 +122,13 @@ export default function LoginPage() {
             textAlign: 'center',
             fontSize: 15,
             lineHeight: 1.75,
+            fontFamily: '"Avenir Next", "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+            fontWeight: 400,
+            letterSpacing: 0,
             color: 'var(--color-ink-500)',
           }}>
-            支持分句翻译、多人审校、多模型 AI 译文对比、<wbr />Prompt 与 Temperature 实验记录，以及研究数据导出。
+            Built for sentence-level translation, collaborative review, multi-model AI comparison,
+            prompt and temperature experiments, and research-ready data export.
           </p>
 
         </div>
