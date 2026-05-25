@@ -75,7 +75,7 @@ export default function LoginPage() {
           {/* 头图 — mix-blend-multiply 让米白底融入 canvas 色 */}
           <div className="mb-10 -mx-2">
             <Image
-              src="/page1.png"
+              src="/image2.png"
               alt="MTI 同学协作翻译"
               width={1536}
               height={1024}
