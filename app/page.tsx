@@ -192,17 +192,15 @@ export default function LoginPage() {
             </div>
           </form>
 
-          <button
-            type="button"
-            onClick={() => router.push('/admin')}
-            className="mt-6 w-full border-t border-line pt-5 text-left transition-colors group"
-          >
-            <span className="block text-sm font-medium text-ink-900 group-hover:text-brand">管理员入口</span>
-            <span className="mt-1.5 block text-xs leading-relaxed text-ink-500">
-              为新成员创建账号，查看团队活动与项目进展
-            </span>
-            <span className="mt-3 block text-sm text-ink-700 group-hover:text-brand">进入管理控制台 →</span>
-          </button>
+          <div className="mt-5 flex justify-end">
+            <button
+              type="button"
+              onClick={() => router.push('/admin')}
+              className="text-xs font-medium text-ink-400 transition-colors hover:text-ink-600"
+            >
+              管理员入口
+            </button>
+          </div>
         </div>
 
         {/* 底部 */}
