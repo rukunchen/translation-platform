@@ -192,7 +192,7 @@ export default function LoginPage() {
             </div>
           </form>
 
-          <div className="mt-5 flex justify-end">
+          <div className="mt-7 flex justify-end">
             <button
               type="button"
               onClick={() => router.push('/admin')}
