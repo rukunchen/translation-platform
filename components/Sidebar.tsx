@@ -136,7 +136,7 @@ export default function Sidebar() {
       <nav className="flex-1" style={{ padding: '20px 16px' }}>
         <div className="mb-4 px-2">
           <p className="text-[10px] uppercase tracking-[0.24em] text-white/35">Workspace</p>
-          <p className="text-[12px] text-ink-400 mt-1">进入具体工作</p>
+          <p className="text-[12px] text-white/55 mt-1">进入具体工作</p>
         </div>
 
         <div className="space-y-2">
@@ -232,7 +232,7 @@ function WorkspaceItem({
         'group relative block w-full overflow-hidden rounded-xl border text-left transition-all duration-200',
         active
           ? 'border-white/12 bg-white/[0.09] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
-          : 'border-transparent text-ink-300 hover:border-white/8 hover:bg-white/[0.055] hover:text-white'
+          : 'border-transparent text-white/80 hover:border-white/8 hover:bg-white/[0.055] hover:text-white'
       )}
       style={{ padding: '12px 11px' }}
     >
@@ -247,8 +247,10 @@ function WorkspaceItem({
           {icon}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13.5px] font-medium leading-tight">{label}</span>
-          <span className={cn('mt-1 block truncate text-[11px] leading-tight', active ? 'text-white/50' : 'text-ink-400')}>
+          <span className={cn('block truncate text-[13.5px] font-medium leading-tight', active ? 'text-white' : 'text-white/90 group-hover:text-white')}>
+            {label}
+          </span>
+          <span className={cn('mt-1 block truncate text-[11px] leading-tight', active ? 'text-white/55' : 'text-white/50')}>
             {detail}
           </span>
         </span>
