@@ -532,7 +532,44 @@ export default function TranslationPracticeEditorPage() {
               }
             />
 
-            <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-6 mb-8">
+            <section className="mb-8 space-y-6">
+              <Card padding="md" variant="surface">
+                <Card.Header>
+                  <div>
+                    <Eyebrow tone="muted" className="mb-2">Session</Eyebrow>
+                    <h2 className="font-serif text-lg text-ink-900">练习设置</h2>
+                  </div>
+                </Card.Header>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[220px_minmax(180px,1fr)_160px_minmax(0,1.4fr)]">
+                  <Select label="状态" value={status} onChange={e => setStatus(e.target.value)}>
+                    {PRACTICE_STATUSES.map(value => <option key={value} value={value}>{practiceStatusMeta[value].label}</option>)}
+                  </Select>
+                  <div className="rounded-xl border border-line bg-white" style={{ padding: 16 }}>
+                    <p className="text-xs text-ink-500 mb-1">标签</p>
+                    <p className="text-sm text-ink-800 leading-relaxed">{tagsToText(item.tags) || '未添加标签'}</p>
+                  </div>
+                  <div className="rounded-xl border border-line bg-white" style={{ padding: 16 }}>
+                    <p className="text-xs text-ink-500 mb-1">句段对比</p>
+                    <p className="font-mono text-2xl text-ink-900">{segments.length}</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                    <Button variant="secondary" fullWidth loading={splitting} onClick={() => splitSegments('paragraph')}>按段落切分</Button>
+                    <Button variant="secondary" fullWidth loading={splitting} onClick={() => splitSegments('sentence')}>按句号切分</Button>
+                  </div>
+                  <div className="border-t border-line pt-4 md:col-span-2 xl:col-span-4">
+                    <p className="text-xs text-ink-500 mb-3">AI 辅助</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="ghost" loading={aiTranslating} onClick={handleAiTranslate}>生成 AI 参考译文</Button>
+                      <Button size="sm" variant="ghost" loading={aiAnalyzing} onClick={handleAiAnalyze}>分析我的译文问题</Button>
+                      <Button size="sm" variant="ghost" loading={aiExpressionExtracting} onClick={handleAiExtractExpressions}>提取高频表达</Button>
+                    </div>
+                    {aiTranslationError && <p className="mt-3 text-xs text-red-600">{aiTranslationError}</p>}
+                    {aiAnalysisError && <p className="mt-3 text-xs text-red-600">{aiAnalysisError}</p>}
+                    {aiExpressionError && <p className="mt-3 text-xs text-red-600">{aiExpressionError}</p>}
+                  </div>
+                </div>
+              </Card>
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 <TextPane
                   eyebrow="Source"
@@ -570,43 +607,6 @@ export default function TranslationPracticeEditorPage() {
                   />
                 </Card>
               </div>
-
-              <Card padding="md" variant="surface" className="h-fit">
-                <Card.Header>
-                  <div>
-                    <Eyebrow tone="muted" className="mb-2">Session</Eyebrow>
-                    <h2 className="font-serif text-lg text-ink-900">练习设置</h2>
-                  </div>
-                </Card.Header>
-                <div className="space-y-4">
-                  <Select label="状态" value={status} onChange={e => setStatus(e.target.value)}>
-                    {PRACTICE_STATUSES.map(value => <option key={value} value={value}>{practiceStatusMeta[value].label}</option>)}
-                  </Select>
-                  <div className="rounded-xl border border-line bg-white" style={{ padding: 16 }}>
-                    <p className="text-xs text-ink-500 mb-1">标签</p>
-                    <p className="text-sm text-ink-800 leading-relaxed">{tagsToText(item.tags) || '未添加标签'}</p>
-                  </div>
-                  <div className="rounded-xl border border-line bg-white" style={{ padding: 16 }}>
-                    <p className="text-xs text-ink-500 mb-1">句段对比</p>
-                    <p className="font-mono text-2xl text-ink-900">{segments.length}</p>
-                  </div>
-                  <div className="space-y-2 pt-1">
-                    <Button variant="secondary" fullWidth loading={splitting} onClick={() => splitSegments('paragraph')}>按段落切分</Button>
-                    <Button variant="secondary" fullWidth loading={splitting} onClick={() => splitSegments('sentence')}>按句号切分</Button>
-                  </div>
-                  <div className="border-t border-line pt-4">
-                    <p className="text-xs text-ink-500 mb-3">AI 辅助</p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="ghost" loading={aiTranslating} onClick={handleAiTranslate}>生成 AI 参考译文</Button>
-                      <Button size="sm" variant="ghost" loading={aiAnalyzing} onClick={handleAiAnalyze}>分析我的译文问题</Button>
-                      <Button size="sm" variant="ghost" loading={aiExpressionExtracting} onClick={handleAiExtractExpressions}>提取高频表达</Button>
-                    </div>
-                    {aiTranslationError && <p className="mt-3 text-xs text-red-600">{aiTranslationError}</p>}
-                    {aiAnalysisError && <p className="mt-3 text-xs text-red-600">{aiAnalysisError}</p>}
-                    {aiExpressionError && <p className="mt-3 text-xs text-red-600">{aiExpressionError}</p>}
-                  </div>
-                </div>
-              </Card>
             </section>
 
             {aiAnalysis && (

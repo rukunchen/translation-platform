@@ -213,6 +213,7 @@ export default function ReadingRoomPage() {
   const [editArticleOpen, setEditArticleOpen] = useState(false)
   const [savingArticleEdit, setSavingArticleEdit] = useState(false)
   const [editArticleTitle, setEditArticleTitle] = useState('')
+  const [editArticleGenre, setEditArticleGenre] = useState('其他')
   const [editArticleText, setEditArticleText] = useState('')
   const [draftText, setDraftText] = useState('')
   const [importGenre, setImportGenre] = useState('其他')
@@ -235,6 +236,9 @@ export default function ReadingRoomPage() {
   const filteredArticles = articles.filter(item =>
     (genreFilter === '全部' || articleGenre(item) === genreFilter) && articleMatchesSearch(item, searchQuery)
   )
+  const editArticleGenreOptions = GENRE_OPTIONS.includes(editArticleGenre)
+    ? GENRE_OPTIONS
+    : [editArticleGenre, ...GENRE_OPTIONS]
 
   const loadArticleLibrary = async (currentUserId: string): Promise<ReadingArticle[]> => {
     const { data: articleRows, error: articleError } = await supabase
@@ -375,6 +379,7 @@ export default function ReadingRoomPage() {
   const openArticleEditor = () => {
     if (!article) return
     setEditArticleTitle(article.title || titleFromText(cleanText))
+    setEditArticleGenre(articleGenre(article))
     setEditArticleText(cleanText)
     setEditArticleOpen(true)
     setSelection(null)
@@ -385,6 +390,7 @@ export default function ReadingRoomPage() {
     if (!article || !userId) return
     const cleaned = cleanSourceText(editArticleText)
     const title = editArticleTitle.trim() || titleFromText(cleaned)
+    const genre = editArticleGenre || '其他'
     if (!cleaned || !title) return
 
     setSavingArticleEdit(true)
@@ -393,6 +399,7 @@ export default function ReadingRoomPage() {
       .from('reading_articles')
       .update({
         title,
+        genre,
         clean_text: cleaned,
         structured_blocks: null,
       })
@@ -1093,6 +1100,19 @@ export default function ReadingRoomPage() {
                   className="w-full rounded-xl border-2 border-line bg-white text-base text-ink-900 placeholder-ink-300 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
                   style={{ padding: '12px 14px' }}
                 />
+              </label>
+              <label className="mt-4 block">
+                <span className="mb-2 block text-sm font-medium text-ink-700">文章体裁</span>
+                <select
+                  value={editArticleGenre}
+                  onChange={event => setEditArticleGenre(event.target.value)}
+                  className="w-full rounded-xl border-2 border-line bg-white text-sm text-ink-900 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
+                  style={{ padding: '11px 14px' }}
+                >
+                  {editArticleGenreOptions.map(genre => (
+                    <option key={genre} value={genre}>{genre}</option>
+                  ))}
+                </select>
               </label>
               <label className="mt-4 block">
                 <span className="mb-2 block text-sm font-medium text-ink-700">原文正文</span>

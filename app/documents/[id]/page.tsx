@@ -439,17 +439,13 @@ export default function DocumentPage() {
     return true
   }
 
-  // 单行重译：把结果存入 AI 初译缓存；若 target 还为空，则同时写入 target 作为初值
+  // 单行重译：只把结果存入 AI 初译缓存，由「采用 AI」决定是否写入人工译文
   const handleTranslateRow = async (seg: Segment) => {
     if (seg.status === 'locked') { alert('该句段已锁定，无法翻译'); return }
     setTranslatingIds(prev => new Set(prev).add(seg.id))
     try {
       const translation = await translateOne(seg)
       if (translation) setAiDrafts(prev => ({ ...prev, [seg.id]: translation }))
-      if (!seg.target?.trim() && translation) {
-        const r = await patchSegment(seg.id, { target: translation, translator_target: translation })
-        if (r.segment) patchLocal(seg.id, r.segment)
-      }
     } catch (e: unknown) {
       alert('翻译失败：' + (e instanceof Error ? e.message : '未知错误'))
     } finally {
@@ -468,6 +464,24 @@ export default function DocumentPage() {
     else if (r.error) alert('采用失败：' + r.error)
   }
 
+  const clearTranslatorTarget = async (seg: Segment) => {
+    if (seg.status === 'locked' && !canManage(myRole)) return
+    const current = segmentsRef.current.find(s => s.id === seg.id) || seg
+    if (!current.target?.trim()) return
+    const previous = {
+      target: current.target,
+      translator_target: current.translator_target ?? current.target,
+    }
+    patchLocal(seg.id, { target: '', translator_target: '' })
+    markSaving(seg.id)
+    const r = await patchSegment(seg.id, { target: '', translator_target: '' })
+    if (r.segment) patchLocal(seg.id, r.segment)
+    else {
+      patchLocal(seg.id, previous)
+      if (r.error) alert('清除失败：' + r.error)
+    }
+  }
+
   const runBatchTranslate = async (segs: Segment[]) => {
     setBatchTranslating(true)
     setBatchProgress({ done: 0, total: segs.length })
@@ -479,11 +493,6 @@ export default function DocumentPage() {
         try {
           const translation = await translateOne(seg)
           if (translation) setAiDrafts(prev => ({ ...prev, [seg.id]: translation }))
-          // 空译文 → 直接写入 target；已有译文 → 只更新 AI 初译缓存
-          if (!seg.target?.trim() && translation) {
-            const r = await patchSegment(seg.id, { target: translation, translator_target: translation })
-            if (r.segment) patchLocal(seg.id, r.segment)
-          }
         } catch { /* 跳过失败 */ }
         finally {
           setTranslatingIds(prev => { const n = new Set(prev); n.delete(seg.id); return n })
@@ -959,6 +968,7 @@ export default function DocumentPage() {
                   onEditNotes={handleEditTranslatorNotes} onBlurNotes={handleBlurNotes}
                   onFocusNotes={(id, v) => { notesFocusRef.current[id] = v }}
                   onTranslateRow={handleTranslateRow} onAdoptAi={adoptAiDraft}
+                  onClearTarget={clearTranslatorTarget}
                 />
               ) : (
                 <>
@@ -1143,6 +1153,7 @@ function TranslateTable(props: {
   onFocusNotes: (id: string, v: string) => void
   onTranslateRow: (s: Segment) => void
   onAdoptAi: (s: Segment) => void
+  onClearTarget: (s: Segment) => void
 }) {
   const cols = props.selectMode
     ? '40px 56px minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,0.8fr) 96px'
@@ -1272,6 +1283,7 @@ function TranslateTable(props: {
                 transition: 'opacity 0.15s',
               }}>
                 <RowMicroBtn label={isTranslating ? '...' : '重译'} onClick={() => props.onTranslateRow(seg)} disabled={isTranslating || isLocked} />
+                <RowMicroBtn label="清除译文" onClick={() => props.onClearTarget(seg)} disabled={!editable || !seg.target?.trim()} />
                 {ai && ai !== seg.target && (
                   <RowMicroBtn label="采用 AI" onClick={() => props.onAdoptAi(seg)} disabled={!editable} variant="primary" />
                 )}
