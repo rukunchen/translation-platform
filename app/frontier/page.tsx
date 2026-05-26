@@ -1933,14 +1933,20 @@ function FrontierAiCard({
 }) {
   if (!paper.aiCardGeneratedAt) {
     return (
-      <div className={cn('rounded-xl border border-dashed border-line bg-canvas px-4 py-3 text-sm text-ink-500', className)}>
+      <div
+        className={cn('rounded-xl border border-dashed border-line bg-canvas px-5 py-4 text-sm text-ink-500', className)}
+        style={{ '--bordered-text-px': '1.25rem', '--bordered-text-py': '1rem' } as React.CSSProperties}
+      >
         尚未生成 AI 文献卡片
       </div>
     )
   }
 
   return (
-    <div className={cn('rounded-xl border border-line bg-canvas px-4 py-4', className)}>
+    <div
+      className={cn('rounded-xl border border-line bg-canvas px-5 py-5', className)}
+      style={{ '--bordered-text-px': '1.25rem', '--bordered-text-py': '1.25rem' } as React.CSSProperties}
+    >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-medium uppercase tracking-[0.12em] text-ink-500">AI 文献卡片</p>
         {paper.aiCardModel && <span className="font-mono text-xs text-ink-400">{paper.aiCardModel}</span>}
