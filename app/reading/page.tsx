@@ -122,6 +122,10 @@ function articleWords(article: ReadingArticle): number {
   return wordCount(article.clean_text || '')
 }
 
+function isFrontierLiteratureArticle(article: ReadingArticle | null): boolean {
+  return article?.source_type === 'frontier_literature'
+}
+
 function articleGenre(article: ReadingArticle): string {
   return article.genre || '其他'
 }
@@ -672,6 +676,12 @@ export default function ReadingRoomPage() {
         {storageError && (
           <div className="border-b border-red-100 bg-red-50 px-10 py-3 text-sm text-red-700">
             {storageError}
+          </div>
+        )}
+
+        {mode === 'reader' && isFrontierLiteratureArticle(article) && (
+          <div className="border-b border-amber-100 bg-amber-50 px-10 py-3 text-sm text-amber-800">
+            当前仅包含题录或摘要，不是论文全文。请导入你有权使用的全文后开始精读。
           </div>
         )}
 

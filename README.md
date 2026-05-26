@@ -71,7 +71,7 @@ npm run build
 
 ## Supabase 初始化
 
-当前主 migration 链可以按 `01-22` 初始化空数据库。现有代码实际依赖这些主要表：
+当前主 migration 链可以按 `01-27` 初始化空数据库。现有代码实际依赖这些主要表：
 
 - `profiles`
 - `projects`
@@ -90,6 +90,11 @@ npm run build
 - `translation_practice_segments`
 - `translation_practice_issues`
 - `expression_cards`
+- `platform_admins`
+- `admin_audit_logs`
+- `reading_articles`
+- `reading_notes`
+- `frontier_literature_items`
 
 建议运行顺序：
 
@@ -115,6 +120,11 @@ npm run build
 20. `supabase/20_research_library.sql`
 21. `supabase/21_ppt_slide_translation_metadata.sql`
 22. `supabase/22_translation_practice_lab.sql`
+23. `supabase/23_platform_admins.sql`
+24. `supabase/24_admin_audit_logs.sql`
+25. `supabase/25_reading_room.sql`
+26. `supabase/26_reading_article_genre.sql`
+27. `supabase/27_frontier_literature.sql`
 
 `supabase/archive/add_segments_column.sql` 是旧版 `documents.segments` JSONB 分句结构的历史兼容脚本，不属于新环境初始化链路，不应在新数据库初始化时执行。`01` 会临时创建 `documents.segments` 以兼容 `04_migrate_segments_to_table.sql`，`04` 会在迁移完成后删除该旧字段。`18` 和 `20` 还会创建聊天附件、研究 PDF 所需的 Supabase Storage bucket。
 

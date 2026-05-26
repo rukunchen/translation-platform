@@ -19,6 +19,7 @@ const workspaceHrefs = [
   '/projects',
   '/ai-experiments',
   '/practice',
+  '/frontier',
   '/reading',
   '/writing',
   '/writing/templates',
@@ -106,6 +107,7 @@ export default function Sidebar() {
   const isProjectsActive = pathname.startsWith('/projects')
     || (pathname.startsWith('/documents/') && !isParallelPage)
   const isPracticeActive = pathname.startsWith('/practice')
+  const isFrontierActive = pathname.startsWith('/frontier')
   const isReadingActive = pathname.startsWith('/reading')
   const isExperimentsActive = pathname.startsWith('/ai-experiments') || isParallelPage
   const isWritingActive = pathname.startsWith('/writing')
@@ -153,6 +155,13 @@ export default function Sidebar() {
             icon={<PracticeIcon />}
             label="译训库"
             detail="练习与复盘"
+          />
+          <WorkspaceItem
+            active={isFrontierActive}
+            href="/frontier"
+            icon={<FrontierIcon />}
+            label="前沿文献"
+            detail="研究追踪与精读"
           />
           <WorkspaceItem
             active={isReadingActive}
@@ -314,6 +323,17 @@ function ReadingIcon() {
         d="M5.25 5.25h5.25c1.24 0 2.25 1.01 2.25 2.25v11.25c0-1.24-1.01-2.25-2.25-2.25H5.25V5.25z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
         d="M18.75 5.25H13.5A2.25 2.25 0 0011.25 7.5v11.25c0-1.24 1.01-2.25 2.25-2.25h5.25V5.25zM7.5 8.75h2.25M7.5 11.5h2.25M14.25 8.75h2.25M14.25 11.5h2.25" />
+    </svg>
+  )
+}
+
+function FrontierIcon() {
+  return (
+    <svg className="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
+        d="M5.25 5.25h9.75a3.75 3.75 0 013.75 3.75v9.75H8.25a3 3 0 01-3-3V5.25z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
+        d="M8.25 8.25h7.5M8.25 11.25h5.25M8.25 14.25h6.75M18.75 9v9.75" />
     </svg>
   )
 }
