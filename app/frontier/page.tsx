@@ -1764,16 +1764,18 @@ function FrontierPaperCard({
         <h2 className="font-serif text-xl leading-tight text-ink-900">{paper.title}</h2>
         <p className="mt-3 text-sm text-ink-500">{paper.authors} · {paper.source}</p>
       </div>
-      <div className="space-y-5" style={{ padding: '20px 22px' }}>
-        <PaperMeta label="研究方法" value={paper.method} />
-        <PaperMeta label="核心结论" value={paper.finding} />
-        <FrontierAiCard paper={paper} compact />
-        <div className="flex flex-wrap gap-x-3 gap-y-2 pt-1">
+      <div style={{ padding: '22px 24px' }}>
+        <div className="space-y-5">
+          <PaperMeta label="研究方法" value={paper.method} />
+          <PaperMeta label="核心结论" value={paper.finding} />
+        </div>
+        <FrontierAiCard paper={paper} compact className="mt-7" />
+        <div className="mt-7 flex flex-wrap gap-x-3 gap-y-3">
           {paper.keywords.map(keyword => (
             <span key={keyword} className="rounded-full bg-canvas px-2.5 py-1 text-xs text-ink-500">{keyword}</span>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 pt-1">
+        <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-3">
           {paper.link ? (
             <a
               href={paper.link}
