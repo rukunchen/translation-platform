@@ -30,7 +30,7 @@ type OpenAlexResponse = {
 
 function parseLimit(value: string | null) {
   const parsed = Number(value)
-  if (!Number.isFinite(parsed) || parsed < 1) return 10
+  if (!Number.isFinite(parsed) || parsed < 1) return 20
   return Math.min(Math.floor(parsed), 30)
 }
 

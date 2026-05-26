@@ -242,7 +242,7 @@ const EMPTY_IMPORT_FORM: FrontierImportFormState = {
   region: '国外',
   fromYear: '',
   toYear: '',
-  limit: '10',
+  limit: '20',
 }
 
 const EMPTY_SESSION_FORM: ReadingSessionFormState = {
@@ -1145,7 +1145,7 @@ export default function FrontierPage() {
     setImportResults([])
     setSelectedImportIndexes(new Set())
 
-    const limit = Math.min(Math.max(Number(importForm.limit) || 10, 1), 30)
+    const limit = Math.min(Math.max(Number(importForm.limit) || 20, 1), 30)
     const params = new URLSearchParams({
       query: importForm.query.trim(),
       field: importForm.field,
@@ -2357,7 +2357,7 @@ function FrontierImportModal({
               max={30}
               value={form.limit}
               onChange={event => onChange({ limit: event.target.value })}
-              placeholder="10"
+              placeholder="20"
             />
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
