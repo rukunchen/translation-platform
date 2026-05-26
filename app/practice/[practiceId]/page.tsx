@@ -570,41 +570,46 @@ export default function TranslationPracticeEditorPage() {
                 </div>
               </Card>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                <TextPane
-                  eyebrow="Source"
-                  title="原文"
-                  value={sourceText}
-                  onChange={setSourceText}
-                  words={countPracticeWords(sourceText)}
-                  placeholder="在这里整理原文"
-                />
-                <TextPane
-                  eyebrow="My Draft"
-                  title="我的译文"
-                  value={myTranslation}
-                  onChange={setMyTranslation}
-                  words={countPracticeWords(myTranslation)}
-                  placeholder="完成初译后再开始对照"
-                />
-                <Card padding="md" className="min-h-[420px]">
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                  <TextPane
+                    eyebrow="Source"
+                    title="原文"
+                    value={sourceText}
+                    onChange={setSourceText}
+                    words={countPracticeWords(sourceText)}
+                    placeholder="在这里整理原文"
+                  />
+                  <TextPane
+                    eyebrow="My Draft"
+                    title="我的译文"
+                    value={myTranslation}
+                    onChange={setMyTranslation}
+                    words={countPracticeWords(myTranslation)}
+                    placeholder="完成初译后再开始对照"
+                  />
+                </div>
+                <Card padding="md">
                   <Eyebrow tone="muted" className="mb-2">Reference</Eyebrow>
                   <h2 className="font-serif text-xl text-ink-900 mb-4">参考译文 / AI 译文</h2>
-                  <Textarea
-                    label={`参考译文 · ${countPracticeWords(referenceTranslation)} 字`}
-                    value={referenceTranslation}
-                    onChange={e => setReferenceTranslation(e.target.value)}
-                    rows={8}
-                    placeholder="粘贴参考译文"
-                  />
-                  <Textarea
-                    className="mt-4"
-                    label={`AI 译文 · ${countPracticeWords(aiTranslation)} 字`}
-                    value={aiTranslation}
-                    onChange={e => setAiTranslation(e.target.value)}
-                    rows={5}
-                    placeholder="生成 AI 参考译文后可继续修改并保存"
-                  />
+                  <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                    <Textarea
+                      label={`参考译文 · ${countPracticeWords(referenceTranslation)} 字`}
+                      value={referenceTranslation}
+                      onChange={e => setReferenceTranslation(e.target.value)}
+                      rows={10}
+                      placeholder="粘贴参考译文"
+                      inputClassName="min-h-[260px]"
+                    />
+                    <Textarea
+                      label={`AI 译文 · ${countPracticeWords(aiTranslation)} 字`}
+                      value={aiTranslation}
+                      onChange={e => setAiTranslation(e.target.value)}
+                      rows={10}
+                      placeholder="生成 AI 参考译文后可继续修改并保存"
+                      inputClassName="min-h-[260px]"
+                    />
+                  </div>
                 </Card>
               </div>
             </section>
