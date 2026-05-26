@@ -1764,16 +1764,16 @@ function FrontierPaperCard({
         <h2 className="font-serif text-xl leading-tight text-ink-900">{paper.title}</h2>
         <p className="mt-3 text-sm text-ink-500">{paper.authors} · {paper.source}</p>
       </div>
-      <div className="space-y-4" style={{ padding: '18px 20px' }}>
+      <div className="space-y-5" style={{ padding: '20px 22px' }}>
         <PaperMeta label="研究方法" value={paper.method} />
         <PaperMeta label="核心结论" value={paper.finding} />
         <FrontierAiCard paper={paper} compact />
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-x-3 gap-y-2 pt-1">
           {paper.keywords.map(keyword => (
             <span key={keyword} className="rounded-full bg-canvas px-2.5 py-1 text-xs text-ink-500">{keyword}</span>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 pt-1">
           {paper.link ? (
             <a
               href={paper.link}
@@ -1866,7 +1866,7 @@ function FrontierReader({
             <h1 className="mt-3 max-w-4xl font-serif text-3xl leading-tight text-ink-900">{activePaper.title}</h1>
             <p className="mt-3 text-sm text-ink-500">{activePaper.authors} · {activePaper.source} · {activePaper.year || '年份未录'}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-x-3 gap-y-3">
             {isAdmin && (
               <Button
                 size="sm"

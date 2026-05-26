@@ -109,6 +109,15 @@ a.rounded-full:not(.animate-spin):not([class^="h-"]):not([class*=" h-"]) {
   min-height: 2.5rem;
 }
 
+/* 换行的按钮/标签组需要更大的纵向间距，避免两行内容挤在一起。 */
+.flex.flex-wrap.gap-2 {
+  row-gap: 0.75rem;
+}
+
+.flex.flex-wrap.gap-3 {
+  row-gap: 0.875rem;
+}
+
 /* 有边框的文字容器需要稳定留白，避免内容贴近边框。 */
 p.rounded-xl[class*="border"],
 div.rounded-xl[class*="border"],
