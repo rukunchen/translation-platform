@@ -91,6 +91,8 @@ type FrontierFormState = {
 
 type FrontierImportFormState = {
   query: string
+  searchMode: 'keyword' | 'precise'
+  subject: string
   field: FrontierField
   region: FrontierRegion
   fromYear: string
@@ -238,6 +240,8 @@ const EMPTY_FORM: FrontierFormState = {
 
 const EMPTY_IMPORT_FORM: FrontierImportFormState = {
   query: '',
+  searchMode: 'keyword',
+  subject: '',
   field: '翻译科技',
   region: '国外',
   fromYear: '',
@@ -1148,10 +1152,12 @@ export default function FrontierPage() {
     const limit = Math.min(Math.max(Number(importForm.limit) || 20, 1), 30)
     const params = new URLSearchParams({
       query: importForm.query.trim(),
+      mode: importForm.searchMode,
       field: importForm.field,
       region: importForm.region,
       limit: String(limit),
     })
+    if (importForm.subject.trim()) params.set('subject', importForm.subject.trim())
     if (importForm.fromYear.trim()) params.set('fromYear', importForm.fromYear.trim())
     if (importForm.toYear.trim()) params.set('toYear', importForm.toYear.trim())
 
@@ -2335,17 +2341,33 @@ function FrontierImportModal({
         </div>
 
         <form onSubmit={onSearch} className="space-y-5">
-          <Input
-            label="关键词"
-            value={form.query}
-            onChange={event => onChange({ query: event.target.value })}
-            placeholder="machine translation / corpus translation"
-            required
-          />
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Select label="领域" value={form.field} onChange={event => onChange({ field: event.target.value as FrontierField })}>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
+            <Select
+              label="搜索方式"
+              value={form.searchMode}
+              onChange={event => onChange({ searchMode: event.target.value as FrontierImportFormState['searchMode'] })}
+            >
+              <option value="keyword">关键词搜索</option>
+              <option value="precise">精准搜索</option>
+            </Select>
+            <Input
+              label={form.searchMode === 'precise' ? '题名 / DOI' : '关键词'}
+              value={form.query}
+              onChange={event => onChange({ query: event.target.value })}
+              placeholder={form.searchMode === 'precise' ? '输入完整题名或 DOI' : 'machine translation / corpus translation'}
+              required
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <Select label="平台领域" value={form.field} onChange={event => onChange({ field: event.target.value as FrontierField })}>
               {FRONTIER_FIELDS.map(field => <option key={field} value={field}>{field}</option>)}
             </Select>
+            <Input
+              label="学科 / 主题"
+              value={form.subject}
+              onChange={event => onChange({ subject: event.target.value })}
+              placeholder="translation studies / NLP"
+            />
             <Select label="国内 / 国外" value={form.region} onChange={event => onChange({ region: event.target.value as FrontierRegion })}>
               <option value="国内">国内</option>
               <option value="国外">国外</option>
