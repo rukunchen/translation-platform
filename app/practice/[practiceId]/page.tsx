@@ -52,9 +52,10 @@ type ExpressionDraft = {
 
 type PracticeAiAnalysis = {
   summary: string
+  score: number
+  scoreReason: string
   issues: string[]
   suggestions: string[]
-  improvedTranslation: string
 }
 
 const PRACTICE_EXPRESSION_CATEGORIES = ['专有名词', '重点名词', '动词', '形容词'] as const
@@ -616,25 +617,7 @@ export default function TranslationPracticeEditorPage() {
 
             {aiAnalysis && (
               <section ref={aiAnalysisRef} className="mb-8 scroll-mt-6">
-                <Card padding="lg" variant="surface">
-                  <div className="flex flex-col gap-5 border-b border-line pb-5 mb-6 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <Eyebrow tone="brand" className="mb-2">AI Analysis</Eyebrow>
-                      <h2 className="font-serif text-xl text-ink-900">译文问题分析</h2>
-                    </div>
-                    <p className="max-w-3xl text-sm text-ink-700 leading-relaxed">{aiAnalysis.summary}</p>
-                  </div>
-                  <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(320px,1.2fr)]">
-                    <AiResultList title="问题" items={aiAnalysis.issues} />
-                    <AiResultList title="建议" items={aiAnalysis.suggestions} />
-                    <div>
-                      <p className="text-xs text-ink-500 mb-2">改写参考</p>
-                      <p className="rounded-xl border border-line bg-white text-sm text-ink-800 leading-relaxed whitespace-pre-wrap" style={{ padding: 18 }}>
-                        {aiAnalysis.improvedTranslation}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
+                <AiAnalysisReport analysis={aiAnalysis} />
               </section>
             )}
 
@@ -755,15 +738,92 @@ export default function TranslationPracticeEditorPage() {
   )
 }
 
-function AiResultList({ title, items }: { title: string; items: string[] }) {
+function AiAnalysisReport({ analysis }: { analysis: PracticeAiAnalysis }) {
+  const score = normalizeScore(analysis.score)
+  const meta = scoreMeta(score)
+
   return (
-    <div>
-      <p className="text-xs text-ink-500 mb-1">{title}</p>
-      <ul className="space-y-1 text-sm text-ink-800 list-disc pl-4">
-        {items.map(item => <li key={item}>{item}</li>)}
-      </ul>
+    <Card padding="none" variant="surface" className="overflow-hidden">
+      <div className="bg-ink-900 text-white" style={{ padding: '26px 30px' }}>
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <Eyebrow tone="brand" className="mb-2 text-brand-100">AI Analysis Report</Eyebrow>
+            <h2 className="font-serif text-2xl leading-tight">CATTI 二级笔译成绩报告</h2>
+          </div>
+          <div className="flex items-center gap-3 text-sm text-white/70">
+            <span className="rounded-lg border border-white/20 px-3 py-1">满分 100</span>
+            <span className="rounded-lg border border-white/20 px-3 py-1">合格线 60</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-6" style={{ padding: 30 }}>
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
+          <div className="rounded-xl border border-line bg-white" style={{ padding: 22 }}>
+            <p className="text-xs text-ink-500 mb-2">CATTI 二级估分</p>
+            <div className="flex items-end gap-2">
+              <span className="font-mono text-5xl leading-none text-ink-900">{score}</span>
+              <span className="pb-1 text-sm text-ink-500">/ 100</span>
+            </div>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-canvas">
+              <div className={cn('h-full rounded-full', meta.barClass)} style={{ width: `${score}%` }} />
+            </div>
+            <p className={cn('mt-4 inline-flex rounded-lg px-3 py-1 text-xs font-medium', meta.badgeClass)}>{meta.label}</p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-line bg-white" style={{ padding: 22 }}>
+              <p className="text-xs text-ink-500 mb-2">总评</p>
+              <p className="text-sm text-ink-800 leading-7">{analysis.summary}</p>
+            </div>
+            <div className="rounded-xl border border-line bg-white" style={{ padding: 22 }}>
+              <p className="text-xs text-ink-500 mb-2">评分依据</p>
+              <p className="text-sm text-ink-800 leading-7">{analysis.scoreReason}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <AiReportList title="主要扣分点" items={analysis.issues} tone="issue" />
+          <AiReportList title="提分建议" items={analysis.suggestions} tone="suggestion" />
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+function AiReportList({ title, items, tone }: { title: string; items: string[]; tone: 'issue' | 'suggestion' }) {
+  const toneClass = tone === 'issue' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-brand-50 text-brand-700 border-brand-100'
+
+  return (
+    <div className="rounded-xl border border-line bg-white" style={{ padding: 22 }}>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-sm font-medium text-ink-900">{title}</p>
+        <span className="rounded-lg border border-line bg-surface px-2.5 py-1 font-mono text-[11px] text-ink-500">{items.length}</span>
+      </div>
+      <ol className="space-y-3">
+        {items.map((item, index) => (
+          <li key={`${title}-${item}`} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3">
+            <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg border font-mono text-xs', toneClass)}>
+              {index + 1}
+            </span>
+            <span className="pt-0.5 text-sm leading-7 text-ink-800">{item}</span>
+          </li>
+        ))}
+      </ol>
     </div>
   )
+}
+
+function normalizeScore(score: number) {
+  return Math.max(0, Math.min(100, Math.round(score)))
+}
+
+function scoreMeta(score: number) {
+  if (score >= 85) return { label: '优秀', barClass: 'bg-status-success', badgeClass: 'bg-green-50 text-green-700' }
+  if (score >= 75) return { label: '良好', barClass: 'bg-status-info-text', badgeClass: 'bg-blue-50 text-blue-700' }
+  if (score >= 60) return { label: '合格', barClass: 'bg-brand', badgeClass: 'bg-brand-50 text-brand-700' }
+  return { label: '未达合格线', barClass: 'bg-status-error', badgeClass: 'bg-red-50 text-red-700' }
 }
 
 function AiExpressionGroup({
