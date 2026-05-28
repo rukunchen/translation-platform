@@ -830,9 +830,9 @@ function AiAnalysisReport({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <AiReportList title="主要扣分点" items={analysis.issues} tone="issue" />
-          <AiReportList title="提分建议" items={analysis.suggestions} tone="suggestion" />
+        <div className="grid grid-cols-1 gap-5">
+          <AiReportList title="逐项扣分点" items={analysis.issues} tone="issue" />
+          <AiReportList title="对应提分建议" items={analysis.suggestions} tone="suggestion" />
         </div>
       </div>
     </Card>
