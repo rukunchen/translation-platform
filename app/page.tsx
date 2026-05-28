@@ -196,7 +196,14 @@ export default function LoginPage() {
             </div>
           </form>
 
-          <div className="flex justify-end" style={{ marginTop: 40 }}>
+          <div className="flex items-center justify-between" style={{ marginTop: 40 }}>
+            <button
+              type="button"
+              onClick={() => router.push('/account/password')}
+              className="text-xs font-medium text-ink-400 transition-colors hover:text-ink-600"
+            >
+              找回/更改密码
+            </button>
             <button
               type="button"
               onClick={() => router.push('/admin')}
