@@ -9,15 +9,8 @@
 
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { isPublic } from '@/lib/publicPaths'
 import { supabase } from '@/lib/supabase'
-
-// 这些路径不需要登录 → SIGNED_OUT 时不必再跳转
-const PUBLIC_PATHS = ['/', '/invite']
-
-function isPublic(pathname: string) {
-  if (!pathname) return false
-  return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
-}
 
 export default function AuthGate() {
   const router = useRouter()

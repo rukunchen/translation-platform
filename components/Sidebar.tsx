@@ -14,18 +14,90 @@ type User = {
   user_metadata?: { name?: string }
 }
 
-const workspaceHrefs = [
-  '/dashboard',
-  '/projects',
-  '/ai-experiments',
-  '/practice',
-  '/frontier',
-  '/reading',
-  '/writing',
-  '/writing/templates',
-  '/writing/library',
-  '/admin',
+type WorkspaceNavItem = {
+  href: string
+  label: string
+  detail: string
+  icon: React.ReactNode
+  activeMatcher: (pathname: string) => boolean
+  adminOnly: boolean
+  prefetchHrefs?: string[]
+}
+
+const isParallelPage = (pathname: string) => pathname.includes('/parallel')
+
+const workspaceNavItems: WorkspaceNavItem[] = [
+  {
+    href: '/dashboard',
+    label: '工作台',
+    detail: '总览与待办',
+    icon: <DashboardIcon />,
+    activeMatcher: pathname => pathname === '/dashboard' || pathname.startsWith('/dashboard/'),
+    adminOnly: false,
+  },
+  {
+    href: '/projects',
+    label: '我的项目',
+    detail: '文档、术语与交付',
+    icon: <FolderIcon />,
+    activeMatcher: pathname => pathname.startsWith('/projects')
+      || (pathname.startsWith('/documents/') && !isParallelPage(pathname)),
+    adminOnly: false,
+  },
+  {
+    href: '/practice',
+    label: '译训库',
+    detail: '练习与复盘',
+    icon: <PracticeIcon />,
+    activeMatcher: pathname => pathname.startsWith('/practice'),
+    adminOnly: false,
+  },
+  {
+    href: '/frontier',
+    label: '前沿文献',
+    detail: '研究追踪与精读',
+    icon: <FrontierIcon />,
+    activeMatcher: pathname => pathname.startsWith('/frontier'),
+    adminOnly: false,
+  },
+  {
+    href: '/reading',
+    label: '深读室',
+    detail: '原文精读与札记',
+    icon: <ReadingIcon />,
+    activeMatcher: pathname => pathname.startsWith('/reading'),
+    adminOnly: false,
+  },
+  {
+    href: '/ai-experiments',
+    label: '最近 AI 翻译实验',
+    detail: '多模型实验记录',
+    icon: <ExperimentIcon />,
+    activeMatcher: pathname => pathname.startsWith('/ai-experiments') || isParallelPage(pathname),
+    adminOnly: false,
+  },
+  {
+    href: '/writing',
+    label: '论文写作工坊',
+    detail: '模板与写作项目',
+    icon: <WritingIcon />,
+    activeMatcher: pathname => pathname.startsWith('/writing'),
+    adminOnly: false,
+    prefetchHrefs: ['/writing/templates', '/writing/library'],
+  },
+  {
+    href: '/admin',
+    label: '管理控制台',
+    detail: '成员与活动观察',
+    icon: <AdminIcon />,
+    activeMatcher: pathname => pathname.startsWith('/admin'),
+    adminOnly: true,
+  },
 ]
+
+const workspaceHrefs = Array.from(
+  new Set(workspaceNavItems.flatMap(item => [item.href, ...(item.prefetchHrefs ?? [])]))
+)
 
 let workspacePrefetched = false
 let cachedUser: User | null | undefined
@@ -60,6 +132,7 @@ export default function Sidebar() {
   const [isAdmin, setIsAdmin] = useState(() => (
     cachedUserId ? cachedAdminByUser.get(cachedUserId) ?? false : false
   ))
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -103,25 +176,89 @@ export default function Sidebar() {
     router.push('/')
   }
 
-  const isParallelPage = pathname.includes('/parallel')
-  const isProjectsActive = pathname.startsWith('/projects')
-    || (pathname.startsWith('/documents/') && !isParallelPage)
-  const isPracticeActive = pathname.startsWith('/practice')
-  const isFrontierActive = pathname.startsWith('/frontier')
-  const isReadingActive = pathname.startsWith('/reading')
-  const isExperimentsActive = pathname.startsWith('/ai-experiments') || isParallelPage
-  const isWritingActive = pathname.startsWith('/writing')
-  const isAdminActive = pathname.startsWith('/admin')
+  const visibleWorkspaceItems = workspaceNavItems.filter(item => !item.adminOnly || isAdmin)
   const userName = user?.user_metadata?.name || (user?.email ? user.email.split('@')[0] : '用户')
   const initial = (userName[0] || '?').toUpperCase()
+  const closeMobile = () => setMobileOpen(false)
 
   return (
-    <aside className="w-64 bg-ink-900 flex flex-col h-full flex-shrink-0 border-r border-black/20">
+    <>
+      <button
+        type="button"
+        aria-label="打开导航"
+        onClick={() => setMobileOpen(true)}
+        className="fixed left-3 top-3 z-40 flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-white text-ink-900 shadow-sm md:hidden"
+      >
+        <MenuIcon />
+      </button>
 
-      {/* 品牌区 */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            aria-label="关闭导航"
+            className="absolute inset-0 bg-ink-900/45"
+            onClick={closeMobile}
+          />
+          <aside className="relative flex h-full w-72 max-w-[86vw] flex-col bg-ink-900 border-r border-black/20 shadow-2xl">
+            <button
+              type="button"
+              aria-label="关闭导航"
+              onClick={closeMobile}
+              className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 hover:text-white"
+            >
+              <CloseIcon />
+            </button>
+            <SidebarContent
+              visibleWorkspaceItems={visibleWorkspaceItems}
+              pathname={pathname}
+              userName={userName}
+              userEmail={user?.email}
+              initial={initial}
+              onLogout={logout}
+              onNavigate={closeMobile}
+            />
+          </aside>
+        </div>
+      )}
+
+      <aside className="hidden w-64 bg-ink-900 md:flex flex-col h-full flex-shrink-0 border-r border-black/20">
+        <SidebarContent
+          visibleWorkspaceItems={visibleWorkspaceItems}
+          pathname={pathname}
+          userName={userName}
+          userEmail={user?.email}
+          initial={initial}
+          onLogout={logout}
+        />
+      </aside>
+    </>
+  )
+}
+
+function SidebarContent({
+  visibleWorkspaceItems,
+  pathname,
+  userName,
+  userEmail,
+  initial,
+  onLogout,
+  onNavigate,
+}: {
+  visibleWorkspaceItems: WorkspaceNavItem[]
+  pathname: string
+  userName: string
+  userEmail?: string
+  initial: string
+  onLogout: () => void
+  onNavigate?: () => void
+}) {
+  return (
+    <>
       <div style={{ padding: '28px 24px' }}>
         <Link
           href="/dashboard"
+          onClick={onNavigate}
           className="flex items-center gap-3 cursor-pointer group"
         >
           <Logo size={40} priority className="flex-shrink-0 group-hover:scale-105 transition-transform" />
@@ -142,57 +279,17 @@ export default function Sidebar() {
         </div>
 
         <div className="space-y-2">
-          <WorkspaceItem
-            active={isProjectsActive}
-            href="/projects"
-            icon={<FolderIcon />}
-            label="我的项目"
-            detail="文档、术语与交付"
-          />
-          <WorkspaceItem
-            active={isPracticeActive}
-            href="/practice"
-            icon={<PracticeIcon />}
-            label="译训库"
-            detail="练习与复盘"
-          />
-          <WorkspaceItem
-            active={isFrontierActive}
-            href="/frontier"
-            icon={<FrontierIcon />}
-            label="前沿文献"
-            detail="研究追踪与精读"
-          />
-          <WorkspaceItem
-            active={isReadingActive}
-            href="/reading"
-            icon={<ReadingIcon />}
-            label="深读室"
-            detail="原文精读与札记"
-          />
-          <WorkspaceItem
-            active={isExperimentsActive}
-            href="/ai-experiments"
-            icon={<ExperimentIcon />}
-            label="最近 AI 翻译实验"
-            detail="多模型实验记录"
-          />
-          <WorkspaceItem
-            active={isWritingActive}
-            href="/writing"
-            icon={<WritingIcon />}
-            label="论文写作工坊"
-            detail="模板与写作项目"
-          />
-          {isAdmin && (
+          {visibleWorkspaceItems.map(item => (
             <WorkspaceItem
-              active={isAdminActive}
-              href="/admin"
-              icon={<AdminIcon />}
-              label="管理控制台"
-              detail="成员与活动观察"
+              key={item.href}
+              active={item.activeMatcher(pathname)}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+              detail={item.detail}
+              onNavigate={onNavigate}
             />
-          )}
+          ))}
         </div>
       </nav>
 
@@ -206,11 +303,11 @@ export default function Sidebar() {
           </div>
           <div className="flex flex-col min-w-0 leading-tight">
             <span className="text-white text-sm font-medium truncate">{userName}</span>
-            <span className="text-ink-400 text-[11px] truncate">{user?.email}</span>
+            <span className="text-ink-400 text-[11px] truncate">{userEmail}</span>
           </div>
         </div>
         <NavItem
-          onClick={logout}
+          onClick={onLogout}
           icon={
             <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -221,22 +318,24 @@ export default function Sidebar() {
           subtle
         />
       </div>
-    </aside>
+    </>
   )
 }
 
 function WorkspaceItem({
-  active, href, icon, label, detail,
+  active, href, icon, label, detail, onNavigate,
 }: {
   active?: boolean
   href: string
   icon: React.ReactNode
   label: string
   detail: string
+  onNavigate?: () => void
 }) {
   return (
     <Link
       href={href}
+      onClick={onNavigate}
       className={cn(
         'group relative block w-full overflow-hidden rounded-xl border text-left transition-all duration-200',
         active
@@ -294,6 +393,31 @@ function NavItem({
       <span className="truncate">{label}</span>
       {active && <span className="ml-auto w-1 h-5 rounded-full bg-brand" />}
     </button>
+  )
+}
+
+function MenuIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  )
+}
+
+function CloseIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  )
+}
+
+function DashboardIcon() {
+  return (
+    <svg className="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
+        d="M4.75 5.75A2 2 0 016.75 3.75h2.5a2 2 0 012 2v2.5a2 2 0 01-2 2h-2.5a2 2 0 01-2-2v-2.5zM12.75 5.75a2 2 0 012-2h2.5a2 2 0 012 2v2.5a2 2 0 01-2 2h-2.5a2 2 0 01-2-2v-2.5zM4.75 14.75a2 2 0 012-2h2.5a2 2 0 012 2v2.5a2 2 0 01-2 2h-2.5a2 2 0 01-2-2v-2.5zM12.75 14.75a2 2 0 012-2h2.5a2 2 0 012 2v2.5a2 2 0 01-2 2h-2.5a2 2 0 01-2-2v-2.5z" />
+    </svg>
   )
 }
 

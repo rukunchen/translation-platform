@@ -58,7 +58,13 @@ type PracticeAiAnalysis = {
   suggestions: string[]
 }
 
+type SavedPracticeAiAnalysis = {
+  analysis: PracticeAiAnalysis
+  savedAt: string
+}
+
 const PRACTICE_EXPRESSION_CATEGORIES = ['专有名词', '重点名词', '动词', '形容词'] as const
+const AI_ANALYSIS_STORAGE_PREFIX = 'practice-ai-analysis:'
 
 type PracticeExpressionCategory = typeof PRACTICE_EXPRESSION_CATEGORIES[number]
 
@@ -96,6 +102,8 @@ export default function TranslationPracticeEditorPage() {
   const [aiAnalyzing, setAiAnalyzing] = useState(false)
   const [aiAnalysis, setAiAnalysis] = useState<PracticeAiAnalysis | null>(null)
   const [aiAnalysisError, setAiAnalysisError] = useState('')
+  const [aiAnalysisSavedAt, setAiAnalysisSavedAt] = useState<string | null>(null)
+  const [aiAnalysisSaveStatus, setAiAnalysisSaveStatus] = useState('')
   const [aiExpressionExtracting, setAiExpressionExtracting] = useState(false)
   const [aiExpressions, setAiExpressions] = useState<PracticeAiExpressions | null>(null)
   const [aiExpressionError, setAiExpressionError] = useState('')
@@ -133,6 +141,10 @@ export default function TranslationPracticeEditorPage() {
     setReferenceTranslation(practice.reference_translation || '')
     setAiTranslation(practice.ai_translation || '')
     setStatus(practiceStatus(practice.status))
+    const savedAnalysis = loadSavedAiAnalysis(practice.id)
+    setAiAnalysis(savedAnalysis?.analysis ?? null)
+    setAiAnalysisSavedAt(savedAnalysis?.savedAt ?? null)
+    setAiAnalysisSaveStatus(savedAnalysis ? '已恢复上次保存的报告。' : '')
     setSegments((segmentRes.data ?? []) as TranslationPracticeSegment[])
     setIssues((issueRes.data ?? []) as TranslationPracticeIssue[])
     setLoading(false)
@@ -297,9 +309,23 @@ export default function TranslationPracticeEditorPage() {
         return
       }
       setAiAnalysis(data)
+      setAiAnalysisSavedAt(null)
+      setAiAnalysisSaveStatus('新报告尚未保存。')
       window.setTimeout(() => aiAnalysisRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
     } finally {
       setAiAnalyzing(false)
+    }
+  }
+
+  function saveAiAnalysis() {
+    if (!item || !aiAnalysis) return
+    const savedAt = new Date().toISOString()
+    try {
+      window.localStorage.setItem(aiAnalysisStorageKey(item.id), JSON.stringify({ analysis: aiAnalysis, savedAt }))
+      setAiAnalysisSavedAt(savedAt)
+      setAiAnalysisSaveStatus('报告已保存到本页。')
+    } catch {
+      setAiAnalysisSaveStatus('保存失败：浏览器存储空间不可用。')
     }
   }
 
@@ -617,7 +643,12 @@ export default function TranslationPracticeEditorPage() {
 
             {aiAnalysis && (
               <section ref={aiAnalysisRef} className="mb-8 scroll-mt-6">
-                <AiAnalysisReport analysis={aiAnalysis} />
+                <AiAnalysisReport
+                  analysis={aiAnalysis}
+                  savedAt={aiAnalysisSavedAt}
+                  saveStatus={aiAnalysisSaveStatus}
+                  onSave={saveAiAnalysis}
+                />
               </section>
             )}
 
@@ -738,7 +769,17 @@ export default function TranslationPracticeEditorPage() {
   )
 }
 
-function AiAnalysisReport({ analysis }: { analysis: PracticeAiAnalysis }) {
+function AiAnalysisReport({
+  analysis,
+  savedAt,
+  saveStatus,
+  onSave,
+}: {
+  analysis: PracticeAiAnalysis
+  savedAt: string | null
+  saveStatus: string
+  onSave: () => void
+}) {
   const score = normalizeScore(analysis.score)
   const meta = scoreMeta(score)
 
@@ -750,14 +791,20 @@ function AiAnalysisReport({ analysis }: { analysis: PracticeAiAnalysis }) {
             <Eyebrow tone="brand" className="mb-2 text-brand-100">AI Analysis Report</Eyebrow>
             <h2 className="font-serif text-2xl leading-tight">CATTI 二级笔译成绩报告</h2>
           </div>
-          <div className="flex items-center gap-3 text-sm text-white/70">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-white/70">
             <span className="rounded-lg border border-white/20 px-3 py-1">满分 100</span>
             <span className="rounded-lg border border-white/20 px-3 py-1">合格线 60</span>
+            <Button size="sm" variant="brand" onClick={onSave}>保存报告</Button>
           </div>
         </div>
       </div>
 
       <div className="space-y-6" style={{ padding: 30 }}>
+        <div className="flex flex-col gap-2 rounded-xl border border-line bg-white text-sm text-ink-700 sm:flex-row sm:items-center sm:justify-between" style={{ padding: '14px 18px' }}>
+          <span>{saveStatus || (savedAt ? '报告已保存。' : '当前报告尚未保存。')}</span>
+          <span className="font-mono text-xs text-ink-500">{savedAt ? `保存于 ${formatSavedAt(savedAt)}` : '刷新前请保存'}</span>
+        </div>
+
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
           <div className="rounded-xl border border-line bg-white" style={{ padding: 22 }}>
             <p className="text-xs text-ink-500 mb-2">CATTI 二级估分</p>
@@ -824,6 +871,41 @@ function scoreMeta(score: number) {
   if (score >= 75) return { label: '良好', barClass: 'bg-status-info-text', badgeClass: 'bg-blue-50 text-blue-700' }
   if (score >= 60) return { label: '合格', barClass: 'bg-brand', badgeClass: 'bg-brand-50 text-brand-700' }
   return { label: '未达合格线', barClass: 'bg-status-error', badgeClass: 'bg-red-50 text-red-700' }
+}
+
+function aiAnalysisStorageKey(practiceId: string) {
+  return `${AI_ANALYSIS_STORAGE_PREFIX}${practiceId}`
+}
+
+function loadSavedAiAnalysis(practiceId: string): SavedPracticeAiAnalysis | null {
+  try {
+    const raw = window.localStorage.getItem(aiAnalysisStorageKey(practiceId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<SavedPracticeAiAnalysis>
+    if (!parsed.analysis || !isPracticeAiAnalysis(parsed.analysis) || !parsed.savedAt) return null
+    return { analysis: parsed.analysis, savedAt: parsed.savedAt }
+  } catch {
+    return null
+  }
+}
+
+function isPracticeAiAnalysis(value: unknown): value is PracticeAiAnalysis {
+  if (!value || typeof value !== 'object') return false
+  const analysis = value as Partial<PracticeAiAnalysis>
+  return typeof analysis.summary === 'string' &&
+    typeof analysis.score === 'number' &&
+    typeof analysis.scoreReason === 'string' &&
+    Array.isArray(analysis.issues) &&
+    Array.isArray(analysis.suggestions)
+}
+
+function formatSavedAt(value: string) {
+  return new Date(value).toLocaleString('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function AiExpressionGroup({

@@ -1,11 +1,7 @@
 // 客户端发起带 Authorization 头的 fetch（用于调自家 /api 路由）
 // 检测到 401 会自动登出 + 跳回登录页（避免 UI 卡在 "unable to connect" 假象）
+import { isPublic } from './publicPaths'
 import { supabase } from './supabase'
-
-const PUBLIC_PATHS = ['/', '/invite']
-function isPublic(pathname: string) {
-  return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
-}
 
 let handlingAuthFailure = false
 async function handleAuthFailure() {
