@@ -29,6 +29,8 @@ export type GenerateOpts = {
   model: string
   temperature: number
   prompt: string
+  maxTokens?: number
+  timeoutMs?: number
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -236,15 +238,17 @@ export async function generateWith(provider: ProviderId, opts: GenerateOpts): Pr
     return { text: '', error: `${provider} 未配置` }
   }
   const temperature = Math.max(0, Math.min(2, opts.temperature))
+  const maxTokens = opts.maxTokens && Number.isFinite(opts.maxTokens) ? Math.max(256, Math.round(opts.maxTokens)) : 4096
+  const requestOptions = opts.timeoutMs && Number.isFinite(opts.timeoutMs) ? { timeout: Math.max(1000, Math.round(opts.timeoutMs)) } : undefined
   try {
     switch (provider) {
       case 'claude': {
         const res = await anthropic.messages.create({
           model: opts.model,
-          max_tokens: 4096,
+          max_tokens: maxTokens,
           temperature,
           messages: [{ role: 'user', content: opts.prompt }],
-        })
+        }, requestOptions)
         const block = res.content[0]
         return { text: block.type === 'text' ? block.text : '' }
       }
@@ -252,8 +256,9 @@ export async function generateWith(provider: ProviderId, opts: GenerateOpts): Pr
         const res = await deepseek.chat.completions.create({
           model: opts.model,
           temperature,
+          max_tokens: maxTokens,
           messages: [{ role: 'user', content: opts.prompt }],
-        })
+        }, requestOptions)
         return { text: res.choices[0]?.message?.content || '' }
       }
       case 'doubao': {
@@ -262,8 +267,9 @@ export async function generateWith(provider: ProviderId, opts: GenerateOpts): Pr
         const res = await client.chat.completions.create({
           model: DOUBAO_MODEL_ALIASES[opts.model] || opts.model,
           temperature,
+          max_tokens: maxTokens,
           messages: [{ role: 'user', content: opts.prompt }],
-        })
+        }, requestOptions)
         return { text: res.choices[0]?.message?.content || '' }
       }
       case 'openai': {
@@ -275,15 +281,16 @@ export async function generateWith(provider: ProviderId, opts: GenerateOpts): Pr
             model,
             input: opts.prompt,
             reasoning: { effort: openAIReasoningEffort(model) },
-            max_output_tokens: 4096,
-          })
+            max_output_tokens: maxTokens,
+          }, requestOptions)
           return { text: res.output_text || '' }
         }
         const res = await client.chat.completions.create({
           model,
           temperature,
+          max_tokens: maxTokens,
           messages: [{ role: 'user', content: opts.prompt }],
-        })
+        }, requestOptions)
         return { text: res.choices[0]?.message?.content || '' }
       }
       default:
