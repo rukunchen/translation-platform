@@ -8,10 +8,34 @@ export const maxDuration = 120
 const ADMIN_EMAIL = 'rukunchen@hotmail.com'
 const BUCKET = 'catti-audio'
 const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts'
+const DEFAULT_BATCH_SIZE = 3
+const MAX_BATCH_SIZE = 4
+const SEGMENT_SELECT = [
+  'id',
+  'exam_id',
+  'segment_order',
+  'segment_order_global',
+  'segment_order_in_passage',
+  'passage_order',
+  'passage_title',
+  'direction',
+  'source_text',
+  'reference_translation',
+  'audio_url',
+  'tts_voice',
+  'speech_rate',
+  'estimated_play_seconds',
+  'recording_seconds',
+  'transition_seconds',
+  'pause_seconds',
+  'created_at',
+  'updated_at',
+].join(', ')
 
 type GenerateAudioRequest = {
   examId?: string
   force?: boolean
+  batchSize?: number
 }
 
 type ExamRow = {
@@ -42,6 +66,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({})) as GenerateAudioRequest
   const examId = body.examId?.trim()
   const force = !!body.force
+  const batchSize = clampBatchSize(body.batchSize)
   if (!examId) return NextResponse.json({ error: '缺少 examId。' }, { status: 400 })
 
   const apiKey = process.env.OPENAI_API_KEY?.trim()
@@ -61,25 +86,30 @@ export async function POST(request: NextRequest) {
   if (examRow.exam_type !== 'erkou_practice') {
     return NextResponse.json({ error: '该模考不是 CATTI 二口实务。' }, { status: 400 })
   }
-  if (examRow.tts_status === 'generating') {
-    return NextResponse.json({ error: '这套二口模考的音频正在生成中，请稍后刷新查看。' }, { status: 409 })
+
+  if (force) {
+    const { error: resetError } = await admin
+      .from('catti_mock_segments')
+      .update({ audio_url: null, tts_voice: null })
+      .eq('exam_id', examId)
+    if (resetError) return NextResponse.json({ error: '重置已有音频失败：' + resetError.message }, { status: 500 })
   }
 
   const { data: segments, error: segmentError } = await admin
     .from('catti_mock_segments')
-    .select('id, exam_id, segment_order, source_text, audio_url')
+    .select(SEGMENT_SELECT)
     .eq('exam_id', examId)
     .order('segment_order', { ascending: true })
 
   if (segmentError) return NextResponse.json({ error: '读取段落失败：' + segmentError.message }, { status: 500 })
 
-  const segmentRows = ((segments ?? []) as SegmentRow[]).filter(segment => segment.source_text.trim())
+  const segmentRows = ((segments ?? []) as unknown as SegmentRow[]).filter(segment => segment.source_text.trim())
   if (segmentRows.length === 0) {
     await admin.from('catti_mock_exams').update({ tts_status: 'failed' }).eq('id', examId)
     return NextResponse.json({ error: '没有可生成音频的段落。' }, { status: 400 })
   }
 
-  const pendingSegments = force ? segmentRows : segmentRows.filter(segment => !segment.audio_url)
+  const pendingSegments = segmentRows.filter(segment => !segment.audio_url)
   if (pendingSegments.length === 0) {
     const { data: updatedExam } = await admin
       .from('catti_mock_exams')
@@ -89,7 +119,7 @@ export async function POST(request: NextRequest) {
       .single()
     const { data: refreshedSegments } = await admin
       .from('catti_mock_segments')
-      .select('id, exam_id, segment_order, source_text, reference_translation, audio_url, tts_voice, speech_rate, pause_seconds, created_at, updated_at')
+      .select(SEGMENT_SELECT)
       .eq('exam_id', examId)
       .order('segment_order', { ascending: true })
     return NextResponse.json({
@@ -97,6 +127,8 @@ export async function POST(request: NextRequest) {
       segments: refreshedSegments ?? [],
       generated_count: 0,
       skipped_count: segmentRows.length,
+      pending_count: 0,
+      done: true,
     })
   }
 
@@ -110,9 +142,10 @@ export async function POST(request: NextRequest) {
   const speed = mapSpeechRate(examRow.speech_rate)
   const model = process.env.OPENAI_TTS_MODEL?.trim() || DEFAULT_TTS_MODEL
   let generatedCount = 0
+  const batchSegments = pendingSegments.slice(0, batchSize)
 
   try {
-    for (const segment of pendingSegments) {
+    for (const segment of batchSegments) {
       const speech = await openai.audio.speech.create({
         model,
         voice,
@@ -139,16 +172,18 @@ export async function POST(request: NextRequest) {
           speech_rate: examRow.speech_rate || 'standard',
         })
         .eq('id', segment.id)
-        .select('id, exam_id, segment_order, source_text, reference_translation, audio_url, tts_voice, speech_rate, pause_seconds, created_at, updated_at')
+        .select(SEGMENT_SELECT)
         .single()
 
       if (updateSegmentError) throw new Error(`第 ${segment.segment_order} 段写入失败：${updateSegmentError.message}`)
       if (updatedSegment) generatedCount += 1
     }
 
+    const remainingCount = Math.max(0, pendingSegments.length - generatedCount)
+    const nextStatus = remainingCount === 0 ? 'generated' : 'generating'
     const { data: updatedExam, error: updateExamError } = await admin
       .from('catti_mock_exams')
-      .update({ tts_status: 'generated' })
+      .update({ tts_status: nextStatus })
       .eq('id', examId)
       .select('id, tts_status, updated_at')
       .single()
@@ -156,7 +191,7 @@ export async function POST(request: NextRequest) {
 
     const { data: refreshedSegments, error: refreshError } = await admin
       .from('catti_mock_segments')
-      .select('id, exam_id, segment_order, source_text, reference_translation, audio_url, tts_voice, speech_rate, pause_seconds, created_at, updated_at')
+      .select(SEGMENT_SELECT)
       .eq('exam_id', examId)
       .order('segment_order', { ascending: true })
     if (refreshError) throw new Error('读取音频结果失败：' + refreshError.message)
@@ -165,15 +200,24 @@ export async function POST(request: NextRequest) {
       exam: updatedExam,
       segments: refreshedSegments ?? [],
       generated_count: generatedCount,
-      skipped_count: force ? 0 : segmentRows.length - pendingSegments.length,
+      skipped_count: segmentRows.length - pendingSegments.length,
+      pending_count: remainingCount,
+      done: remainingCount === 0,
+      batch_size: batchSize,
       voice,
       speed,
       model,
     })
   } catch (error) {
+    console.error('[catti/erkou/generate-audio]', errorMessage(error))
     await admin.from('catti_mock_exams').update({ tts_status: 'failed' }).eq('id', examId)
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
   }
+}
+
+function clampBatchSize(value: unknown) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_BATCH_SIZE
+  return Math.max(1, Math.min(MAX_BATCH_SIZE, Math.floor(value)))
 }
 
 function mapVoice(voiceType: string | null): SpeechVoice {

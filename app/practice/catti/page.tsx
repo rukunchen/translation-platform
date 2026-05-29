@@ -103,6 +103,8 @@ type GenerateAudioResponse = {
   segments?: CattiMockSegment[]
   generated_count?: number
   skipped_count?: number
+  pending_count?: number
+  done?: boolean
 }
 
 type PassageDraft = {
@@ -874,8 +876,7 @@ export default function CattiMockCenterPage() {
   async function generateExamAudio(exam: CattiMockExam) {
     if (!isAdmin || exam.exam_type !== 'erkou_practice') return
     if (exam.tts_status === 'generating') {
-      alert('这套二口模考的音频正在生成中，请稍后刷新查看。')
-      return
+      if (!confirm('这套二口模考还有音频生成任务未完成。是否继续补生成剩余段落？')) return
     }
     const force = exam.tts_status === 'generated'
     if (force && !confirm('这套模考已有考试音频。是否重新生成并覆盖全部段落音频？')) return
@@ -883,25 +884,43 @@ export default function CattiMockCenterPage() {
     setAudioBusyExamId(exam.id)
     setExams(prev => prev.map(row => row.id === exam.id ? { ...row, tts_status: 'generating' } : row))
 
-    const { data, error } = await apiJSON<GenerateAudioResponse>('/api/catti/erkou/generate-audio', {
-      method: 'POST',
-      body: JSON.stringify({ examId: exam.id, force }),
-    })
+    let shouldForce = force
+    let totalGenerated = 0
+    let lastSkipped = 0
+    let lastPending = 0
+
+    for (let round = 0; round < 12; round += 1) {
+      const { data, error } = await apiJSON<GenerateAudioResponse>('/api/catti/erkou/generate-audio', {
+        method: 'POST',
+        body: JSON.stringify({ examId: exam.id, force: shouldForce, batchSize: 3 }),
+      })
+      shouldForce = false
+
+      if (error) {
+        setAudioBusyExamId(null)
+        setExams(prev => prev.map(row => row.id === exam.id ? { ...row, tts_status: 'failed' } : row))
+        alert('音频生成失败：' + error)
+        return
+      }
+
+      totalGenerated += data?.generated_count ?? 0
+      lastSkipped = data?.skipped_count ?? lastSkipped
+      lastPending = data?.pending_count ?? 0
+      if (data?.exam) {
+        setExams(prev => prev.map(row => row.id === exam.id ? { ...row, tts_status: data.exam?.tts_status ?? row.tts_status, updated_at: data.exam?.updated_at ?? row.updated_at } : row))
+      }
+      if (data?.segments) {
+        setSegmentsByExam(prev => ({ ...prev, [exam.id]: data.segments ?? [] }))
+      }
+      if (data?.done) {
+        setAudioBusyExamId(null)
+        alert(`考试音频任务完成：生成 ${totalGenerated} 段，跳过 ${lastSkipped} 段。`)
+        return
+      }
+    }
+
     setAudioBusyExamId(null)
-
-    if (error) {
-      setExams(prev => prev.map(row => row.id === exam.id ? { ...row, tts_status: 'failed' } : row))
-      alert('音频生成失败：' + error)
-      return
-    }
-
-    if (data?.exam) {
-      setExams(prev => prev.map(row => row.id === exam.id ? { ...row, tts_status: data.exam?.tts_status ?? row.tts_status, updated_at: data.exam?.updated_at ?? row.updated_at } : row))
-    }
-    if (data?.segments) {
-      setSegmentsByExam(prev => ({ ...prev, [exam.id]: data.segments ?? [] }))
-    }
-    alert(`考试音频任务完成：生成 ${data?.generated_count ?? 0} 段，跳过 ${data?.skipped_count ?? 0} 段。`)
+    alert(`本轮已生成 ${totalGenerated} 段，还有 ${lastPending} 段待生成。请再次点击继续补生成。`)
   }
 
   const selectedExamType = examTypes.find(type => type.id === selectedType) ?? examTypes[0]
