@@ -151,30 +151,31 @@ export default function ProjectsPage() {
                 </div>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 2xl:grid-cols-3">
                 {projects.map(project => {
                   const docs = documents.filter(doc => doc.project_id === project.id)
+                  const memberCount = members.filter(member => member.project_id === project.id).length
                   const latest = docs.map(doc => doc.updated_at ?? doc.created_at).filter(Boolean).sort().pop()
                   const firstDoc = docs[0]
                   const langPair = firstDoc
                     ? `${langNames[firstDoc.source_language] ?? firstDoc.source_language} -> ${langNames[firstDoc.target_language] ?? firstDoc.target_language}`
                     : '待添加文档'
                   return (
-                    <Card key={project.id} padding="md" as="article" className="h-full flex flex-col">
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <h2 className="font-serif text-xl text-ink-900 leading-tight">{project.name}</h2>
+                    <Card key={project.id} padding="md" as="article" className="flex h-full min-h-[330px] flex-col">
+                      <div className="mb-4 flex items-start justify-between gap-3">
+                        <h2 className="font-serif text-xl leading-snug text-ink-900 line-clamp-2">{project.name}</h2>
                         {isPptProject(project) && <span className="rounded-md border border-brand-200 bg-brand-50 px-2 py-1 text-[10px] font-medium text-brand whitespace-nowrap">PPT</span>}
                       </div>
-                      <p className="text-sm text-ink-600 leading-relaxed line-clamp-3 mb-6">{displayDescription(project)}</p>
-                      <div className="grid grid-cols-2 gap-3 text-xs text-ink-600 mb-6">
-                        <div className="rounded-xl bg-canvas px-3 py-2">{docs.length} 个文档</div>
-                        <div className="rounded-xl bg-canvas px-3 py-2">{members.filter(member => member.project_id === project.id).length} 位成员</div>
-                        <div className="rounded-xl bg-canvas px-3 py-2 col-span-2">{langPair}</div>
+                      <p className="mb-6 min-h-[44px] text-sm leading-relaxed text-ink-600 line-clamp-2">{displayDescription(project)}</p>
+                      <div className="mb-5 grid grid-cols-2 gap-3">
+                        <ProjectMetric label="文档" value={`${docs.length} 个`} />
+                        <ProjectMetric label="成员" value={`${memberCount} 位`} />
+                        <ProjectMetric label="语言方向" value={langPair} wide />
                       </div>
-                      <p className="text-[11px] text-ink-500 mb-5">
+                      <p className="mb-5 rounded-lg border border-line bg-white px-3.5 py-2 text-xs text-ink-500">
                         最近更新：{latest ? new Date(latest).toLocaleDateString('zh-CN') : '暂无文档更新'}
                       </p>
-                      <div className="flex flex-wrap gap-2 mt-auto border-t border-line pt-5">
+                      <div className="mt-auto flex flex-wrap gap-2 border-t border-line pt-5">
                         <Button size="sm" variant="brand" onClick={() => router.push(projectHref(project))}>进入项目</Button>
                         {!isPptProject(project) && <Button size="sm" variant="ghost" onClick={() => router.push(`/projects/${project.id}/glossary`)}>术语库</Button>}
                         {!isPptProject(project) && firstDoc && <Button size="sm" variant="ghost" onClick={() => router.push(`/documents/${firstDoc.id}/parallel`)}>实验</Button>}
@@ -204,6 +205,15 @@ export default function ProjectsPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ProjectMetric({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <div className={`min-w-0 rounded-xl border border-line bg-surface px-4 py-3 ${wide ? 'col-span-2' : ''}`}>
+      <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-400">{label}</p>
+      <p className="truncate text-sm font-medium tabular-nums text-ink-900">{value}</p>
     </div>
   )
 }
