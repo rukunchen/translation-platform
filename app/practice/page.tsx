@@ -210,6 +210,7 @@ export default function TranslationPracticeHomePage() {
               actions={
                 <div className="flex flex-wrap justify-end gap-2">
                   <Button variant="primary" onClick={() => setCreateMode('practice')}>新建练习</Button>
+                  <Button variant="secondary" onClick={() => router.push('/practice/catti')}>CATTI 模考</Button>
                   <Button variant="secondary" onClick={() => setCreateMode('import')}>导入材料</Button>
                   <Button variant="secondary" onClick={() => router.push('/practice/review')}>今日复习</Button>
                   <Button variant="ghost" onClick={() => router.push('/practice/cards')}>表达卡片</Button>
@@ -217,20 +218,50 @@ export default function TranslationPracticeHomePage() {
               }
             />
 
-            <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-              <PracticeMetric label="已练篇章" value={practicedCount} note={`共 ${items.length} 篇材料`} />
-              <PracticeMetric label="待复习" value={dueCards + dueItems} note={`${dueCards} 张表达卡`} />
-              <PracticeMetric label="表达卡片" value={cards.length} note="复盘中可继续补充" />
-              <PracticeMetric label="高频问题类型" value={topIssue?.[1] ?? 0} note={topIssue?.[0] ?? '暂无问题标记'} />
+            <section className="mb-8 rounded-2xl border border-line bg-surface/70 px-6 py-5">
+              <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <Eyebrow tone="muted" className="mb-2">Practice Overview</Eyebrow>
+                  <h2 className="font-serif text-xl text-ink-900">学习概览</h2>
+                </div>
+                <p className="text-xs text-ink-500">常规练习、复盘问题与表达卡片独立统计。</p>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <PracticeMetric label="已练篇章" value={practicedCount} note={`共 ${items.length} 篇材料`} />
+                <PracticeMetric label="待复习" value={dueCards + dueItems} note={`${dueCards} 张表达卡`} />
+                <PracticeMetric label="表达卡片" value={cards.length} note="复盘中可继续补充" />
+                <PracticeMetric label="高频问题类型" value={topIssue?.[1] ?? 0} note={topIssue?.[0] ?? '暂无问题标记'} />
+              </div>
             </section>
 
-            <Card padding="md" className="mb-7">
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <section className="mb-7">
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <Eyebrow tone="muted" className="mb-2">Practice Library</Eyebrow>
                   <h2 className="font-serif text-xl text-ink-900">练习篇章</h2>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 xl:min-w-[760px]">
+                <p className="text-xs text-ink-500">{filteredItems.length} / {items.length} 篇材料</p>
+              </div>
+              <Card padding="md" className="border-line/80">
+                <div className="mb-4 flex items-center justify-between border-b border-line pb-4">
+                  <h3 className="text-sm font-medium text-ink-900">筛选条件</h3>
+                  <button
+                    type="button"
+                    className="text-xs text-ink-500 transition-colors hover:text-ink-900"
+                    onClick={() => {
+                      setQuery('')
+                      setDirectionFilter('all')
+                      setExamFilter('all')
+                      setTextTypeFilter('all')
+                      setStatusFilter('all')
+                      setDifficultyFilter('all')
+                      setTagFilter('all')
+                    }}
+                  >
+                    清空筛选
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <Input
                     label="搜索 / 标签"
                     value={query}
@@ -264,8 +295,8 @@ export default function TranslationPracticeHomePage() {
                     {tagsInUse.map(value => <option key={value} value={value}>{value}</option>)}
                   </Select>
                 </div>
-              </div>
-            </Card>
+              </Card>
+            </section>
 
             {loading ? (
               <Card padding="lg" className="text-center text-sm text-ink-500">加载中...</Card>
@@ -346,11 +377,13 @@ export default function TranslationPracticeHomePage() {
 
 function PracticeMetric({ label, value, note }: { label: string; value: number; note: string }) {
   return (
-    <Card padding="sm" variant="surface">
-      <p className="text-xs text-ink-500 mb-3">{label}</p>
-      <p className="font-serif text-3xl text-ink-900 leading-none mb-3">{value}</p>
-      <p className="text-xs text-ink-600 truncate">{note}</p>
-    </Card>
+    <div className="rounded-xl border border-line bg-white px-5 py-4">
+      <p className="mb-2 text-xs text-ink-500">{label}</p>
+      <div className="flex items-end justify-between gap-4">
+        <p className="font-serif text-3xl leading-none text-ink-900">{value}</p>
+        <p className="min-w-0 truncate pb-0.5 text-right text-xs text-ink-600">{note}</p>
+      </div>
+    </div>
   )
 }
 
