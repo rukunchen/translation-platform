@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateWith } from '@/lib/aiProviders'
 import { DEFAULT_MODEL_BY_PROVIDER } from '@/lib/modelPresets'
-import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
+import { supabaseFromRequest } from '@/lib/supabaseServer'
 
 export const maxDuration = 60
-
-const ADMIN_EMAIL = 'rukunchen@hotmail.com'
 
 type FrontierLiteratureItem = {
   id: string
@@ -88,21 +86,18 @@ function parseAiCard(text: string): AiCardPayload {
 }
 
 export async function POST(req: NextRequest) {
-  const { user } = await supabaseFromRequest(req)
+  const { client, user } = await supabaseFromRequest(req)
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (user.email?.toLowerCase() !== ADMIN_EMAIL) {
-    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
-  }
 
   const { itemId } = await req.json().catch(() => ({})) as { itemId?: string }
   const id = itemId?.trim()
   if (!id) return NextResponse.json({ error: '缺少 itemId。' }, { status: 400 })
 
-  const admin = supabaseAdmin()
-  const { data: item, error: itemError } = await admin
+  const { data: item, error: itemError } = await client
     .from('frontier_literature_items')
     .select('id,title,abstract,source,year,field,tags')
     .eq('id', id)
+    .eq('user_id', user.id)
     .maybeSingle()
 
   if (itemError) return NextResponse.json({ error: itemError.message }, { status: 500 })
@@ -139,10 +134,11 @@ export async function POST(req: NextRequest) {
     ai_card_model: model,
   }
 
-  const { data: updatedItem, error: updateError } = await admin
+  const { data: updatedItem, error: updateError } = await client
     .from('frontier_literature_items')
     .update(updatePayload)
     .eq('id', id)
+    .eq('user_id', user.id)
     .select('*')
     .single()
 

@@ -14,6 +14,8 @@ import { supabase } from '@/lib/supabase'
 
 type FrontierLiteratureRow = {
   id: string
+  user_id: string | null
+  seed_source_id: string | null
   title: string
   authors: string | null
   year: number | null
@@ -34,6 +36,7 @@ type FrontierLiteratureRow = {
 
 type FrontierReadingSessionRow = {
   id: string
+  user_id: string
   title: string | null
   description: string | null
   selected_item_ids: string[] | null
@@ -43,6 +46,7 @@ type FrontierReadingSessionRow = {
 
 type FrontierPaper = {
   id: string
+  legacyItemId?: string
   title: string
   authors: string
   year: number | null
@@ -95,8 +99,8 @@ type NoteFormState = {
 
 type NoteSaveStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'error'
 
-const FRONTIER_SELECT = 'id,title,authors,year,source,region,field,method_summary,conclusion_summary,abstract,doi,url,tags,research_question,limitation_summary,significance_summary,literature_review_sentence'
-const SESSION_SELECT = 'id,title,description,selected_item_ids,created_at,updated_at'
+const FRONTIER_SELECT = 'id,user_id,seed_source_id,title,authors,year,source,region,field,method_summary,conclusion_summary,abstract,doi,url,tags,research_question,limitation_summary,significance_summary,literature_review_sentence'
+const SESSION_SELECT = 'id,user_id,title,description,selected_item_ids,created_at,updated_at'
 const NOTE_SELECT = 'id,user_id,session_id,item_id,user_note,method_note,conclusion_note,critique_note,literature_review_use'
 const WRITING_PROJECT_SELECT = 'id,title,language,paper_type,updated_at'
 
@@ -213,6 +217,7 @@ export default function FrontierReadingSessionPage() {
       .from('frontier_reading_sessions')
       .select(SESSION_SELECT)
       .eq('id', sessionId)
+      .eq('user_id', userData.user.id)
       .maybeSingle()
 
     if (sessionError) {
@@ -238,7 +243,8 @@ export default function FrontierReadingSessionPage() {
     const { data: itemData, error: itemError } = await supabase
       .from('frontier_literature_items')
       .select(FRONTIER_SELECT)
-      .in('id', itemIds)
+      .eq('user_id', userData.user.id)
+      .or(`id.in.(${itemIds.join(',')}),seed_source_id.in.(${itemIds.join(',')})`)
 
     if (itemError) {
       setError(itemError.message || '会话文献加载失败。')
@@ -246,9 +252,20 @@ export default function FrontierReadingSessionPage() {
       return
     }
 
-    const byId = new Map(((itemData || []) as FrontierLiteratureRow[]).map(item => [item.id, rowToPaper(item)]))
+    const rows = (itemData || []) as FrontierLiteratureRow[]
+    const byId = new Map(rows.map(item => [item.id, rowToPaper(item)]))
+    const bySeedSourceId = new Map(rows
+      .filter(item => item.seed_source_id)
+      .map(item => [item.seed_source_id as string, item])
+    )
     const orderedPapers = itemIds
-      .map(itemId => byId.get(itemId))
+      .map(itemId => {
+        const directPaper = byId.get(itemId)
+        if (directPaper) return directPaper
+
+        const copiedSeedRow = bySeedSourceId.get(itemId)
+        return copiedSeedRow ? { ...rowToPaper(copiedSeedRow), legacyItemId: itemId } : null
+      })
       .filter((paper): paper is FrontierPaper => Boolean(paper))
 
     setSession(sessionData as FrontierReadingSessionRow)
@@ -325,7 +342,9 @@ export default function FrontierReadingSessionPage() {
     if (noteDirtyRef.current) await saveCurrentNote()
   }, [saveCurrentNote])
 
-  const loadNote = useCallback(async (paperId: string) => {
+  const loadNote = useCallback(async (paperId: string, legacyItemId?: string) => {
+    if (!userId) return
+
     if (noteSaveTimerRef.current) {
       window.clearTimeout(noteSaveTimerRef.current)
       noteSaveTimerRef.current = null
@@ -336,12 +355,15 @@ export default function FrontierReadingSessionPage() {
     setNoteStatus('loading')
     setNoteError('')
 
+    const noteItemIds = legacyItemId && legacyItemId !== paperId
+      ? [paperId, legacyItemId]
+      : [paperId]
     const { data, error: noteLoadError } = await supabase
       .from('frontier_reading_notes')
       .select(NOTE_SELECT)
+      .eq('user_id', userId)
       .eq('session_id', sessionId)
-      .eq('item_id', paperId)
-      .maybeSingle()
+      .in('item_id', noteItemIds)
 
     if (noteLoadError) {
       setNoteStatus('error')
@@ -350,13 +372,14 @@ export default function FrontierReadingSessionPage() {
       return
     }
 
-    const row = data as FrontierReadingNoteRow | null
+    const rows = (data || []) as FrontierReadingNoteRow[]
+    const row = rows.find(item => item.item_id === paperId) || rows[0] || null
     noteIdRef.current = row?.id || null
     setNoteId(row?.id || null)
     setNoteForm(noteRowToForm(row))
     setNoteStatus(row ? 'saved' : 'idle')
     noteLoadingRef.current = false
-  }, [sessionId])
+  }, [sessionId, userId])
 
   const scheduleNoteSave = useCallback((nextNote: NoteFormState) => {
     if (noteLoadingRef.current) return
@@ -535,9 +558,10 @@ export default function FrontierReadingSessionPage() {
 
   useEffect(() => {
     if (!activePaperId || !userId) return
-    const timer = window.setTimeout(() => { void loadNote(activePaperId) }, 0)
+    const notePaper = papers.find(paper => paper.id === activePaperId)
+    const timer = window.setTimeout(() => { void loadNote(activePaperId, notePaper?.legacyItemId) }, 0)
     return () => window.clearTimeout(timer)
-  }, [activePaperId, loadNote, userId])
+  }, [activePaperId, loadNote, papers, userId])
 
   useEffect(() => {
     return () => {

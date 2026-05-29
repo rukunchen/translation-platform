@@ -53,6 +53,7 @@ type FrontierPaper = {
 
 type FrontierLiteratureRow = {
   id: string
+  user_id: string | null
   title: string
   authors: string | null
   year: number | null
@@ -189,7 +190,7 @@ type WritingProjectOption = {
 }
 
 const ADMIN_EMAIL = 'rukunchen@hotmail.com'
-const FRONTIER_SELECT = 'id,title,authors,year,source,region,field,method_summary,conclusion_summary,abstract,doi,url,tags,research_question,limitation_summary,significance_summary,literature_review_sentence,ai_card_generated_at,ai_card_model,created_at'
+const FRONTIER_SELECT = 'id,user_id,title,authors,year,source,region,field,method_summary,conclusion_summary,abstract,doi,url,tags,research_question,limitation_summary,significance_summary,literature_review_sentence,ai_card_generated_at,ai_card_model,created_at'
 const CANDIDATE_SELECT = 'id,source_api,title,authors,year,source,region,field,abstract,doi,url,tags,status,imported_item_id,created_at,updated_at'
 const READING_SESSION_SELECT = 'id,user_id,title,description,selected_item_ids,created_at,updated_at'
 const WRITING_PROJECT_SELECT = 'id,title,language,paper_type,updated_at'
@@ -419,6 +420,7 @@ export default function FrontierPage() {
   const [selectedImportIndexes, setSelectedImportIndexes] = useState<Set<number>>(new Set())
   const [aiGeneratingId, setAiGeneratingId] = useState<string | null>(null)
   const [aiCardError, setAiCardError] = useState('')
+  const [paperDeletingId, setPaperDeletingId] = useState<string | null>(null)
   const [readingRoomAddingId, setReadingRoomAddingId] = useState<string | null>(null)
   const [readingRoomError, setReadingRoomError] = useState('')
   const [sessionCreateOpen, setSessionCreateOpen] = useState(false)
@@ -455,6 +457,7 @@ export default function FrontierPage() {
     const { data, error } = await supabase
       .from('frontier_reading_sessions')
       .select(READING_SESSION_SELECT)
+      .eq('user_id', currentUser.id)
       .order('updated_at', { ascending: false })
       .order('created_at', { ascending: false })
 
@@ -474,12 +477,27 @@ export default function FrontierPage() {
     setLoadError('')
 
     const { data: userData } = await supabase.auth.getUser()
-    setUserEmail(userData.user?.email || '')
-    setUserId(userData.user?.id || '')
+    const currentUser = userData.user
+    setUserEmail(currentUser?.email || '')
+    setUserId(currentUser?.id || '')
+
+    if (!currentUser) {
+      setPapers([])
+      setLoading(false)
+      return
+    }
+
+    const { error: bootstrapError } = await apiJSON('/api/frontier/bootstrap-library', {
+      method: 'POST',
+    })
+    if (bootstrapError) {
+      setLoadError(`初始文献复制失败：${bootstrapError}`)
+    }
 
     const { data, error } = await supabase
       .from('frontier_literature_items')
       .select(FRONTIER_SELECT)
+      .eq('user_id', currentUser.id)
       .order('year', { ascending: false })
       .order('created_at', { ascending: false })
 
@@ -801,6 +819,13 @@ export default function FrontierPage() {
       return
     }
 
+    const { data: userData } = await supabase.auth.getUser()
+    const currentUserId = userId || userData.user?.id || ''
+    if (!currentUserId) {
+      setCandidateError('请先登录后再导入候选文献。')
+      return
+    }
+
     setCandidateActionId(candidate.id)
     setCandidateError('')
     setSaveSuccess('')
@@ -810,6 +835,7 @@ export default function FrontierPage() {
       const { data: existingItems, error: duplicateError } = await supabase
         .from('frontier_literature_items')
         .select('id,doi')
+        .eq('user_id', currentUserId)
         .not('doi', 'is', null)
 
       if (duplicateError) {
@@ -846,6 +872,7 @@ export default function FrontierPage() {
     const { data: insertedItem, error: insertError } = await supabase
       .from('frontier_literature_items')
       .insert({
+        user_id: currentUserId,
         title: candidate.title.trim(),
         authors: candidate.authors || null,
         year: candidate.year,
@@ -889,7 +916,7 @@ export default function FrontierPage() {
       item.id === candidate.id ? updatedCandidate as FrontierLiteratureCandidateRow : item
     )))
     setPapers(current => [rowToPaper(insertedItem as FrontierLiteratureRow), ...current])
-    setSaveSuccess('候选文献已批准并导入前沿文献库。')
+    setSaveSuccess('候选文献已批准并导入我的文献库。')
   }
 
   const addToReadingRoom = async (paper: FrontierPaper) => {
@@ -1063,8 +1090,6 @@ export default function FrontierPage() {
   }
 
   const generateAiCard = async (paperId: string) => {
-    if (!isAdmin) return
-
     setAiGeneratingId(paperId)
     setAiCardError('')
     setSaveSuccess('')
@@ -1088,11 +1113,53 @@ export default function FrontierPage() {
     setAiGeneratingId(null)
   }
 
+  const deletePaper = async (paper: FrontierPaper) => {
+    if (!window.confirm(`确定删除「${paper.title}」吗？这只会从你的文献库删除，不会影响其他用户。`)) return
+
+    const { data: userData } = await supabase.auth.getUser()
+    const currentUserId = userId || userData.user?.id || ''
+    if (!currentUserId) {
+      setLoadError('请先登录后再删除文献。')
+      return
+    }
+
+    setPaperDeletingId(paper.id)
+    setLoadError('')
+    setSaveSuccess('')
+
+    const { error } = await supabase
+      .from('frontier_literature_items')
+      .delete()
+      .eq('id', paper.id)
+      .eq('user_id', currentUserId)
+
+    setPaperDeletingId(null)
+    if (error) {
+      setLoadError(error.message || '删除文献失败。')
+      return
+    }
+
+    setPapers(current => current.filter(item => item.id !== paper.id))
+    setSelectedIds(current => {
+      const next = new Set(current)
+      next.delete(paper.id)
+      return next
+    })
+    if (activePaperId === paper.id) setActivePaperId(null)
+    setSaveSuccess('文献已从你的文献库删除。')
+  }
+
   const createPaper = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!isAdmin) return
     if (!form.title.trim()) {
       setAddError('请填写标题。')
+      return
+    }
+
+    const { data: userData } = await supabase.auth.getUser()
+    const currentUserId = userId || userData.user?.id || ''
+    if (!currentUserId) {
+      setAddError('请先登录后再添加文献。')
       return
     }
 
@@ -1104,6 +1171,7 @@ export default function FrontierPage() {
       const { error } = await supabase
         .from('frontier_literature_items')
         .insert({
+          user_id: currentUserId,
           title: form.title.trim(),
           authors: form.authors.trim() || null,
           year: Number.isFinite(year) ? year : null,
@@ -1136,7 +1204,6 @@ export default function FrontierPage() {
 
   const searchExternalPapers = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!isAdmin) return
     if (!importForm.query.trim()) {
       setImportError('请输入关键词。')
       return
@@ -1198,10 +1265,16 @@ export default function FrontierPage() {
   }
 
   const importExternalPapers = async () => {
-    if (!isAdmin) return
     const selectedItems = importResults.filter((_, index) => selectedImportIndexes.has(index))
     if (selectedItems.length === 0) {
       setImportError('请先选择要导入的文献。')
+      return
+    }
+
+    const { data: userData } = await supabase.auth.getUser()
+    const currentUserId = userId || userData.user?.id || ''
+    if (!currentUserId) {
+      setImportError('请先登录后再导入文献。')
       return
     }
 
@@ -1217,25 +1290,13 @@ export default function FrontierPage() {
         return
       }
 
-      const { error } = await supabase
-        .from('frontier_literature_items')
-        .insert(uniqueItems.map(item => ({
-          title: item.title,
-          authors: item.authors || null,
-          year: item.year,
-          source: item.source || null,
-          region: item.region,
-          field: item.field,
-          method_summary: null,
-          conclusion_summary: null,
-          abstract: item.abstract || null,
-          doi: item.doi || null,
-          url: item.url || null,
-          tags: item.tags || [],
-        })))
+      const { error } = await apiJSON('/api/frontier/import', {
+        method: 'POST',
+        body: JSON.stringify({ items: uniqueItems }),
+      })
 
       if (error) {
-        setImportError(error.message || '导入文献失败。')
+        setImportError(error || '导入文献失败。')
         return
       }
 
@@ -1271,12 +1332,8 @@ export default function FrontierPage() {
                       <Button variant="secondary" onClick={openSubscriptionsModal}>
                         领域订阅
                       </Button>
-                      {isAdmin && (
-                        <>
-                          <Button variant="secondary" onClick={openImportModal}>外部导入</Button>
-                          <Button variant="secondary" onClick={openAddModal}>添加文献</Button>
-                        </>
-                      )}
+                      <Button variant="secondary" onClick={openImportModal}>外部导入</Button>
+                      <Button variant="secondary" onClick={openAddModal}>添加文献</Button>
                       <Button variant="primary" disabled={selectedPapers.length === 0} onClick={openSessionCreateModal}>
                         确认进入阅读{selectedPapers.length > 0 ? `（${selectedPapers.length}）` : ''}
                       </Button>
@@ -1339,7 +1396,6 @@ export default function FrontierPage() {
                 papers={selectedPapers}
                 activePaper={activePaper}
                 onSelect={setActivePaperId}
-                isAdmin={isAdmin}
                 generatingId={aiGeneratingId}
                 onGenerateAiCard={generateAiCard}
                 readingRoomAddingId={readingRoomAddingId}
@@ -1409,7 +1465,7 @@ export default function FrontierPage() {
                 ) : papers.length === 0 ? (
                   <Card padding="lg" variant="surface" className="text-center">
                     <h2 className="font-serif text-xl text-ink-900">暂无文献数据</h2>
-                    <p className="mt-3 text-sm text-ink-500">暂无文献数据。请管理员添加文献条目。</p>
+                    <p className="mt-3 text-sm text-ink-500">暂无文献数据。你可以手动添加文献，或从外部搜索导入。</p>
                   </Card>
                 ) : filteredPapers.length === 0 ? (
                   <Card padding="lg" variant="surface" className="text-center">
@@ -1423,11 +1479,12 @@ export default function FrontierPage() {
                         key={paper.id}
                         paper={paper}
                         checked={selectedIds.has(paper.id)}
-                        isAdmin={isAdmin}
                         generating={aiGeneratingId === paper.id}
+                        deleting={paperDeletingId === paper.id}
                         addingToReadingRoom={readingRoomAddingId === paper.id}
                         onToggle={() => togglePaper(paper.id)}
                         onGenerateAiCard={() => generateAiCard(paper.id)}
+                        onDelete={() => { void deletePaper(paper) }}
                         onAddToReadingRoom={() => addToReadingRoom(paper)}
                         onOpenWritingMaterial={() => { void openWritingMaterialModal(paper) }}
                       />
@@ -1727,21 +1784,23 @@ function CandidatePoolPanel({
 function FrontierPaperCard({
   paper,
   checked,
-  isAdmin,
   generating,
+  deleting,
   addingToReadingRoom,
   onToggle,
   onGenerateAiCard,
+  onDelete,
   onAddToReadingRoom,
   onOpenWritingMaterial,
 }: {
   paper: FrontierPaper
   checked: boolean
-  isAdmin: boolean
   generating: boolean
+  deleting: boolean
   addingToReadingRoom: boolean
   onToggle: () => void
   onGenerateAiCard: () => void
+  onDelete: () => void
   onAddToReadingRoom: () => void
   onOpenWritingMaterial: () => void
 }) {
@@ -1796,16 +1855,17 @@ function FrontierPaperCard({
           ) : (
             <span className="text-sm text-ink-400">暂无论文链接</span>
           )}
-          {isAdmin && (
-            <Button size="sm" variant="secondary" loading={generating} onClick={onGenerateAiCard}>
-              {generating ? '生成中...' : 'AI 补全文献卡片'}
-            </Button>
-          )}
+          <Button size="sm" variant="secondary" loading={generating} onClick={onGenerateAiCard}>
+            {generating ? '生成中...' : 'AI 补全文献卡片'}
+          </Button>
           <Button size="sm" variant="secondary" loading={addingToReadingRoom} onClick={onAddToReadingRoom}>
             {addingToReadingRoom ? '加入中...' : '加入深读室'}
           </Button>
           <Button size="sm" variant="secondary" onClick={onOpenWritingMaterial}>
             加入论文写作素材
+          </Button>
+          <Button size="sm" variant="danger" loading={deleting} onClick={onDelete}>
+            {deleting ? '删除中...' : '删除'}
           </Button>
         </div>
       </div>
@@ -1816,7 +1876,6 @@ function FrontierPaperCard({
 function FrontierReader({
   papers,
   activePaper,
-  isAdmin,
   generatingId,
   readingRoomAddingId,
   onSelect,
@@ -1826,7 +1885,6 @@ function FrontierReader({
 }: {
   papers: FrontierPaper[]
   activePaper: FrontierPaper | null
-  isAdmin: boolean
   generatingId: string | null
   readingRoomAddingId: string | null
   onSelect: (paperId: string) => void
@@ -1877,16 +1935,14 @@ function FrontierReader({
             <p className="mt-3 text-sm text-ink-500">{activePaper.authors} · {activePaper.source} · {activePaper.year || '年份未录'}</p>
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-3">
-            {isAdmin && (
-              <Button
-                size="sm"
-                variant="secondary"
-                loading={generatingId === activePaper.id}
-                onClick={() => onGenerateAiCard(activePaper.id)}
-              >
-                {generatingId === activePaper.id ? '生成中...' : 'AI 补全文献卡片'}
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={generatingId === activePaper.id}
+              onClick={() => onGenerateAiCard(activePaper.id)}
+            >
+              {generatingId === activePaper.id ? '生成中...' : 'AI 补全文献卡片'}
+            </Button>
             <Button size="sm" variant="ghost" disabled>AI 摘要</Button>
             <Button size="sm" variant="ghost" disabled>AI 精读问题</Button>
             <Button size="sm" variant="ghost" disabled>AI 文献对比</Button>
@@ -2260,7 +2316,7 @@ function FrontierAddModal({
       <div className="max-h-[calc(100vh-40px)] w-full max-w-4xl overflow-auto rounded-2xl bg-white shadow-[var(--shadow-modal)]" style={{ padding: 32 }}>
         <div className="mb-7 flex items-start justify-between gap-5 border-b border-line pb-5">
           <div>
-            <Eyebrow tone="brand">Admin</Eyebrow>
+            <Eyebrow tone="brand">Library</Eyebrow>
             <h2 className="mt-2 font-serif text-2xl text-ink-900">添加文献</h2>
           </div>
           <Button size="sm" variant="ghost" onClick={onClose}>关闭</Button>

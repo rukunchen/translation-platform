@@ -30,6 +30,60 @@ type OpenAlexResponse = {
 
 type SearchMode = 'keyword' | 'precise'
 
+const FIELD_SEARCH_QUERY: Record<string, string> = {
+  '翻译': 'translation interpreting translation studies',
+  '翻译科技': 'translation technology machine translation NLP post-editing',
+  '语料库': 'corpus linguistics parallel corpus',
+  '人工智能': 'artificial intelligence machine learning large language model',
+  '心理学': 'psychology cognitive social behavior',
+  '区域国别研究': 'area studies country studies regional studies',
+  '语言学': 'linguistics language discourse',
+  '教育学': 'education pedagogy learning teaching',
+  '传播学': 'communication media journalism',
+  '文学文化': 'literature culture cultural studies',
+  '数字人文': 'digital humanities computational humanities',
+}
+
+const FIELD_MATCH_TERMS: Record<string, string[]> = {
+  '翻译': [
+    'translation',
+    'interpreting',
+    'translator',
+    'translation studies',
+    'cross-lingual',
+    'bilingual',
+    'multilingual',
+  ],
+  '翻译科技': [
+    'machine translation',
+    'neural machine translation',
+    'statistical machine translation',
+    'computer-assisted translation',
+    'computer aided translation',
+    'translation technology',
+    'post-editing',
+    'post editing',
+    'localization',
+    'terminology extraction',
+    'translation memory',
+    'natural language processing',
+    'nlp',
+    'large language model',
+    'llm',
+    'multilingual model',
+    'cross-lingual',
+  ],
+  '语料库': ['corpus', 'corpora', 'parallel corpus', 'comparable corpus', 'corpus linguistics'],
+  '人工智能': ['artificial intelligence', 'machine learning', 'deep learning', 'large language model', 'llm', 'neural network'],
+  '心理学': ['psychology', 'cognitive', 'behavior', 'behaviour', 'social psychology', 'psychological'],
+  '区域国别研究': ['area studies', 'country studies', 'regional studies', 'international relations', 'geopolitics'],
+  '语言学': ['linguistics', 'language', 'discourse', 'syntax', 'semantics', 'pragmatics', 'sociolinguistics'],
+  '教育学': ['education', 'pedagogy', 'learning', 'teaching', 'curriculum', 'student'],
+  '传播学': ['communication', 'media', 'journalism', 'public opinion', 'social media'],
+  '文学文化': ['literature', 'cultural studies', 'culture', 'narrative', 'poetry', 'novel'],
+  '数字人文': ['digital humanities', 'computational humanities', 'digital archive', 'text mining'],
+}
+
 const STOP_WORDS = new Set([
   'a',
   'an',
@@ -136,6 +190,43 @@ function itemSearchText(item: MappedWork) {
     item.url,
     ...item.tags,
   ].join(' '))
+}
+
+function fieldSearchQuery(field: string) {
+  return FIELD_SEARCH_QUERY[field] || ''
+}
+
+function matchesSelectedField(item: MappedWork, field: string) {
+  const terms = FIELD_MATCH_TERMS[field]
+  if (!terms || terms.length === 0) return true
+
+  const text = itemSearchText(item)
+  if (field === '翻译科技') {
+    const hasTranslationSignal = [
+      'translation',
+      'interpreting',
+      'cross-lingual',
+      'multilingual',
+      'bilingual',
+      'localization',
+    ].some(term => termMatchesText(term, text))
+    const hasTechnologySignal = [
+      'machine translation',
+      'natural language processing',
+      'nlp',
+      'large language model',
+      'llm',
+      'post-editing',
+      'translation memory',
+      'computer-assisted translation',
+      'neural',
+      'model',
+    ].some(term => termMatchesText(term, text))
+
+    return hasTranslationSignal && hasTechnologySignal
+  }
+
+  return terms.some(term => termMatchesText(term, text))
 }
 
 function termCoverage(terms: string[], text: string) {
@@ -257,9 +348,10 @@ function relevanceScore(item: MappedWork, query: string, subject: string, mode: 
   return score
 }
 
-function rankItems(items: MappedWork[], query: string, subject: string, mode: SearchMode, limit: number) {
+function rankItems(items: MappedWork[], query: string, subject: string, field: string, mode: SearchMode, limit: number) {
   const minimumScore = mode === 'precise' ? 0 : 10
   return items
+    .filter(item => matchesSelectedField(item, field))
     .map(item => ({ item, score: relevanceScore(item, query, subject, mode) }))
     .filter(entry => entry.score >= minimumScore)
     .sort((left, right) => (
@@ -284,7 +376,8 @@ export async function GET(req: NextRequest) {
   const limit = parseLimit(params.get('limit'))
 
   const openAlexUrl = new URL('https://api.openalex.org/works')
-  openAlexUrl.searchParams.set('search', query)
+  const searchQuery = [query, subject, fieldSearchQuery(field)].filter(Boolean).join(' ')
+  openAlexUrl.searchParams.set('search', searchQuery)
   openAlexUrl.searchParams.set('per-page', String(Math.min(Math.max(limit * 5, 50), 100)))
   openAlexUrl.searchParams.set('sort', 'publication_year:desc')
   openAlexUrl.searchParams.set(
@@ -320,6 +413,7 @@ export async function GET(req: NextRequest) {
       dedupeItems((data.results || []).map(work => mapWork(work, field, region))),
       query,
       subject,
+      field,
       mode,
       limit
     )
