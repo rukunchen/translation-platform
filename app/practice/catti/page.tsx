@@ -1259,6 +1259,9 @@ function MockExamCard({
 }) {
   const isErkou = exam.exam_type === 'erkou_practice'
   const segmentCount = isErkou ? (segments.length || 1) : (passages.length || 1)
+  const missingAudioCount = isErkou ? segments.filter(segment => !segment.audio_url).length : 0
+  const audioReady = !isErkou || (exam.tts_status === 'generated' && segments.length > 0 && missingAudioCount === 0)
+  const audioUnavailable = isErkou && !audioReady
   const sourceWordCount = passages.length > 0
     ? passages.reduce((sum, passage) => sum + countPracticeWords(passage.source_text), 0)
     : countPracticeWords(exam.source_text)
@@ -1285,20 +1288,27 @@ function MockExamCard({
         <ExamMeta label={isErkou ? '段落数量' : '篇章'} value={`${segmentCount} ${isErkou ? '段' : '篇'}`} />
         <ExamMeta label={isErkou ? '预计考试时间' : '题目字数'} value={isErkou ? `${exam.duration_minutes ?? 30} 分钟` : String(sourceWordCount)} />
         <ExamMeta label="是否已参加" value={latestAttempt ? '已参加' : '未参加'} />
-        <ExamMeta label={isErkou ? '音频状态' : '最近成绩'} value={isErkou ? displayTtsStatus(exam.tts_status) : (latestScoredAttempt?.total_score != null ? `${latestScoredAttempt.total_score}` : '暂无')} />
+        <ExamMeta label={isErkou ? '音频状态' : '最近成绩'} value={isErkou ? displayTtsStatusWithSegments(exam.tts_status, segments) : (latestScoredAttempt?.total_score != null ? `${latestScoredAttempt.total_score}` : '暂无')} />
       </div>
 
       {isErkou && (
-        <div className="grid grid-cols-1 rounded-2xl border border-line bg-canvas/30 text-sm text-ink-700 md:grid-cols-2" style={{ gap: '1mm', padding: '1mm' }}>
-          <AudioProfileLine
-            label="E-C 音频"
-            value={`${optionLabel(ecVoiceOptions, exam.ec_voice_profile, 'formal_diplomat_male')} / ${speedProfileLabel(exam.ec_speed_profile)} / ${optionLabel(ecAccentOptions, exam.ec_accent_profile, 'neutral')}`}
-          />
-          <AudioProfileLine
-            label="C-E 音频"
-            value={`${optionLabel(ceVoiceOptions, exam.ce_voice_profile, 'chinese_diplomat_male')} / ${speedProfileLabel(exam.ce_speed_profile)} / ${optionLabel(ceAccentOptions, exam.ce_accent_profile, 'mandarin_standard')}`}
-          />
-        </div>
+        <>
+          <div className="grid grid-cols-1 rounded-2xl border border-line bg-canvas/30 text-sm text-ink-700 md:grid-cols-2" style={{ gap: '1mm', padding: '1mm' }}>
+            <AudioProfileLine
+              label="E-C 音频"
+              value={`${optionLabel(ecVoiceOptions, exam.ec_voice_profile, 'formal_diplomat_male')} / ${speedProfileLabel(exam.ec_speed_profile)} / ${optionLabel(ecAccentOptions, exam.ec_accent_profile, 'neutral')}`}
+            />
+            <AudioProfileLine
+              label="C-E 音频"
+              value={`${optionLabel(ceVoiceOptions, exam.ce_voice_profile, 'chinese_diplomat_male')} / ${speedProfileLabel(exam.ce_speed_profile)} / ${optionLabel(ceAccentOptions, exam.ce_accent_profile, 'mandarin_standard')}`}
+            />
+          </div>
+          {audioUnavailable && (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+              请管理员先生成考试音频，否则声音角色、口音和语速不会生效。
+            </p>
+          )}
+        </>
       )}
 
       <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">
@@ -1317,9 +1327,13 @@ function MockExamCard({
           </>
         )}
         {latestCompletedAttempt && <Button size="sm" variant="secondary" onClick={onReport}>查看报告</Button>}
-        {latestAttempt && <Button size="sm" variant="secondary" loading={restartBusy} onClick={onRestart}>重新考试</Button>}
-        <Button size="sm" variant="primary" onClick={onStart}>
-          {latestAttempt?.status === 'in_progress' ? '继续考试' : '开始考试'}
+        {latestAttempt && (
+          <Button size="sm" variant="secondary" loading={restartBusy} disabled={audioUnavailable} title={audioUnavailable ? '请先生成考试音频' : undefined} onClick={onRestart}>
+            重新考试
+          </Button>
+        )}
+        <Button size="sm" variant="primary" disabled={audioUnavailable} title={audioUnavailable ? '请先生成考试音频' : undefined} onClick={onStart}>
+          {audioUnavailable ? (exam.tts_status === 'generating' ? '音频生成中' : '音频未生成') : latestAttempt?.status === 'in_progress' ? '继续考试' : '开始考试'}
         </Button>
       </div>
     </Card>
@@ -1617,6 +1631,13 @@ function displayTtsStatus(status: string | null) {
   if (status === 'generated') return '已生成'
   if (status === 'failed') return '失败'
   return '未生成'
+}
+
+function displayTtsStatusWithSegments(status: string | null, segments: CattiMockSegment[]) {
+  if (segments.length === 0) return '缺少分段'
+  const missingAudioCount = segments.filter(segment => !segment.audio_url).length
+  if (missingAudioCount > 0) return `未就绪，缺 ${missingAudioCount} 段`
+  return displayTtsStatus(status)
 }
 
 function displayDirection(value: string) {

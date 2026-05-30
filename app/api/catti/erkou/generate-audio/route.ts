@@ -246,16 +246,16 @@ function clampBatchSize(value: unknown) {
 }
 
 const ecVoiceProfiles: Record<string, { voice: SpeechVoice; style: string }> = {
-  formal_diplomat_male: { voice: 'onyx', style: 'clear formal diplomatic English male voice, steady pacing, official tone' },
-  formal_diplomat_female: { voice: 'nova', style: 'clear formal diplomatic English female voice, steady pacing, official tone' },
-  british_standard_male: { voice: 'onyx', style: 'British standard English male voice, polished pronunciation, formal exam delivery' },
-  british_standard_female: { voice: 'shimmer', style: 'British standard English female voice, polished pronunciation, formal exam delivery' },
-  british_news: { voice: 'fable', style: 'British English newsreader style, crisp pronunciation, formal rhythm' },
-  american_conference_male: { voice: 'onyx', style: 'American English conference male voice, clear pronunciation, professional tone' },
-  american_conference_female: { voice: 'nova', style: 'American English conference female voice, clear pronunciation, professional tone' },
-  indian_light: { voice: 'alloy', style: 'Indian English accent, light accent, clear pronunciation, conference style' },
-  indian_heavy: { voice: 'alloy', style: 'Indian English accent, stronger accent, realistic international conference style' },
-  international_non_native: { voice: 'echo', style: 'international non-native English conference speaker, clear but realistic pronunciation' },
+  formal_diplomat_male: { voice: 'cedar', style: 'mature male diplomatic English speaker, calm and authoritative, natural human cadence' },
+  formal_diplomat_female: { voice: 'marin', style: 'mature female diplomatic English speaker, calm and authoritative, natural human cadence' },
+  british_standard_male: { voice: 'cedar', style: 'British standard English male speaker, polished pronunciation, formal exam delivery' },
+  british_standard_female: { voice: 'marin', style: 'British standard English female speaker, polished pronunciation, formal exam delivery' },
+  british_news: { voice: 'verse', style: 'British English newsreader, crisp pronunciation, formal broadcast rhythm' },
+  american_conference_male: { voice: 'cedar', style: 'American English male conference speaker, clear pronunciation, professional tone' },
+  american_conference_female: { voice: 'marin', style: 'American English female conference speaker, clear pronunciation, professional tone' },
+  indian_light: { voice: 'sage', style: 'Indian English conference speaker with a light accent, clear and natural pronunciation' },
+  indian_heavy: { voice: 'sage', style: 'Indian English conference speaker with a stronger accent, realistic but easy to follow' },
+  international_non_native: { voice: 'ash', style: 'international non-native English conference speaker, clear but realistic pronunciation' },
 }
 
 const ecAccentProfiles: Record<string, string> = {
@@ -269,16 +269,16 @@ const ecAccentProfiles: Record<string, string> = {
 }
 
 const ceVoiceProfiles: Record<string, { voice: SpeechVoice; style: string }> = {
-  chinese_diplomat_male: { voice: 'onyx', style: '标准普通话，正式外交发言风格，男声，语速稳定，停顿清楚' },
-  chinese_diplomat_female: { voice: 'nova', style: '标准普通话，正式外交发言风格，女声，语速稳定，停顿清楚' },
-  chinese_news_male: { voice: 'onyx', style: '标准普通话，新闻播报风格，男声，吐字清晰，节奏规整' },
-  chinese_news_female: { voice: 'shimmer', style: '标准普通话，新闻播报风格，女声，吐字清晰，节奏规整' },
-  chinese_public_speech_male: { voice: 'onyx', style: '标准普通话，正式讲话风格，男声，语气庄重，停顿明显' },
-  chinese_public_speech_female: { voice: 'nova', style: '标准普通话，正式讲话风格，女声，语气庄重，停顿明显' },
-  chinese_conference_male: { voice: 'echo', style: '标准普通话，会议发言风格，男声，自然清晰，节奏稳定' },
-  chinese_conference_female: { voice: 'shimmer', style: '标准普通话，会议发言风格，女声，自然清晰，节奏稳定' },
-  mandarin_standard_male: { voice: 'onyx', style: '标准普通话男声，清晰自然，适合考试听辨' },
-  mandarin_standard_female: { voice: 'nova', style: '标准普通话女声，清晰自然，适合考试听辨' },
+  chinese_diplomat_male: { voice: 'cedar', style: '标准普通话，正式外交发言风格，沉稳男声，语速稳定，停顿清楚' },
+  chinese_diplomat_female: { voice: 'marin', style: '标准普通话，正式外交发言风格，沉稳女声，语速稳定，停顿清楚' },
+  chinese_news_male: { voice: 'cedar', style: '标准普通话，新闻播报风格，清晰男声，吐字清楚，节奏规整' },
+  chinese_news_female: { voice: 'marin', style: '标准普通话，新闻播报风格，清晰女声，吐字清楚，节奏规整' },
+  chinese_public_speech_male: { voice: 'cedar', style: '标准普通话，正式讲话风格，庄重男声，语气沉稳，停顿明显' },
+  chinese_public_speech_female: { voice: 'marin', style: '标准普通话，正式讲话风格，庄重女声，语气沉稳，停顿明显' },
+  chinese_conference_male: { voice: 'cedar', style: '标准普通话，会议发言风格，自然男声，清楚真实，节奏稳定' },
+  chinese_conference_female: { voice: 'marin', style: '标准普通话，会议发言风格，自然女声，清楚真实，节奏稳定' },
+  mandarin_standard_male: { voice: 'cedar', style: '标准普通话男声，清晰自然，适合考试听辨' },
+  mandarin_standard_female: { voice: 'marin', style: '标准普通话女声，清晰自然，适合考试听辨' },
 }
 
 const ceAccentProfiles: Record<string, string> = {
@@ -315,7 +315,7 @@ function getCattiTtsConfigForSegment(exam: ExamRow, segment: SegmentRow): TtsDir
       accentProfile,
       speedProfile,
       speed: clampSpeechSpeed(exam.ce_speech_rate_value ?? ceSpeedRates[speedProfile]),
-      styleInstruction: `${voiceConfig.style}。${ceAccentProfiles[accentProfile]}。播放中文原文，不要使用英伦、印度或美式英语口音。`,
+      styleInstruction: `${voiceConfig.style}。${ceAccentProfiles[accentProfile]}。请像真人考场原文录音一样朗读，语流自然，有真实停顿和重音，不要有机械合成感。只朗读中文原文，不要翻译，不要解释，不要使用英伦、印度或美式英语口音。`,
     }
   }
 
@@ -329,7 +329,7 @@ function getCattiTtsConfigForSegment(exam: ExamRow, segment: SegmentRow): TtsDir
     accentProfile,
     speedProfile,
     speed: clampSpeechSpeed(exam.ec_speech_rate_value ?? ecSpeedRates[speedProfile]),
-    styleInstruction: `${voiceConfig.style}. ${ecAccentProfiles[accentProfile]}. Play English source text only; do not use Mandarin voice style.`,
+    styleInstruction: `${voiceConfig.style}. ${ecAccentProfiles[accentProfile]}. Read like a real human CATTI oral exam source recording with natural phrasing, pauses, and emphasis. Avoid a robotic or synthetic TTS sound. Play the English source text only; do not translate or explain it; do not use a Mandarin voice style.`,
   }
 }
 
