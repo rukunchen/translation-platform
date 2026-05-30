@@ -876,9 +876,9 @@ export default function CattiExamPage() {
     const primaryFlowLabel = !flowStarted ? '开始考试' : activePlayed && !activeCompleted ? '继续录音' : '继续考试'
 
     return (
-      <div className="min-h-screen bg-canvas text-ink-900">
+      <div className="min-h-screen overflow-x-hidden bg-canvas text-ink-900">
         <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 px-[clamp(20px,3vw,56px)] py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 px-4 py-4 sm:px-[clamp(20px,3vw,56px)] lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">CATTI 二口实务模拟考试</p>
               <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -887,48 +887,48 @@ export default function CattiExamPage() {
                 {isAdmin && <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">管理员预览</span>}
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-3 lg:w-auto lg:justify-end">
               <div className={cn(
-                'rounded-2xl border px-5 py-3 font-mono text-2xl shadow-sm',
+                'min-w-[110px] rounded-2xl border px-4 py-3 text-center font-mono text-2xl shadow-sm sm:px-5',
                 timeExpired ? 'border-red-200 bg-red-50 text-red-700' : 'border-line bg-canvas-2 text-ink-900'
               )}>
                 {timerText}
               </div>
-              <span className="rounded-xl border border-line bg-canvas-2 px-4 py-3 text-sm text-ink-700">考试时间：{exam.duration_minutes ?? 60} 分钟</span>
-              <Button variant="secondary" disabled={flowBusy} onClick={() => router.push('/practice/catti')}>返回列表</Button>
+              <span className="min-w-0 rounded-xl border border-line bg-canvas-2 px-3 py-3 text-sm text-ink-700 sm:px-4">考试时间：{exam.duration_minutes ?? 60} 分钟</span>
+              <Button className="w-full sm:w-auto" variant="secondary" disabled={flowBusy} onClick={() => router.push('/practice/catti')}>返回列表</Button>
             </div>
           </div>
         </header>
 
-        <main className="mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-[1680px] flex-col justify-center px-[clamp(20px,3vw,56px)] py-8">
+        <main className="mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-[1680px] flex-col justify-start px-4 py-5 sm:px-[clamp(20px,3vw,56px)] sm:py-8 lg:justify-center">
           {timeExpired && (
             <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">
               时间已到，请尽快提交考试。
             </div>
           )}
 
-          <section className="overflow-hidden rounded-[24px] border border-line bg-surface-2 shadow-[var(--shadow-card)]">
-            <div className="grid min-h-[620px] grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
-              <div className="flex min-h-[520px] flex-col px-[clamp(28px,4vw,72px)] py-[clamp(28px,4vw,64px)]">
+          <section className="overflow-hidden rounded-2xl border border-line bg-surface-2 shadow-[var(--shadow-card)] sm:rounded-[24px]">
+            <div className="grid min-h-[620px] min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
+              <div className="flex min-h-[520px] min-w-0 flex-col px-5 py-6 sm:px-[clamp(28px,4vw,72px)] sm:py-[clamp(28px,4vw,64px)]">
                 <div className="flex flex-col gap-5 border-b border-line pb-6 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="max-w-3xl">
+                  <div className="min-w-0 max-w-3xl">
                     <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">考试状态</p>
                     <div className="flex flex-wrap items-center gap-3">
                       <span className={cn(
                         'h-3 w-3 rounded-full',
                         timeExpired && !allSegmentsCompleted ? 'bg-red-500' : recording ? 'bg-brand' : flowBusy ? 'bg-status-info-text' : allSegmentsCompleted ? 'bg-status-success' : 'bg-ink-400'
                       )} />
-                      <h2 className="font-serif text-[clamp(34px,4vw,56px)] leading-tight text-ink-900">{phaseTitle}</h2>
+                      <h2 className="min-w-0 break-words font-serif text-[clamp(26px,8vw,56px)] leading-tight text-ink-900">{phaseTitle}</h2>
                     </div>
                     <p className="mt-4 max-w-2xl text-base leading-8 text-ink-600">{phaseDescription}</p>
                   </div>
-                  <div className="min-w-[160px] rounded-2xl border border-line bg-canvas-2 px-5 py-4">
+                  <div className="w-full min-w-0 rounded-2xl border border-line bg-canvas-2 px-4 py-4 sm:w-auto sm:min-w-[160px] sm:px-5">
                     <p className="text-[11px] text-ink-500">完成进度</p>
-                    <p className="mt-1 font-mono text-3xl text-ink-900">{completedSegmentCount} / {segments.length}</p>
+                    <p className="mt-1 break-words font-mono text-2xl text-ink-900 sm:text-3xl">{completedSegmentCount} / {segments.length}</p>
                   </div>
                 </div>
 
-                <div className="mt-8 rounded-2xl border border-line bg-canvas-2 p-5">
+                <div className="mt-8 min-w-0 rounded-2xl border border-line bg-canvas-2 p-4 sm:p-5">
                   <div className="flex items-center justify-between gap-4">
                     <p className="text-xs font-medium text-ink-500">整体进度</p>
                     <p className="font-mono text-sm text-ink-700">{progressPercent}%</p>
@@ -946,7 +946,7 @@ export default function CattiExamPage() {
                   </div>
                 </div>
 
-                <div className="mt-8 flex flex-1 flex-col items-center justify-center rounded-2xl border border-line bg-white px-6 py-12 text-center">
+                <div className="mt-8 flex min-w-0 flex-1 flex-col items-center justify-center rounded-2xl border border-line bg-white px-5 py-10 text-center sm:px-6 sm:py-12">
                   <div className="mb-8 flex h-24 items-end justify-center gap-2" aria-hidden="true">
                     {[40, 68, 92, 58, 78, 48, 64].map((height, index) => (
                       <span
@@ -960,28 +960,28 @@ export default function CattiExamPage() {
                     ))}
                   </div>
                   <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">听音口译</p>
-                  <h3 className="mt-3 font-serif text-[clamp(32px,4vw,52px)] leading-tight text-ink-900">{displayDirection(activeDirection)}口译</h3>
+                  <h3 className="mt-3 break-words font-serif text-[clamp(28px,8vw,52px)] leading-tight text-ink-900">{displayDirection(activeDirection)}口译</h3>
                   <p className="mt-5 max-w-2xl text-base leading-8 text-ink-600">
                     考试过程中不显示原文。请根据中文语音提示和提示音完成听辨、口译与录音。
                   </p>
                 </div>
               </div>
 
-              <div className="flex flex-col border-t border-line bg-canvas-2 lg:border-l lg:border-t-0">
-                <div className="border-b border-line px-6 py-5">
+              <div className="flex min-w-0 flex-col border-t border-line bg-canvas-2 lg:border-l lg:border-t-0">
+                <div className="border-b border-line px-5 py-5 sm:px-6">
                   <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">考试引导</p>
-                  <p className="mt-2 font-serif text-2xl text-ink-900">全程自动进行</p>
+                  <p className="mt-2 break-words font-serif text-xl text-ink-900 sm:text-2xl">全程自动进行</p>
                   <p className="mt-3 text-sm leading-7 text-ink-600">听提示音开始与结束口译。除上传失败重试外，考试过程中不需要手动切段。</p>
                 </div>
 
-                <div className="space-y-3 px-6 py-5">
+                <div className="space-y-3 px-5 py-5 sm:px-6">
                   <ExamStep done={completedSegmentCount > 0 || flowStarted} active={!flowStarted} label="开始考试" />
                   <ExamStep done={activePlayed} active={erkouPhase === '正在播放原文'} label="听原文录音" />
                   <ExamStep done={activeCompleted} active={recording || erkouPhase === '录音即将开始'} label="口译录音" />
                   <ExamStep done={allSegmentsCompleted} active={erkouPhase === '录音上传中' || erkouPhase === '过渡中'} label="保存并进入下一段" />
                 </div>
 
-                <div className="mt-auto border-t border-line px-6 py-5">
+                <div className="mt-auto border-t border-line px-5 py-5 sm:px-6">
                   {currentRecording?.error && (
                     <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-4">
                       <p className="text-sm font-medium text-red-700">录音上传失败</p>
@@ -1309,9 +1309,9 @@ function recordingBlobType(type: string) {
 
 function StatusLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-canvas/40 px-4 py-3">
+    <div className="flex min-w-0 flex-col gap-1 rounded-xl border border-line bg-canvas/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <span className="text-xs text-ink-500">{label}</span>
-      <span className="text-sm font-medium text-ink-900">{value}</span>
+      <span className="min-w-0 break-words text-sm font-medium text-ink-900 sm:text-right">{value}</span>
     </div>
   )
 }
@@ -1319,7 +1319,7 @@ function StatusLine({ label, value }: { label: string; value: string }) {
 function ExamStep({ done, active, label }: { done: boolean; active: boolean; label: string }) {
   return (
     <div className={cn(
-      'flex items-center gap-3 rounded-xl border px-4 py-3',
+      'flex min-w-0 items-center gap-3 rounded-xl border px-3 py-3 sm:px-4',
       done ? 'border-brand-200 bg-brand-50 text-ink-900' : active ? 'border-ink-900 bg-white text-ink-900' : 'border-line bg-white/70 text-ink-500'
     )}>
       <span className={cn(
@@ -1328,7 +1328,7 @@ function ExamStep({ done, active, label }: { done: boolean; active: boolean; lab
       )}>
         {done ? '✓' : active ? '•' : ''}
       </span>
-      <span className="text-sm font-medium">{label}</span>
+      <span className="min-w-0 break-words text-sm font-medium leading-6">{label}</span>
     </div>
   )
 }
