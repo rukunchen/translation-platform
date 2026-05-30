@@ -236,12 +236,10 @@ export default function TranslationPracticeHomePage() {
             </section>
 
             <section className="mb-8 rounded-2xl border border-line bg-surface/70 px-6 py-5">
-              <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <Eyebrow tone="muted" className="mb-2">Practice Overview</Eyebrow>
-                  <h2 className="font-serif text-xl text-ink-900">学习概览</h2>
-                </div>
-                <p className="text-xs text-ink-500">常规练习、复盘问题与表达卡片独立统计。</p>
+              <div className="mb-5 text-center">
+                <Eyebrow tone="muted" className="mb-2">Practice Overview</Eyebrow>
+                <h2 className="font-serif text-xl text-ink-900">学习概览</h2>
+                <p className="mt-2 text-xs text-ink-500">常规练习、复盘问题与表达卡片独立统计。</p>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <PracticeMetric label="已练篇章" value={practicedCount} note={`共 ${items.length} 篇材料`} />
