@@ -102,6 +102,10 @@ type UploadRecordingResponse = {
   attemptSegment?: CattiMockAttemptSegment
 }
 
+type CueAudioResponse = {
+  audioUrl?: string
+}
+
 export default function CattiExamPage() {
   const router = useRouter()
   const params = useParams()
@@ -137,6 +141,7 @@ export default function CattiExamPage() {
   const recordingChunksRef = useRef<BlobPart[]>([])
   const recordingStreamRef = useRef<MediaStream | null>(null)
   const autoFlowRef = useRef(false)
+  const cueAudioCacheRef = useRef<Record<string, string>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -486,27 +491,142 @@ export default function CattiExamPage() {
 
   async function speakChineseCue(text: string) {
     const content = text.trim()
-    if (!content || !('speechSynthesis' in window)) return
+    if (!content) return
 
-    await new Promise<void>(resolve => {
+    const cachedUrl = cueAudioCacheRef.current[content]
+    if (cachedUrl) {
+      try {
+        await playCueAudioUrl(cachedUrl, content)
+        return
+      } catch {
+        delete cueAudioCacheRef.current[content]
+      }
+    }
+
+    const { data, error } = await apiJSON<CueAudioResponse>('/api/catti/erkou/cue-audio', {
+      method: 'POST',
+      body: JSON.stringify({ examId, text: content }),
+    })
+    if (!error && data?.audioUrl) {
+      cueAudioCacheRef.current[content] = data.audioUrl
+      try {
+        await playCueAudioUrl(data.audioUrl, content)
+        return
+      } catch {
+        delete cueAudioCacheRef.current[content]
+      }
+    }
+
+    await speakChineseCueWithBrowserVoice(content)
+  }
+
+  async function playCueAudioUrl(audioUrl: string, text: string) {
+    await new Promise<void>((resolve, reject) => {
+      let finished = false
+      const audio = new Audio(audioUrl)
+      let timeout: number | null = null
+      const finish = (error?: Error) => {
+        if (finished) return
+        finished = true
+        if (timeout) window.clearTimeout(timeout)
+        audio.onended = null
+        audio.onerror = null
+        audioRef.current = null
+        if (error) reject(error)
+        else resolve()
+      }
+
+      timeout = window.setTimeout(() => finish(new Error('引导音频播放超时')), Math.max(15000, text.length * 650))
+      audio.preload = 'auto'
+      audioRef.current = audio
+      audio.onended = () => finish()
+      audio.onerror = () => finish(new Error('引导音频播放失败'))
+      void audio.play().catch(error => finish(error instanceof Error ? error : new Error('引导音频播放失败')))
+    })
+  }
+
+  async function speakChineseCueWithBrowserVoice(content: string) {
+    if (!('speechSynthesis' in window)) return
+
+    const voices = await getSpeechVoices()
+    const voice = chooseChineseVoice(voices)
+    const parts = splitCueText(content)
+    window.speechSynthesis.cancel()
+
+    for (const part of parts) {
+      await new Promise<void>(resolve => {
+        let done = false
+        let timeout: number | null = null
+        const finish = () => {
+          if (done) return
+          done = true
+          if (timeout) window.clearTimeout(timeout)
+          resolve()
+        }
+
+        const utterance = new SpeechSynthesisUtterance(part)
+        utterance.lang = 'zh-CN'
+        utterance.rate = 0.9
+        utterance.pitch = 1
+        if (voice) utterance.voice = voice
+        utterance.onend = finish
+        utterance.onerror = finish
+        timeout = window.setTimeout(finish, Math.max(45000, part.length * 1200))
+        window.speechSynthesis.speak(utterance)
+      })
+    }
+  }
+
+  async function getSpeechVoices() {
+    if (!('speechSynthesis' in window)) return []
+    const currentVoices = window.speechSynthesis.getVoices()
+    if (currentVoices.length > 0) return currentVoices
+
+    return await new Promise<SpeechSynthesisVoice[]>(resolve => {
       let done = false
       let timeout: number | null = null
       const finish = () => {
         if (done) return
         done = true
         if (timeout) window.clearTimeout(timeout)
-        resolve()
+        window.speechSynthesis.onvoiceschanged = null
+        resolve(window.speechSynthesis.getVoices())
       }
 
-      const utterance = new SpeechSynthesisUtterance(content)
-      utterance.lang = 'zh-CN'
-      utterance.rate = 0.95
-      utterance.onend = finish
-      utterance.onerror = finish
-      timeout = window.setTimeout(finish, Math.max(2500, content.length * 180))
-      window.speechSynthesis.cancel()
-      window.speechSynthesis.speak(utterance)
+      window.speechSynthesis.onvoiceschanged = finish
+      timeout = window.setTimeout(finish, 1200)
     })
+  }
+
+  function chooseChineseVoice(voices: SpeechSynthesisVoice[]) {
+    const chineseVoices = voices.filter(voice => voice.lang.toLowerCase().startsWith('zh'))
+    return (
+      chineseVoices.find(voice => /xiaoxiao|xiaoyi|tingting|mei-jia|sin-ji|hanhan|huihui/i.test(voice.name)) ||
+      chineseVoices.find(voice => !voice.localService) ||
+      chineseVoices[0] ||
+      null
+    )
+  }
+
+  function splitCueText(content: string) {
+    const sentences = content
+      .split(/(?<=[。！？；])/u)
+      .map(part => part.trim())
+      .filter(Boolean)
+    if (sentences.length === 0) return [content]
+
+    const chunks: string[] = []
+    let chunk = ''
+    for (const sentence of sentences) {
+      if (chunk && `${chunk}${sentence}`.length > 48) {
+        chunks.push(chunk)
+        chunk = sentence
+      } else {
+        chunk += sentence
+      }
+    }
+    if (chunk) chunks.push(chunk)
+    return chunks
   }
 
   async function playRecordingStartCue() {
@@ -560,7 +680,7 @@ export default function CattiExamPage() {
     const passageChanged = !previousSegment || previousSegment.passage_order !== segment.passage_order
     const passageCue = passageChanged ? `${erkouPassageChineseTitle(segment)}开始。` : ''
     await speakChineseCue(`${passageCue}第 ${index + 1} 段录音即将播放，请注意听。`)
-    playSegment(segment)
+    void playSegment(segment)
   }
 
   function stopPhaseTimers() {
@@ -608,7 +728,7 @@ export default function CattiExamPage() {
     void startRecordingForSegment(segment, true)
   }
 
-  function playSegment(segment: CattiMockSegment) {
+  async function playSegment(segment: CattiMockSegment) {
     stopPlayback()
     stopPhaseTimers()
     setPlayedSegments(prev => ({ ...prev, [segment.id]: true }))
@@ -619,7 +739,7 @@ export default function CattiExamPage() {
       audioRef.current = audio
       audio.onended = () => finishSegmentPlayback(segment)
       audio.onerror = () => playSegmentWithSpeechSynthesis(segment)
-      void audio.play().catch(() => playSegmentWithSpeechSynthesis(segment))
+      await audio.play().catch(() => playSegmentWithSpeechSynthesis(segment))
       return
     }
 
