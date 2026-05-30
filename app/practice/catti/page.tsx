@@ -798,7 +798,9 @@ export default function CattiMockCenterPage() {
           : []
         return segmentTexts.map((text, index) => {
           const estimatedPlaySeconds = estimatePlaySeconds(text, passage.direction)
-          const recordingSeconds = estimateRecordingSeconds(text, passage.direction)
+          const recordingSeconds = draft.pause_mode === 'fixed'
+            ? estimatePauseSeconds(text, fixedPause)
+            : estimateRecordingSeconds(text, passage.direction)
           const voiceProfile = passage.direction === 'C-E' ? draft.ce_voice_profile : draft.ec_voice_profile
           const speedProfile = passage.direction === 'C-E' ? draft.ce_speed_profile : draft.ec_speed_profile
           const row = {
@@ -817,7 +819,7 @@ export default function CattiMockCenterPage() {
             estimated_play_seconds: estimatedPlaySeconds,
             recording_seconds: recordingSeconds,
             transition_seconds: 5,
-            pause_seconds: draft.pause_mode === 'fixed' ? estimatePauseSeconds(text, fixedPause) : recordingSeconds,
+            pause_seconds: recordingSeconds,
           }
           globalOrder += 1
           return row

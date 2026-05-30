@@ -468,7 +468,7 @@ export default function CattiReportPage() {
                       <div>
                         <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">Segment {segment.segment_order_global ?? segment.segment_order}</p>
                         <h3 className="font-serif text-lg text-ink-900">第 {segment.segment_order_in_passage ?? segment.segment_order} 段</h3>
-                        <p className="mt-1 text-sm text-ink-600">原文 {countPracticeWords(segment.source_text)} 字 · 播放约 {segment.estimated_play_seconds ?? '-'} 秒 · 录音 {segment.recording_seconds ?? segment.pause_seconds ?? '-'} 秒</p>
+                        <p className="mt-1 text-sm text-ink-600">原文 {countPracticeWords(segment.source_text)} 字 · 播放约 {segment.estimated_play_seconds ?? '-'} 秒 · 录音 {segment.pause_seconds ?? segment.recording_seconds ?? '-'} 秒</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <span className="rounded-full border border-line bg-white px-3 py-1 text-xs text-ink-600">

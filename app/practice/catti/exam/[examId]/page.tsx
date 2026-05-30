@@ -806,7 +806,7 @@ export default function CattiExamPage() {
       await playRecordingStartCue()
       recorder.start()
       setErkouPhase('录音中')
-      const recordingSeconds = segment.recording_seconds ?? segment.pause_seconds ?? 75
+      const recordingSeconds = segment.pause_seconds ?? segment.recording_seconds ?? 75
       startPhaseCountdown(recordingSeconds)
       if (autoAdvance) {
         recordingTimerRef.current = window.setTimeout(() => {
