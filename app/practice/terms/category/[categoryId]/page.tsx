@@ -98,7 +98,9 @@ export default function TermCategoryPage() {
       return
     }
     setUserId(userData.user.id)
-    setUserEmail(userData.user.email ?? '')
+    const currentEmail = userData.user.email ?? ''
+    const shouldOpenAdminImport = new URLSearchParams(window.location.search).get('adminImport') === '1'
+    setUserEmail(currentEmail)
 
     const [categoryRes, categoriesRes, termsRes, termbookRes] = await Promise.all([
       supabase
@@ -136,6 +138,16 @@ export default function TermCategoryPage() {
     setAddedTermIds(new Set((termbookRes.data ?? []).map(item => item.public_term_id).filter(Boolean) as string[]))
     setTermForm(prev => prev.category_id ? prev : { ...prev, category_id: categoryId })
     setImportCategoryId(prev => prev || categoryId)
+    if (currentEmail.toLowerCase() === ADMIN_EMAIL && shouldOpenAdminImport) {
+      setAdminNotice('')
+      setImportMode('text')
+      setImportCategoryId(categoryId)
+      setImportText('')
+      setExcelFileName('')
+      setImportPreview([])
+      setShowImportDialog(true)
+      window.history.replaceState(null, '', `/practice/terms/category/${categoryId}`)
+    }
     if (termsRes.error) setErrorMessage(termsRes.error.message)
     setLoading(false)
   }, [categoryId, router])

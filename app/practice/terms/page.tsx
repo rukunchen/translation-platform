@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Select } from '@/components/ui/Input'
+import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Eyebrow } from '@/components/ui/Eyebrow'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MainContent } from '@/components/ui/MainContent'
@@ -47,6 +47,12 @@ type CategoryStats = {
   latestUpdatedAt: string | null
 }
 
+type CategoryForm = {
+  name: string
+  description: string
+  sort_order: string
+}
+
 export default function TermLearningPage() {
   const router = useRouter()
   const [userId, setUserId] = useState('')
@@ -59,6 +65,9 @@ export default function TermLearningPage() {
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null)
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false)
+  const [savingCategory, setSavingCategory] = useState(false)
+  const [categoryForm, setCategoryForm] = useState<CategoryForm>(() => createCategoryForm(10))
 
   const isAdmin = userEmail.toLowerCase() === ADMIN_EMAIL
 
@@ -187,6 +196,43 @@ export default function TermLearningPage() {
     await load(userId)
   }
 
+  function openAdminImport() {
+    if (categories.length === 0) {
+      alert('请先新建分类，再导入词条。')
+      openCreateCategoryDialog()
+      return
+    }
+    router.push(`/practice/terms/category/${categories[0].id}?adminImport=1`)
+  }
+
+  function openCreateCategoryDialog() {
+    const nextSortOrder = categories.reduce((max, category) => Math.max(max, category.sort_order ?? 0), 0) + 10
+    setCategoryForm(createCategoryForm(nextSortOrder))
+    setShowCategoryDialog(true)
+  }
+
+  async function createCategory() {
+    if (!userId || !isAdmin) return
+    const name = categoryForm.name.trim()
+    if (!name) {
+      alert('请填写分类名称。')
+      return
+    }
+    setSavingCategory(true)
+    const { error } = await supabase.from('term_categories').insert({
+      name,
+      description: nullableText(categoryForm.description),
+      sort_order: Number(categoryForm.sort_order) || 0,
+    })
+    setSavingCategory(false)
+    if (error) {
+      alert('新建分类失败：' + error.message)
+      return
+    }
+    setShowCategoryDialog(false)
+    await load(userId)
+  }
+
   function openTermbookStudy() {
     router.push('/practice/terms/study?scope=my-termbook')
   }
@@ -232,15 +278,15 @@ export default function TermLearningPage() {
 
             {isAdmin && (
               <section className="mb-8 rounded-2xl border border-line bg-surface/70 px-6 py-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
+                <div className="flex flex-col items-center gap-4 text-center">
+                  <div className="max-w-xl">
                     <Eyebrow tone="muted" className="mb-2">Admin</Eyebrow>
                     <h2 className="font-serif text-xl text-ink-900">管理员工具</h2>
                     <p className="mt-2 text-sm text-ink-600">公共词条分类与词条维护入口。</p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" disabled>管理员导入词条</Button>
-                    <Button variant="ghost" disabled>新建分类</Button>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button variant="secondary" onClick={openAdminImport}>管理员导入词条</Button>
+                    <Button variant="ghost" onClick={openCreateCategoryDialog}>新建分类</Button>
                   </div>
                 </div>
               </section>
@@ -330,9 +376,53 @@ export default function TermLearningPage() {
                 </div>
               )}
             </section>}
+
+            {showCategoryDialog && isAdmin && (
+              <CategoryDialog
+                form={categoryForm}
+                saving={savingCategory}
+                onChange={patch => setCategoryForm(prev => ({ ...prev, ...patch }))}
+                onClose={() => setShowCategoryDialog(false)}
+                onSave={createCategory}
+              />
+            )}
           </MainContent>
         </div>
       </main>
+    </div>
+  )
+}
+
+function CategoryDialog({
+  form,
+  saving,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  form: CategoryForm
+  saving: boolean
+  onChange: (patch: Partial<CategoryForm>) => void
+  onClose: () => void
+  onSave: () => Promise<void>
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white shadow-[var(--shadow-modal)]" style={{ padding: 32 }}>
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h3 className="font-serif text-2xl text-ink-900">新建分类</h3>
+          <button type="button" onClick={onClose} className="text-sm text-ink-400 hover:text-ink-900">关闭</button>
+        </div>
+        <form className="space-y-5" onSubmit={event => { event.preventDefault(); void onSave() }}>
+          <Input label="分类名称" value={form.name} onChange={event => onChange({ name: event.target.value })} required />
+          <Textarea label="分类说明" value={form.description} onChange={event => onChange({ description: event.target.value })} rows={3} />
+          <Input label="排序" type="number" value={form.sort_order} onChange={event => onChange({ sort_order: event.target.value })} />
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={onClose}>取消</Button>
+            <Button variant="primary" type="submit" loading={saving}>保存分类</Button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
@@ -511,4 +601,17 @@ function formatDate(value: string | null) {
     month: '2-digit',
     day: '2-digit',
   })
+}
+
+function createCategoryForm(sortOrder: number): CategoryForm {
+  return {
+    name: '',
+    description: '',
+    sort_order: String(sortOrder),
+  }
+}
+
+function nullableText(value: string) {
+  const trimmed = value.trim()
+  return trimmed || null
 }
