@@ -218,6 +218,23 @@ export default function TranslationPracticeHomePage() {
               }
             />
 
+            <section className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <PracticeEntryCard
+                eyebrow="Exam Center"
+                title="CATTI 模考中心"
+                description="二笔、二口实务训练与模考报告。"
+                buttonLabel="进入模考中心"
+                onOpen={() => router.push('/practice/catti')}
+              />
+              <PracticeEntryCard
+                eyebrow="Term Learning"
+                title="词条学习"
+                description="热词分类、卡片记忆与个人词条本"
+                buttonLabel="进入词条学习"
+                onOpen={() => router.push('/practice/terms')}
+              />
+            </section>
+
             <section className="mb-8 rounded-2xl border border-line bg-surface/70 px-6 py-5">
               <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -372,6 +389,33 @@ export default function TranslationPracticeHomePage() {
         </div>
       )}
     </div>
+  )
+}
+
+function PracticeEntryCard({
+  eyebrow,
+  title,
+  description,
+  buttonLabel,
+  onOpen,
+}: {
+  eyebrow: string
+  title: string
+  description: string
+  buttonLabel: string
+  onOpen: () => void
+}) {
+  return (
+    <Card padding="md" className="border-line/80 bg-surface/60">
+      <div className="flex h-full flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <Eyebrow tone="muted" className="mb-2">{eyebrow}</Eyebrow>
+          <h2 className="font-serif text-xl text-ink-900">{title}</h2>
+          <p className="mt-2 text-sm leading-relaxed text-ink-600">{description}</p>
+        </div>
+        <Button variant="secondary" className="shrink-0" onClick={onOpen}>{buttonLabel}</Button>
+      </div>
+    </Card>
   )
 }
 
