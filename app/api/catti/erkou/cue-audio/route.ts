@@ -10,8 +10,8 @@ export const maxDuration = 60
 const ADMIN_EMAIL = 'rukunchen@hotmail.com'
 const BUCKET = 'catti-audio'
 const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts'
-const DEFAULT_CUE_VOICE: SpeechVoice = 'shimmer'
-const CUE_TTS_INSTRUCTIONS = '请使用自然流畅的中文真人考场播报风格。语气沉稳、清晰、正式，停顿自然，不要有机器感。'
+const DEFAULT_CUE_VOICE: SpeechVoice = 'onyx'
+const CUE_TTS_INSTRUCTIONS = '请使用自然流畅的中文真人考场播报风格，偏沉稳男声。语气清晰、正式，停顿自然，不要有机器感。'
 const MAX_CUE_LENGTH = 260
 
 type SpeechVoice = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'onyx' | 'nova' | 'sage' | 'shimmer' | 'verse' | 'marin' | 'cedar'

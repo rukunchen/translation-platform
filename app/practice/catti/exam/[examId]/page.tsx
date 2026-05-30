@@ -141,6 +141,7 @@ export default function CattiExamPage() {
   const recordingChunksRef = useRef<BlobPart[]>([])
   const recordingStreamRef = useRef<MediaStream | null>(null)
   const autoFlowRef = useRef(false)
+  const examStartRequestedRef = useRef(false)
   const cueAudioCacheRef = useRef<Record<string, string>>({})
 
   const load = useCallback(async () => {
@@ -643,6 +644,14 @@ export default function CattiExamPage() {
   async function startCandidateErkouFlow() {
     if (!activeSegment || uploadingSegmentCount > 0 || submitting) return
     if (recorderRef.current && recorderRef.current.state !== 'inactive') return
+    const alreadyStarted = completedSegmentCount > 0 || Object.keys(playedSegments).length > 0 || erkouPhase !== '准备中'
+    if (examStartRequestedRef.current || alreadyStarted) return
+    const missingCount = missingSourceAudioCount(segments)
+    if (missingCount > 0) {
+      alert(`这套二口模考还有 ${missingCount} 段原文音频未生成。请先返回模考中心生成考试音频，否则声音角色、口音和语速设置不会生效。`)
+      return
+    }
+    examStartRequestedRef.current = true
 
     const nextIndex = segments.findIndex(segment => !completedSegments[segment.id])
     if (nextIndex < 0) {
@@ -731,37 +740,36 @@ export default function CattiExamPage() {
   async function playSegment(segment: CattiMockSegment) {
     stopPlayback()
     stopPhaseTimers()
-    setPlayedSegments(prev => ({ ...prev, [segment.id]: true }))
     setErkouPhase('正在播放原文')
 
-    if (segment.audio_url) {
-      const audio = new Audio(segment.audio_url)
-      audioRef.current = audio
-      audio.onended = () => finishSegmentPlayback(segment)
-      audio.onerror = () => playSegmentWithSpeechSynthesis(segment)
-      await audio.play().catch(() => playSegmentWithSpeechSynthesis(segment))
+    if (!segment.audio_url) {
+      handleSegmentAudioUnavailable(segment, '本段原文音频尚未生成。请先在模考中心生成考试音频后再开始考试。')
       return
     }
 
-    playSegmentWithSpeechSynthesis(segment)
+    setPlayedSegments(prev => ({ ...prev, [segment.id]: true }))
+    const audio = new Audio(segment.audio_url)
+    let failed = false
+    const fail = () => {
+      if (failed) return
+      failed = true
+      handleSegmentAudioUnavailable(segment, '本段原文音频播放失败。请返回模考中心重新生成考试音频后再试。')
+    }
+    audioRef.current = audio
+    audio.onended = () => finishSegmentPlayback(segment)
+    audio.onerror = fail
+    await audio.play().catch(fail)
   }
 
-  function playSegmentWithSpeechSynthesis(segment: CattiMockSegment) {
+  function handleSegmentAudioUnavailable(segment: CattiMockSegment, message: string) {
     audioRef.current = null
-    const utterance = new SpeechSynthesisUtterance(segment.source_text)
-    utterance.rate = speechRateValue(segment.speech_rate, segment.direction)
-    utterance.onend = () => finishSegmentPlayback(segment)
-    utterance.onerror = () => {
-      setPlayedSegments(prev => {
-        const next = { ...prev }
-        delete next[segment.id]
-        return next
-      })
-      setErkouPhase('准备中')
-      alert('本段音频播放失败，请检查浏览器音频设置后重试。')
-    }
-    window.speechSynthesis.cancel()
-    window.speechSynthesis.speak(utterance)
+    setPlayedSegments(prev => {
+      const next = { ...prev }
+      delete next[segment.id]
+      return next
+    })
+    setErkouPhase('准备中')
+    alert(message)
   }
 
   async function startRecordingForSegment(segment: CattiMockSegment, autoAdvance: boolean) {
@@ -987,14 +995,17 @@ export default function CattiExamPage() {
     const recording = erkouPhase === '录音中'
     const flowBusy = erkouPhase === '考试说明' || erkouPhase === '正在播放原文' || erkouPhase === '录音即将开始' || recording || erkouPhase === '录音上传中' || erkouPhase === '过渡中'
     const flowStarted = completedSegmentCount > 0 || Object.keys(playedSegments).length > 0 || erkouPhase !== '准备中'
-    const canStartFlow = !allSegmentsCompleted && !flowBusy && !currentRecording?.uploading && !currentRecording?.error
+    const missingAudioCount = missingSourceAudioCount(segments)
+    const audioReady = missingAudioCount === 0
+    const canStartFlow = audioReady && !flowStarted && !allSegmentsCompleted && !flowBusy && !currentRecording?.uploading && !currentRecording?.error
+    const showStartFlowButton = !flowStarted && !allSegmentsCompleted
     const activeDirection = activeSegment.direction || exam.direction
     const activePartTitle = erkouPassageDisplayTitle(activeSegment)
     const activeAudioType = erkouAudioType(activeSegment)
     const progressPercent = Math.round((completedSegmentCount / segments.length) * 100)
     const phaseTitle = timeExpired && !allSegmentsCompleted ? '考试时间已到' : allSegmentsCompleted ? '考试录音已完成' : erkouPhaseTitle(erkouPhase)
     const phaseDescription = timeExpired && !allSegmentsCompleted ? '请尽快完成当前录音流程并提交考试录音。' : erkouPhaseDescription(erkouPhase, activeSegmentIndex, segments.length)
-    const primaryFlowLabel = !flowStarted ? '开始考试' : activePlayed && !activeCompleted ? '继续录音' : '继续考试'
+    const startFlowLabel = audioReady ? '开始考试' : '等待生成考试音频'
 
     return (
       <div className="min-h-screen overflow-x-hidden bg-canvas text-ink-900">
@@ -1119,6 +1130,15 @@ export default function CattiExamPage() {
                     </div>
                   )}
 
+                  {!audioReady && (
+                    <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+                      <p className="text-sm font-medium text-amber-900">考试原文音频未就绪</p>
+                      <p className="mt-1 text-sm leading-7 text-amber-800">
+                        还有 {missingAudioCount} 段原文音频未生成。请管理员返回模考中心点击“生成考试音频”，生成后声音角色、口音和语速设置才会生效。
+                      </p>
+                    </div>
+                  )}
+
                   {allSegmentsCompleted && (
                     <div className="mb-4 rounded-2xl border border-line bg-white px-4 py-4">
                       <p className="font-serif text-xl text-ink-900">确认已完成考试</p>
@@ -1126,7 +1146,7 @@ export default function CattiExamPage() {
                     </div>
                   )}
 
-                  {!allSegmentsCompleted && (
+                  {showStartFlowButton && (
                     <Button
                       variant="primary"
                       size="lg"
@@ -1135,7 +1155,7 @@ export default function CattiExamPage() {
                       disabled={!canStartFlow}
                       onClick={() => { void startCandidateErkouFlow() }}
                     >
-                      {primaryFlowLabel}
+                      {startFlowLabel}
                     </Button>
                   )}
                   {allSegmentsCompleted && (
@@ -1383,6 +1403,10 @@ function erkouAudioType(segment: Pick<CattiMockSegment, 'direction'>) {
   return segment.direction === 'C-E' ? '中文原文' : '英文原文'
 }
 
+function missingSourceAudioCount(segments: CattiMockSegment[]) {
+  return segments.filter(segment => !segment.audio_url).length
+}
+
 function erkouPhaseTitle(phase: ErkouPhase) {
   if (phase === '准备中') return '请开始考试'
   if (phase === '考试说明') return '考试说明播放中'
@@ -1463,13 +1487,4 @@ function ExamStep({ done, active, label }: { done: boolean; active: boolean; lab
       <span className="min-w-0 break-words text-sm font-medium leading-6">{label}</span>
     </div>
   )
-}
-
-function speechRateValue(value: string | null, direction?: string | null) {
-  if (value === 'slow') return 0.82
-  if (value === 'fast') return 1.15
-  if (value === 'slow_training') return 0.85
-  if (value === 'fast_challenge') return direction === 'C-E' ? 1.08 : 1.1
-  if (value === 'pressure_training') return direction === 'C-E' ? 1.15 : 1.2
-  return 1
 }
