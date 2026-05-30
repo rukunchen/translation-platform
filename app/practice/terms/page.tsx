@@ -58,6 +58,7 @@ export default function TermLearningPage() {
   const [termbookStatusFilter, setTermbookStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null)
 
   const isAdmin = userEmail.toLowerCase() === ADMIN_EMAIL
 
@@ -170,6 +171,22 @@ export default function TermLearningPage() {
     setTermbookItems(prev => prev.filter(row => row.id !== item.id))
   }
 
+  async function removeCategory(category: TermCategory) {
+    if (!userId || !isAdmin) return
+    if (!confirm(`确定删除“${category.name}”分类吗？该分类下的公共词条也会一并删除。`)) return
+    setDeletingCategoryId(category.id)
+    const { error } = await supabase
+      .from('term_categories')
+      .delete()
+      .eq('id', category.id)
+    setDeletingCategoryId(null)
+    if (error) {
+      alert('删除分类失败：' + error.message)
+      return
+    }
+    await load(userId)
+  }
+
   function openTermbookStudy() {
     router.push('/practice/terms/study?scope=my-termbook')
   }
@@ -261,6 +278,8 @@ export default function TermLearningPage() {
                         category={category}
                         stats={stats}
                         onOpen={() => router.push(`/practice/terms/category/${category.id}`)}
+                        onDelete={isAdmin ? () => removeCategory(category) : undefined}
+                        deleting={deletingCategoryId === category.id}
                       />
                     )
                   })}
@@ -356,10 +375,14 @@ function CategoryCard({
   category,
   stats,
   onOpen,
+  onDelete,
+  deleting,
 }: {
   category: TermCategory
   stats: CategoryStats
   onOpen: () => void
+  onDelete?: () => void
+  deleting?: boolean
 }) {
   return (
     <Card padding="md" className="flex min-h-[230px] flex-col justify-between border-line/80">
@@ -381,7 +404,8 @@ function CategoryCard({
           <CategoryStat label="最近更新" value={formatDate(stats.latestUpdatedAt)} compact />
         </div>
       </div>
-      <div className="mt-6 flex justify-end">
+      <div className="mt-6 flex justify-end gap-2">
+        {onDelete && <Button variant="danger" onClick={onDelete} loading={deleting}>删除分类</Button>}
         <Button variant="ghost" onClick={onOpen}>进入学习</Button>
       </div>
     </Card>

@@ -477,7 +477,9 @@ select
 from seed_terms seed
 join public.term_categories category
   on category.name = seed.category_name
-where not exists (
+-- 公共词条不再由 migration 自动导入；由管理员在页面中整理和导入。
+where false
+  and not exists (
   select 1
   from public.public_terms term
   where term.category_id = category.id
