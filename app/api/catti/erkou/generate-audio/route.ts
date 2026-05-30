@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { ensureStorageBucket } from '@/lib/storageBuckets'
 import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
 
 export const runtime = 'nodejs'
@@ -133,6 +134,16 @@ export async function POST(request: NextRequest) {
   }
 
   await admin.from('catti_mock_exams').update({ tts_status: 'generating' }).eq('id', examId)
+  try {
+    await ensureStorageBucket(admin, BUCKET, {
+      public: true,
+      fileSizeLimit: 50 * 1024 * 1024,
+      allowedMimeTypes: ['audio/mpeg', 'audio/mp3'],
+    })
+  } catch (error) {
+    await admin.from('catti_mock_exams').update({ tts_status: 'failed' }).eq('id', examId)
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+  }
 
   const openai = new OpenAI({
     apiKey,

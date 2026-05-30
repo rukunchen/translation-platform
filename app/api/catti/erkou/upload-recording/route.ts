@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ensureStorageBucket } from '@/lib/storageBuckets'
 import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
 
 export const runtime = 'nodejs'
@@ -6,7 +7,8 @@ export const maxDuration = 60
 
 const ADMIN_EMAIL = 'rukunchen@hotmail.com'
 const BUCKET = 'catti-recordings'
-const MAX_RECORDING_SIZE = 80 * 1024 * 1024
+const MAX_RECORDING_SIZE = 50 * 1024 * 1024
+const RECORDING_MIME_TYPES = ['audio/webm', 'video/webm', 'audio/mp4', 'audio/mpeg', 'audio/ogg', 'audio/wav']
 
 type AttemptRow = {
   id: string
@@ -31,7 +33,7 @@ export async function POST(request: NextRequest) {
   if (!attemptId || !segmentId) return NextResponse.json({ error: '缺少 attemptId 或 segmentId。' }, { status: 400 })
   if (!(file instanceof File)) return NextResponse.json({ error: '缺少录音文件。' }, { status: 400 })
   if (file.size <= 0) return NextResponse.json({ error: '录音文件为空。' }, { status: 400 })
-  if (file.size > MAX_RECORDING_SIZE) return NextResponse.json({ error: '录音文件不能超过 80MB。' }, { status: 400 })
+  if (file.size > MAX_RECORDING_SIZE) return NextResponse.json({ error: '录音文件不能超过 50MB。' }, { status: 400 })
 
   const admin = supabaseAdmin()
   const { data: attempt, error: attemptError } = await admin
@@ -66,10 +68,20 @@ export async function POST(request: NextRequest) {
 
   const path = `${attemptId}/${segmentId}.webm`
   const buffer = Buffer.from(await file.arrayBuffer())
+  try {
+    await ensureStorageBucket(admin, BUCKET, {
+      public: true,
+      fileSizeLimit: MAX_RECORDING_SIZE,
+      allowedMimeTypes: RECORDING_MIME_TYPES,
+    })
+  } catch (error) {
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+  }
+
   const { error: uploadError } = await admin.storage
     .from(BUCKET)
     .upload(path, buffer, {
-      contentType: file.type || 'audio/webm',
+      contentType: recordingContentType(file.type),
       upsert: true,
     })
   if (uploadError) return NextResponse.json({ error: '录音上传失败：' + uploadError.message }, { status: 500 })
@@ -101,4 +113,14 @@ export async function POST(request: NextRequest) {
   if (saveError) return NextResponse.json({ error: '录音记录保存失败：' + saveError.message }, { status: 500 })
 
   return NextResponse.json({ attemptSegment })
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : '录音存储初始化失败。'
+}
+
+function recordingContentType(type: string) {
+  const baseType = type.split(';')[0]?.trim().toLowerCase()
+  if (baseType && RECORDING_MIME_TYPES.includes(baseType)) return baseType
+  return 'audio/webm'
 }

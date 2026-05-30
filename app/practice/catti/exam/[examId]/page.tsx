@@ -17,7 +17,7 @@ const attemptAnswerSelect = 'id, attempt_id, passage_id, answer_text'
 const segmentSelect = 'id, exam_id, segment_order, passage_order, passage_title, direction, segment_order_global, segment_order_in_passage, source_text, reference_translation, audio_url, tts_voice, speech_rate, estimated_play_seconds, recording_seconds, transition_seconds, pause_seconds'
 const attemptSegmentSelect = 'id, attempt_id, segment_id, user_audio_url, transcript'
 
-type ErkouPhase = '准备中' | '正在播放原文' | '请开始口译' | '录音中' | '过渡中' | '本段完成'
+type ErkouPhase = '准备中' | '考试说明' | '正在播放原文' | '请开始口译' | '录音即将开始' | '录音中' | '录音上传中' | '过渡中' | '上传失败' | '考试完成'
 
 type CattiMockExam = {
   id: string
@@ -132,6 +132,7 @@ export default function CattiExamPage() {
   const transitionTimerRef = useRef<number | null>(null)
   const phaseCountdownRef = useRef<number | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const recordingChunksRef = useRef<BlobPart[]>([])
   const recordingStreamRef = useRef<MediaStream | null>(null)
@@ -250,7 +251,7 @@ export default function CattiExamPage() {
         setCompletedSegments(completedMap)
         setPlayedSegments(playedMapFromRecordings(recordingMap))
         setActiveSegmentIndex(firstIncompleteIndex >= 0 ? firstIncompleteIndex : Math.max(availableSegments.length - 1, 0))
-        setErkouPhase(firstIncompleteIndex >= 0 ? '准备中' : '本段完成')
+        setErkouPhase(firstIncompleteIndex >= 0 ? '准备中' : '考试完成')
       }
       setLoading(false)
       return
@@ -304,6 +305,7 @@ export default function CattiExamPage() {
       stopPlayback()
       stopPhaseTimers()
       stopRecordingTracks()
+      void audioContextRef.current?.close()
     }
   }, [])
 
@@ -449,6 +451,118 @@ export default function CattiExamPage() {
     window.speechSynthesis.cancel()
   }
 
+  function getAudioContext() {
+    const AudioContextCtor = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!AudioContextCtor) return null
+    if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+      audioContextRef.current = new AudioContextCtor()
+    }
+    return audioContextRef.current
+  }
+
+  async function playBeep(frequency = 880, durationMs = 240) {
+    const context = getAudioContext()
+    if (!context) return
+    if (context.state === 'suspended') {
+      await context.resume().catch(() => undefined)
+    }
+
+    await new Promise<void>(resolve => {
+      const oscillator = context.createOscillator()
+      const gain = context.createGain()
+      const now = context.currentTime
+      oscillator.type = 'sine'
+      oscillator.frequency.setValueAtTime(frequency, now)
+      gain.gain.setValueAtTime(0.0001, now)
+      gain.gain.exponentialRampToValueAtTime(0.18, now + 0.03)
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000)
+      oscillator.connect(gain)
+      gain.connect(context.destination)
+      oscillator.onended = () => resolve()
+      oscillator.start(now)
+      oscillator.stop(now + durationMs / 1000 + 0.02)
+    })
+  }
+
+  async function speakChineseCue(text: string) {
+    const content = text.trim()
+    if (!content || !('speechSynthesis' in window)) return
+
+    await new Promise<void>(resolve => {
+      let done = false
+      let timeout: number | null = null
+      const finish = () => {
+        if (done) return
+        done = true
+        if (timeout) window.clearTimeout(timeout)
+        resolve()
+      }
+
+      const utterance = new SpeechSynthesisUtterance(content)
+      utterance.lang = 'zh-CN'
+      utterance.rate = 0.95
+      utterance.onend = finish
+      utterance.onerror = finish
+      timeout = window.setTimeout(finish, Math.max(2500, content.length * 180))
+      window.speechSynthesis.cancel()
+      window.speechSynthesis.speak(utterance)
+    })
+  }
+
+  async function playRecordingStartCue() {
+    setErkouPhase('录音即将开始')
+    await speakChineseCue('开始口译。听到提示音后开始录音。')
+    await playBeep(920, 260)
+  }
+
+  async function playRecordingEndCue() {
+    await playBeep(660, 260)
+    await speakChineseCue('本段录音结束。')
+  }
+
+  async function startCandidateErkouFlow() {
+    if (!activeSegment || uploadingSegmentCount > 0 || submitting) return
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') return
+
+    const nextIndex = segments.findIndex(segment => !completedSegments[segment.id])
+    if (nextIndex < 0) {
+      setErkouPhase('考试完成')
+      return
+    }
+
+    const nextSegment = segments[nextIndex]
+    autoFlowRef.current = true
+    setActiveSegmentIndex(nextIndex)
+
+    if (playedSegments[nextSegment.id]) {
+      await startRecordingForSegment(nextSegment, true)
+      return
+    }
+
+    if (completedSegmentCount === 0 && nextIndex === 0) {
+      setErkouPhase('考试说明')
+      await speakChineseCue('CATTI 二级口译实务模拟考试现在开始。本考试不显示原文。请认真听每段录音并连续完成口译。系统会自动录音；听到提示音后开始口译，再次听到提示音表示本段录音结束。')
+    } else {
+      setErkouPhase('考试说明')
+      await speakChineseCue('考试继续。请听下一段录音。')
+    }
+
+    await playSegmentWithCue(nextSegment, nextIndex)
+  }
+
+  async function playSegmentWithCue(segment: CattiMockSegment, index: number) {
+    stopPlayback()
+    stopPhaseTimers()
+    setActiveSegmentIndex(index)
+    setErkouPhase('准备中')
+
+    const previousSegment = segments[index - 1]
+    const passageChanged = !previousSegment || previousSegment.passage_order !== segment.passage_order
+    const passageCue = passageChanged ? `${erkouPassageChineseTitle(segment)}开始。` : ''
+    await speakChineseCue(`${passageCue}第 ${index + 1} 段录音即将播放，请注意听。`)
+    playSegment(segment)
+  }
+
   function stopPhaseTimers() {
     if (recordingTimerRef.current) {
       window.clearTimeout(recordingTimerRef.current)
@@ -491,20 +605,7 @@ export default function CattiExamPage() {
     playbackTimerRef.current = null
     audioRef.current = null
     setErkouPhase('请开始口译')
-    if (!isAdmin) void startRecordingForSegment(segment, true)
-  }
-
-  function playCurrentSegment() {
-    if (!activeSegment) return
-    if (!isAdmin && completedSegments[activeSegment.id]) {
-      alert('本段已完成，正式考试流程中不能重复播放。')
-      return
-    }
-    if (!isAdmin && playedSegments[activeSegment.id]) {
-      alert('本段原文已播放，请开始口译录音。')
-      return
-    }
-    playSegment(activeSegment)
+    void startRecordingForSegment(segment, true)
   }
 
   function playSegment(segment: CattiMockSegment) {
@@ -517,38 +618,37 @@ export default function CattiExamPage() {
       const audio = new Audio(segment.audio_url)
       audioRef.current = audio
       audio.onended = () => finishSegmentPlayback(segment)
-      audio.onerror = () => finishSegmentPlayback(segment)
-      void audio.play().catch(() => finishSegmentPlayback(segment))
+      audio.onerror = () => playSegmentWithSpeechSynthesis(segment)
+      void audio.play().catch(() => playSegmentWithSpeechSynthesis(segment))
       return
     }
 
+    playSegmentWithSpeechSynthesis(segment)
+  }
+
+  function playSegmentWithSpeechSynthesis(segment: CattiMockSegment) {
+    audioRef.current = null
     const utterance = new SpeechSynthesisUtterance(segment.source_text)
     utterance.rate = speechRateValue(segment.speech_rate)
     utterance.onend = () => finishSegmentPlayback(segment)
-    utterance.onerror = () => finishSegmentPlayback(segment)
+    utterance.onerror = () => {
+      setPlayedSegments(prev => {
+        const next = { ...prev }
+        delete next[segment.id]
+        return next
+      })
+      setErkouPhase('准备中')
+      alert('本段音频播放失败，请检查浏览器音频设置后重试。')
+    }
     window.speechSynthesis.cancel()
     window.speechSynthesis.speak(utterance)
-  }
-
-  async function startRecording() {
-    if (!activeSegment) return
-    if (!isAdmin && completedSegments[activeSegment.id]) {
-      alert('本段已完成。如需重录，请重新开始本次模考。')
-      return
-    }
-    if (!isAdmin && erkouPhase !== '请开始口译') {
-      alert('请先播放本段原文，播放结束后再开始录音。')
-      return
-    }
-    await startRecordingForSegment(activeSegment, false)
   }
 
   async function startRecordingForSegment(segment: CattiMockSegment, autoAdvance: boolean) {
     stopPlayback()
     if (!('MediaRecorder' in window) || !navigator.mediaDevices?.getUserMedia) {
-      setCompletedSegments(prev => ({ ...prev, [segment.id]: true }))
-      setErkouPhase('本段完成')
-      alert('当前浏览器不支持录音，本段以录音占位完成。')
+      setErkouPhase('请开始口译')
+      alert('当前浏览器不支持录音，无法完成二口考试。请更换支持麦克风录音的浏览器。')
       return
     }
 
@@ -567,17 +667,17 @@ export default function CattiExamPage() {
           window.clearTimeout(recordingTimerRef.current)
           recordingTimerRef.current = null
         }
-        const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+        const blob = new Blob(recordingChunksRef.current, { type: recordingBlobType(recorder.mimeType) })
         const url = URL.createObjectURL(blob)
-        setRecordingsBySegment(prev => ({ ...prev, [segment.id]: { url, size: blob.size, blob, uploaded: false, uploading: true } }))
-        void uploadSegmentRecording(segment, blob, url)
         stopRecordingTracks()
         recorderRef.current = null
         recordingChunksRef.current = []
+        void finalizeSegmentRecording(segment, blob, url)
       }
 
-      recorder.start()
       autoFlowRef.current = autoAdvance
+      await playRecordingStartCue()
+      recorder.start()
       setErkouPhase('录音中')
       const recordingSeconds = segment.recording_seconds ?? segment.pause_seconds ?? 75
       startPhaseCountdown(recordingSeconds)
@@ -586,10 +686,18 @@ export default function CattiExamPage() {
           stopRecording()
         }, recordingSeconds * 1000)
       }
-    } catch (error) {
+    } catch {
       alert('无法开始录音，请检查麦克风权限。')
       setErkouPhase('请开始口译')
     }
+  }
+
+  async function finalizeSegmentRecording(segment: CattiMockSegment, blob: Blob, localUrl: string) {
+    setErkouPhase('录音上传中')
+    setPhaseRemainingSeconds(null)
+    setRecordingsBySegment(prev => ({ ...prev, [segment.id]: { url: localUrl, size: blob.size, blob, uploaded: false, uploading: true } }))
+    await playRecordingEndCue()
+    await uploadSegmentRecording(segment, blob, localUrl)
   }
 
   async function uploadSegmentRecording(segment: CattiMockSegment, blob: Blob, localUrl: string) {
@@ -610,7 +718,7 @@ export default function CattiExamPage() {
         [segment.id]: { url: localUrl, size: blob.size, blob, uploaded: false, uploading: false, error: error || '上传失败' },
       }))
       autoFlowRef.current = false
-      setErkouPhase('请开始口译')
+      setErkouPhase('上传失败')
       alert('录音上传失败：' + (error || '未知错误'))
       return
     }
@@ -620,10 +728,11 @@ export default function CattiExamPage() {
       [segment.id]: { url: data.attemptSegment?.user_audio_url || localUrl, size: blob.size, uploaded: true, uploading: false },
     }))
     setCompletedSegments(prev => ({ ...prev, [segment.id]: true }))
-    if (autoFlowRef.current && !isAdmin) {
+    if (autoFlowRef.current) {
       beginSegmentTransition(segment)
     } else {
-      setErkouPhase('本段完成')
+      const currentIndex = segments.findIndex(item => item.id === segment.id)
+      setErkouPhase(currentIndex >= segments.length - 1 ? '考试完成' : '准备中')
     }
   }
 
@@ -632,8 +741,9 @@ export default function CattiExamPage() {
     const nextSegment = currentIndex >= 0 ? segments[currentIndex + 1] : null
     if (!nextSegment) {
       autoFlowRef.current = false
-      setErkouPhase('本段完成')
+      setErkouPhase('考试完成')
       setPhaseRemainingSeconds(null)
+      void speakChineseCue('本场考试全部录音完成。请确认后提交考试录音。')
       return
     }
 
@@ -641,9 +751,8 @@ export default function CattiExamPage() {
     setErkouPhase('过渡中')
     startPhaseCountdown(seconds)
     transitionTimerRef.current = window.setTimeout(() => {
-      setActiveSegmentIndex(currentIndex + 1)
-      setErkouPhase('准备中')
-      window.setTimeout(() => playSegment(nextSegment), 0)
+      transitionTimerRef.current = null
+      void playSegmentWithCue(nextSegment, currentIndex + 1)
     }, seconds * 1000)
   }
 
@@ -669,6 +778,8 @@ export default function CattiExamPage() {
       ...prev,
       [segment.id]: { ...recording, blob, uploading: true, error: '' },
     }))
+    autoFlowRef.current = true
+    setErkouPhase('录音上传中')
     await uploadSegmentRecording(segment, blob, recording.url)
   }
 
@@ -682,26 +793,8 @@ export default function CattiExamPage() {
       return
     }
     if (activeSegment) {
-      setCompletedSegments(prev => ({ ...prev, [activeSegment.id]: true }))
-      setErkouPhase('本段完成')
+      setErkouPhase('请开始口译')
     }
-  }
-
-  function moveToNextSegment() {
-    if (!activeSegment) return
-    if (!isAdmin && !completedSegments[activeSegment.id]) {
-      alert('请先完成本段录音并等待上传成功后，再进入下一段。')
-      return
-    }
-    stopPlayback()
-    stopPhaseTimers()
-    if (activeSegmentIndex < segments.length - 1) {
-      setActiveSegmentIndex(index => index + 1)
-      setErkouPhase('准备中')
-      return
-    }
-    setCompletedSegments(prev => ({ ...prev, [activeSegment.id]: true }))
-    setErkouPhase('本段完成')
   }
 
   async function submitErkouExam() {
@@ -772,153 +865,171 @@ export default function CattiExamPage() {
     const activeCompleted = !!completedSegments[activeSegment.id]
     const activePlayed = !!playedSegments[activeSegment.id]
     const recording = erkouPhase === '录音中'
-    const canPlaySegment = isAdmin || (!recording && !activeCompleted && !currentRecording?.uploading && !activePlayed && erkouPhase === '准备中')
-    const canRecordSegment = isAdmin ? !recording : !recording && !activeCompleted && erkouPhase === '请开始口译'
-    const canMoveNextSegment = !recording && erkouPhase !== '过渡中' && activeCompleted && activeSegmentIndex < segments.length - 1
+    const flowBusy = erkouPhase === '考试说明' || erkouPhase === '正在播放原文' || erkouPhase === '录音即将开始' || recording || erkouPhase === '录音上传中' || erkouPhase === '过渡中'
+    const flowStarted = completedSegmentCount > 0 || Object.keys(playedSegments).length > 0 || erkouPhase !== '准备中'
+    const canStartFlow = !allSegmentsCompleted && !flowBusy && !currentRecording?.uploading && !currentRecording?.error
     const activeDirection = activeSegment.direction || exam.direction
-    const activePartTitle = activeSegment.passage_title || erkouPassageTitle(activeSegment)
+    const activePartTitle = erkouPassageChineseTitle(activeSegment)
+    const progressPercent = Math.round((completedSegmentCount / segments.length) * 100)
+    const phaseTitle = timeExpired && !allSegmentsCompleted ? '考试时间已到' : allSegmentsCompleted ? '考试录音已完成' : erkouPhaseTitle(erkouPhase)
+    const phaseDescription = timeExpired && !allSegmentsCompleted ? '请尽快完成当前录音流程并提交考试录音。' : erkouPhaseDescription(erkouPhase, activeSegmentIndex, segments.length)
+    const primaryFlowLabel = !flowStarted ? '开始考试' : activePlayed && !activeCompleted ? '继续录音' : '继续考试'
 
     return (
       <div className="min-h-screen bg-canvas text-ink-900">
-        <header className="sticky top-0 z-20 border-b border-line bg-white">
-          <div className="mx-auto flex max-w-[1400px] flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 px-[clamp(20px,3vw,56px)] py-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">CATTI 二口实务</p>
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">CATTI 二口实务模拟考试</p>
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h1 className="min-w-0 max-w-full truncate font-serif text-xl text-ink-900">{exam.title}</h1>
-                <span className="rounded-full border border-line bg-canvas px-2 py-1 text-[11px] text-ink-600">{displayDirection(activeDirection)}</span>
-                <span className="rounded-full border border-line bg-canvas px-2 py-1 text-[11px] text-ink-600">{activePartTitle}</span>
-                <span className="rounded-full border border-line bg-canvas px-2 py-1 text-[11px] text-ink-600">当前段落 {activeSegmentIndex + 1} / {segments.length}</span>
-                {isAdmin && <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">管理员预览</span>}
+                <h1 className="min-w-0 max-w-full truncate font-serif text-2xl leading-tight text-ink-900">{exam.title}</h1>
+                <span className="rounded-full border border-line bg-canvas px-2 py-1 text-xs text-ink-600">{displayDirection(activeDirection)}</span>
+                {isAdmin && <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">管理员预览</span>}
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <div className={cn(
-                'rounded-xl border px-4 py-2 font-mono text-xl',
-                timeExpired ? 'border-red-200 bg-red-50 text-red-700' : 'border-line bg-canvas text-ink-900'
+                'rounded-2xl border px-5 py-3 font-mono text-2xl shadow-sm',
+                timeExpired ? 'border-red-200 bg-red-50 text-red-700' : 'border-line bg-canvas-2 text-ink-900'
               )}>
                 {timerText}
               </div>
-              <span className="rounded-xl border border-line bg-canvas px-4 py-2 text-sm text-ink-700">考试时间：{exam.duration_minutes ?? 60} 分钟</span>
-              <Button variant="secondary" onClick={() => router.push('/practice/catti')}>返回列表</Button>
+              <span className="rounded-xl border border-line bg-canvas-2 px-4 py-3 text-sm text-ink-700">考试时间：{exam.duration_minutes ?? 60} 分钟</span>
+              <Button variant="secondary" disabled={flowBusy} onClick={() => router.push('/practice/catti')}>返回列表</Button>
             </div>
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1400px] px-5 py-6">
+        <main className="mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-[1680px] flex-col justify-center px-[clamp(20px,3vw,56px)] py-8">
           {timeExpired && (
-            <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+            <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">
               时间已到，请尽快提交考试。
             </div>
           )}
 
-          <section className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-4">
-            {segments.map((segment, index) => {
-              const selected = index === activeSegmentIndex
-              const done = !!completedSegments[segment.id]
-              const segmentRecording = recordingsBySegment[segment.id]
-              const unlocked = isAdmin || index <= activeSegmentIndex || segments.slice(0, index).every(item => completedSegments[item.id])
-              const segmentLabel = done ? '已完成' : segmentRecording?.uploading ? '上传中' : segmentRecording?.error ? '上传失败' : selected ? erkouPhase : '待进行'
-              return (
-                <button
-                  key={segment.id}
-                  type="button"
-                  disabled={!unlocked}
-                  onClick={() => {
-                    if (!unlocked) return
-                    stopPlayback()
-                    setActiveSegmentIndex(index)
-                    setErkouPhase(done ? '本段完成' : playedSegments[segment.id] ? '请开始口译' : '准备中')
-                  }}
-                  className={cn(
-                    'rounded-2xl border px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-45',
-                    selected ? 'border-ink-900 bg-ink-900 text-white' : segmentRecording?.error ? 'border-red-200 bg-red-50 text-red-800 hover:border-red-300' : 'border-line bg-white text-ink-800 hover:border-ink-300'
+          <section className="overflow-hidden rounded-[24px] border border-line bg-surface-2 shadow-[var(--shadow-card)]">
+            <div className="grid min-h-[620px] grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="flex min-h-[520px] flex-col px-[clamp(28px,4vw,72px)] py-[clamp(28px,4vw,64px)]">
+                <div className="flex flex-col gap-5 border-b border-line pb-6 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="max-w-3xl">
+                    <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">考试状态</p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className={cn(
+                        'h-3 w-3 rounded-full',
+                        timeExpired && !allSegmentsCompleted ? 'bg-red-500' : recording ? 'bg-brand' : flowBusy ? 'bg-status-info-text' : allSegmentsCompleted ? 'bg-status-success' : 'bg-ink-400'
+                      )} />
+                      <h2 className="font-serif text-[clamp(34px,4vw,56px)] leading-tight text-ink-900">{phaseTitle}</h2>
+                    </div>
+                    <p className="mt-4 max-w-2xl text-base leading-8 text-ink-600">{phaseDescription}</p>
+                  </div>
+                  <div className="min-w-[160px] rounded-2xl border border-line bg-canvas-2 px-5 py-4">
+                    <p className="text-[11px] text-ink-500">完成进度</p>
+                    <p className="mt-1 font-mono text-3xl text-ink-900">{completedSegmentCount} / {segments.length}</p>
+                  </div>
+                </div>
+
+                <div className="mt-8 rounded-2xl border border-line bg-canvas-2 p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="text-xs font-medium text-ink-500">整体进度</p>
+                    <p className="font-mono text-sm text-ink-700">{progressPercent}%</p>
+                  </div>
+                  <div className="mt-3 h-3 overflow-hidden rounded-full bg-white">
+                    <div className="h-full rounded-full bg-brand transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                  </div>
+                  <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <StatusLine label="当前进度" value={`第 ${Math.min(activeSegmentIndex + 1, segments.length)} / ${segments.length} 段`} />
+                    <StatusLine label="当前部分" value={activePartTitle} />
+                    <StatusLine
+                      label="阶段计时"
+                      value={phaseRemainingSeconds != null && phaseRemainingSeconds > 0 ? formatCountdown(phaseRemainingSeconds) : recordingStatus(currentRecording)}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-8 flex flex-1 flex-col items-center justify-center rounded-2xl border border-line bg-white px-6 py-12 text-center">
+                  <div className="mb-8 flex h-24 items-end justify-center gap-2" aria-hidden="true">
+                    {[40, 68, 92, 58, 78, 48, 64].map((height, index) => (
+                      <span
+                        key={index}
+                        className={cn(
+                          'w-3 rounded-full transition-colors',
+                          recording ? 'bg-brand' : flowBusy ? 'bg-ink-900' : 'bg-ink-200'
+                        )}
+                        style={{ height }}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">听音口译</p>
+                  <h3 className="mt-3 font-serif text-[clamp(32px,4vw,52px)] leading-tight text-ink-900">{displayDirection(activeDirection)}口译</h3>
+                  <p className="mt-5 max-w-2xl text-base leading-8 text-ink-600">
+                    考试过程中不显示原文。请根据中文语音提示和提示音完成听辨、口译与录音。
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col border-t border-line bg-canvas-2 lg:border-l lg:border-t-0">
+                <div className="border-b border-line px-6 py-5">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">考试引导</p>
+                  <p className="mt-2 font-serif text-2xl text-ink-900">全程自动进行</p>
+                  <p className="mt-3 text-sm leading-7 text-ink-600">听提示音开始与结束口译。除上传失败重试外，考试过程中不需要手动切段。</p>
+                </div>
+
+                <div className="space-y-3 px-6 py-5">
+                  <ExamStep done={completedSegmentCount > 0 || flowStarted} active={!flowStarted} label="开始考试" />
+                  <ExamStep done={activePlayed} active={erkouPhase === '正在播放原文'} label="听原文录音" />
+                  <ExamStep done={activeCompleted} active={recording || erkouPhase === '录音即将开始'} label="口译录音" />
+                  <ExamStep done={allSegmentsCompleted} active={erkouPhase === '录音上传中' || erkouPhase === '过渡中'} label="保存并进入下一段" />
+                </div>
+
+                <div className="mt-auto border-t border-line px-6 py-5">
+                  {currentRecording?.error && (
+                    <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-4">
+                      <p className="text-sm font-medium text-red-700">录音上传失败</p>
+                      <p className="mt-1 text-sm leading-7 text-red-700">{currentRecording.error}</p>
+                      <Button
+                        variant="secondary"
+                        className="mt-3 w-full"
+                        loading={currentRecording.uploading}
+                        onClick={() => { void retrySegmentUpload(activeSegment) }}
+                      >
+                        重试上传录音
+                      </Button>
+                    </div>
                   )}
-                >
-                  <p className={cn('text-xs', selected ? 'text-white/70' : 'text-ink-500')}>段落 {index + 1}</p>
-                  <p className="mt-1 font-serif text-lg">{segmentLabel}</p>
-                  <p className={cn('mt-2 text-xs', selected ? 'text-white/70' : 'text-ink-500')}>{segment.passage_title || erkouPassageTitle(segment)} · 录音 {segment.recording_seconds ?? segment.pause_seconds ?? 75} 秒</p>
-                </button>
-              )
-            })}
-          </section>
 
-          <section className="rounded-3xl border border-line bg-white p-6">
-            <div className="mb-6 flex flex-col gap-4 border-b border-line pb-5 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">Current Stage</p>
-                <h2 className="font-serif text-3xl text-ink-900">{erkouPhase}</h2>
-                <p className="mt-2 text-sm text-ink-600">
-                  当前段落进度：{activeSegmentIndex + 1} / {segments.length} · 当前部分：{activePartTitle} · 当前方向：{displayDirection(activeDirection)}
-                  {phaseRemainingSeconds != null && phaseRemainingSeconds > 0 ? ` · 当前阶段倒计时：${formatCountdown(phaseRemainingSeconds)}` : ''}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-line bg-canvas/50 px-5 py-4">
-                <p className="text-[11px] text-ink-500">完成进度</p>
-                <p className="mt-1 font-mono text-2xl text-ink-900">{completedSegmentCount} / {segments.length}</p>
-              </div>
-            </div>
+                  {allSegmentsCompleted && (
+                    <div className="mb-4 rounded-2xl border border-line bg-white px-4 py-4">
+                      <p className="font-serif text-xl text-ink-900">确认已完成考试</p>
+                      <p className="mt-2 text-sm leading-7 text-ink-600">所有口译录音已完成，请确认后提交考试录音。</p>
+                    </div>
+                  )}
 
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_360px]">
-              <div className="min-h-[360px] rounded-2xl border border-line bg-canvas/30 p-6">
-                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">Segment {activeSegment.segment_order}</p>
-                    <h3 className="mt-1 font-serif text-xl text-ink-900">{displayDirection(activeDirection)} · {activePartTitle}</h3>
-                  </div>
-                  <span className="rounded-full border border-line bg-white px-3 py-1 text-xs text-ink-600">
-                    {activeSegment.audio_url ? '音频播放' : '文本模拟播放'}
-                  </span>
+                  {!allSegmentsCompleted && (
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      fullWidth
+                      loading={flowBusy}
+                      disabled={!canStartFlow}
+                      onClick={() => { void startCandidateErkouFlow() }}
+                    >
+                      {primaryFlowLabel}
+                    </Button>
+                  )}
+                  {allSegmentsCompleted && (
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      fullWidth
+                      loading={submitting}
+                      disabled={uploadingSegmentCount > 0}
+                      onClick={() => { void submitErkouExam() }}
+                    >
+                      提交考试录音
+                    </Button>
+                  )}
                 </div>
-
-                {isAdmin ? (
-                  <div className="whitespace-pre-wrap rounded-2xl border border-line bg-white px-5 py-4 text-base leading-8 text-ink-800">
-                    {activeSegment.source_text}
-                  </div>
-                ) : (
-                  <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-line bg-white px-5 py-8 text-center">
-                    <p className="font-serif text-2xl text-ink-900">第 {activeSegmentIndex + 1} / {segments.length} 段</p>
-                    <p className="mt-3 max-w-md text-sm leading-7 text-ink-600">
-                      当前部分：{activePartTitle}。普通考试模式不显示原文；系统会播放音频或使用浏览器模拟朗读。
-                    </p>
-                  </div>
-                )}
               </div>
-
-              <aside className="rounded-2xl border border-line bg-white p-5">
-                <h3 className="font-serif text-xl text-ink-900">本段口译</h3>
-                <p className="mt-2 text-sm leading-7 text-ink-600">
-                  正式流程：播放原文后才能开始录音；录音上传成功后才能进入下一段。上传失败时可先保留本地录音并重试。
-                </p>
-                <div className="mt-5 space-y-3">
-                  <StatusLine label="阶段" value={erkouPhase} />
-                  <StatusLine label="本段状态" value={activeCompleted ? '已完成' : '未完成'} />
-                  <StatusLine label="录音" value={recordingStatus(currentRecording)} />
-                </div>
-                {currentRecording && (
-                  <audio controls src={currentRecording.url} className="mt-5 w-full" />
-                )}
-                {currentRecording?.error && <p className="mt-3 text-sm text-red-600">{currentRecording.error}</p>}
-                {currentRecording?.error && (
-                  <Button
-                    variant="secondary"
-                    className="mt-3 w-full"
-                    loading={currentRecording.uploading}
-                    onClick={() => { void retrySegmentUpload(activeSegment) }}
-                  >
-                    重试上传本段录音
-                  </Button>
-                )}
-              </aside>
-            </div>
-
-            <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-line pt-5">
-              <Button variant="secondary" disabled={activeSegmentIndex !== 0 || !canPlaySegment} onClick={playCurrentSegment}>开始考试</Button>
-              <Button variant="secondary" disabled={!canPlaySegment} onClick={playCurrentSegment}>播放本段</Button>
-              <Button variant="primary" disabled={!canRecordSegment} onClick={() => { void startRecording() }}>开始录音</Button>
-              <Button variant="secondary" disabled={!recording} onClick={stopRecording}>停止录音</Button>
-              <Button variant="secondary" disabled={!canMoveNextSegment} onClick={moveToNextSegment}>下一段</Button>
-              <Button variant="primary" loading={submitting} disabled={uploadingSegmentCount > 0} onClick={() => { void submitErkouExam() }}>提交考试</Button>
             </div>
           </section>
         </main>
@@ -1131,13 +1242,39 @@ function passageLabel(passage: CattiMockPassage) {
   return passage.direction === 'C-E' ? `中译英${passage.passage_order}` : `英译中${passage.passage_order}`
 }
 
-function erkouPassageTitle(segment: Pick<CattiMockSegment, 'passage_order' | 'direction'>) {
+function erkouPassageChineseTitle(segment: Pick<CattiMockSegment, 'passage_order' | 'direction'>) {
   const order = segment.passage_order ?? 1
-  if (order === 1) return 'E-C Passage 1'
-  if (order === 2) return 'E-C Passage 2'
-  if (order === 3) return 'C-E Passage 1'
-  if (order === 4) return 'C-E Passage 2'
-  return segment.direction === 'C-E' ? 'C-E Passage' : 'E-C Passage'
+  if (order === 1) return '第一篇英译中'
+  if (order === 2) return '第二篇英译中'
+  if (order === 3) return '第一篇中译英'
+  if (order === 4) return '第二篇中译英'
+  return segment.direction === 'C-E' ? '中译英' : '英译中'
+}
+
+function erkouPhaseTitle(phase: ErkouPhase) {
+  if (phase === '准备中') return '请开始考试'
+  if (phase === '考试说明') return '考试说明播放中'
+  if (phase === '正在播放原文') return '请认真听录音'
+  if (phase === '请开始口译') return '准备录音'
+  if (phase === '录音即将开始') return '听到提示音后开始口译'
+  if (phase === '录音中') return '口译录音中'
+  if (phase === '录音上传中') return '正在保存录音'
+  if (phase === '过渡中') return '请等待下一段'
+  if (phase === '上传失败') return '录音上传失败'
+  return '考试录音已完成'
+}
+
+function erkouPhaseDescription(phase: ErkouPhase, index: number, total: number) {
+  if (phase === '准备中') return '点击开始考试后，系统将播放中文考试说明，并自动进入连续口译流程。'
+  if (phase === '考试说明') return '请听中文考试说明。说明结束后会自动播放第一段录音。'
+  if (phase === '正在播放原文') return `第 ${index + 1} / ${total} 段录音正在播放，请只听不看。`
+  if (phase === '请开始口译') return '系统正在准备麦克风录音。'
+  if (phase === '录音即将开始') return '听到提示音后立即开始口译。'
+  if (phase === '录音中') return '正在录制你的口译，录音结束时会再次播放提示音。'
+  if (phase === '录音上传中') return '本段录音正在保存，成功后会自动进入下一段。'
+  if (phase === '过渡中') return '本段已完成，下一段录音即将开始。'
+  if (phase === '上传失败') return '本段录音未能上传，请重试上传后继续考试。'
+  return '所有口译录音已完成，请确认后提交考试录音。'
 }
 
 function formatCountdown(totalSeconds: number) {
@@ -1165,11 +1302,33 @@ function recordingStatus(recording?: SegmentRecording) {
   return recording.error ? '上传失败' : '未上传'
 }
 
+function recordingBlobType(type: string) {
+  const baseType = type.split(';')[0]?.trim().toLowerCase()
+  return baseType || 'audio/webm'
+}
+
 function StatusLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-canvas/40 px-4 py-3">
       <span className="text-xs text-ink-500">{label}</span>
       <span className="text-sm font-medium text-ink-900">{value}</span>
+    </div>
+  )
+}
+
+function ExamStep({ done, active, label }: { done: boolean; active: boolean; label: string }) {
+  return (
+    <div className={cn(
+      'flex items-center gap-3 rounded-xl border px-4 py-3',
+      done ? 'border-brand-200 bg-brand-50 text-ink-900' : active ? 'border-ink-900 bg-white text-ink-900' : 'border-line bg-white/70 text-ink-500'
+    )}>
+      <span className={cn(
+        'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-medium',
+        done ? 'border-brand bg-brand text-white' : active ? 'border-ink-900 bg-ink-900 text-white' : 'border-line bg-canvas text-ink-400'
+      )}>
+        {done ? '✓' : active ? '•' : ''}
+      </span>
+      <span className="text-sm font-medium">{label}</span>
     </div>
   )
 }
