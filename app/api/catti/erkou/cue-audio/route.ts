@@ -10,8 +10,9 @@ export const maxDuration = 60
 const ADMIN_EMAIL = 'rukunchen@hotmail.com'
 const BUCKET = 'catti-audio'
 const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts'
-const DEFAULT_CUE_VOICE: SpeechVoice = 'onyx'
-const CUE_TTS_INSTRUCTIONS = '请使用自然流畅的中文真人考场播报风格，偏沉稳男声。语气清晰、正式，停顿自然，不要有机器感。'
+const DEFAULT_CUE_VOICE: SpeechVoice = 'marin'
+const CUE_TTS_SPEED = 1.12
+const CUE_TTS_INSTRUCTIONS = '请使用自然、亲切、清晰的中文考试主持人语气朗读，像一位温和有亲和力的真人主持人。节奏紧凑，不拖长句尾，不在句子之间加入过长停顿。可以稍微轻松可爱一点，但不要像儿童节目；避免播音腔、过度正式和机械合成感。'
 const MAX_CUE_LENGTH = 260
 
 type SpeechVoice = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'onyx' | 'nova' | 'sage' | 'shimmer' | 'verse' | 'marin' | 'cedar'
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
     const model = process.env.OPENAI_TTS_MODEL?.trim() || DEFAULT_TTS_MODEL
     const voice = normalizeVoice(process.env.OPENAI_TTS_CUE_VOICE?.trim()) || DEFAULT_CUE_VOICE
     const instructions = model.startsWith('tts-1') ? undefined : CUE_TTS_INSTRUCTIONS
-    const hash = createHash('sha256').update(`${model}:${voice}:${instructions || ''}:${text}`).digest('hex').slice(0, 32)
+    const hash = createHash('sha256').update(`${model}:${voice}:${CUE_TTS_SPEED}:${instructions || ''}:${text}`).digest('hex').slice(0, 32)
     const path = `cues/${hash}.mp3`
     const existing = await admin.storage.from(BUCKET).list('cues', { search: `${hash}.mp3`, limit: 1 })
     const cached = existing.data?.some(item => item.name === `${hash}.mp3`)
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
         input: text,
         ...(instructions ? { instructions } : {}),
         response_format: 'mp3',
-        speed: 0.95,
+        speed: CUE_TTS_SPEED,
       })
       const audioBuffer = Buffer.from(await speech.arrayBuffer())
       const { error: uploadError } = await admin.storage.from(BUCKET).upload(path, audioBuffer, {
@@ -91,6 +92,7 @@ export async function POST(request: NextRequest) {
       cached,
       voice,
       model,
+      speed: CUE_TTS_SPEED,
     })
   } catch (error) {
     console.error('[catti/erkou/cue-audio]', errorMessage(error))

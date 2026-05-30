@@ -16,6 +16,13 @@ const passageSelect = 'id, exam_id, passage_order, direction, title, source_text
 const attemptAnswerSelect = 'id, attempt_id, passage_id, answer_text'
 const segmentSelect = 'id, exam_id, segment_order, passage_order, passage_title, direction, segment_order_global, segment_order_in_passage, source_text, reference_translation, audio_url, tts_voice, speech_rate, estimated_play_seconds, recording_seconds, transition_seconds, pause_seconds'
 const attemptSegmentSelect = 'id, attempt_id, segment_id, user_audio_url, transcript'
+const ERKOU_CUE_TEXT = {
+  ecStart: '英译中部分现在开始。你会听到两篇英文讲话，每篇分成几段播放。每段听完后，请在提示音后开始口译。',
+  ecSecondPassage: '第一篇英文讲话结束。稍作准备，我们马上进入第二篇英文讲话。',
+  ecToCe: '英译中部分完成啦。接下来进入中译英部分。你会听到两篇中文讲话，请继续按提示完成口译。',
+  ceSecondPassage: '第一篇中文讲话结束。准备一下，我们马上进入第二篇中文讲话。',
+  examComplete: '本次口译考试已经完成。辛苦啦，请等待系统保存你的录音和结果。',
+}
 
 type ErkouPhase = '准备中' | '考试说明' | '正在播放原文' | '请开始口译' | '录音即将开始' | '录音中' | '录音上传中' | '过渡中' | '上传失败' | '考试完成'
 
@@ -466,7 +473,7 @@ export default function CattiExamPage() {
     return audioContextRef.current
   }
 
-  async function playBeep(frequency = 880, durationMs = 240) {
+  async function playBeep(frequency = 1040, durationMs = 180) {
     const context = getAudioContext()
     if (!context) return
     if (context.state === 'suspended') {
@@ -480,7 +487,7 @@ export default function CattiExamPage() {
       oscillator.type = 'sine'
       oscillator.frequency.setValueAtTime(frequency, now)
       gain.gain.setValueAtTime(0.0001, now)
-      gain.gain.exponentialRampToValueAtTime(0.18, now + 0.03)
+      gain.gain.exponentialRampToValueAtTime(0.24, now + 0.02)
       gain.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000)
       oscillator.connect(gain)
       gain.connect(context.destination)
@@ -539,6 +546,7 @@ export default function CattiExamPage() {
 
       timeout = window.setTimeout(() => finish(new Error('引导音频播放超时')), Math.max(15000, text.length * 650))
       audio.preload = 'auto'
+      audio.volume = 0.96
       audioRef.current = audio
       audio.onended = () => finish()
       audio.onerror = () => finish(new Error('引导音频播放失败'))
@@ -567,8 +575,8 @@ export default function CattiExamPage() {
 
         const utterance = new SpeechSynthesisUtterance(part)
         utterance.lang = 'zh-CN'
-        utterance.rate = 0.9
-        utterance.pitch = 1
+        utterance.rate = 1.08
+        utterance.pitch = 1.03
         if (voice) utterance.voice = voice
         utterance.onend = finish
         utterance.onerror = finish
@@ -619,7 +627,7 @@ export default function CattiExamPage() {
     const chunks: string[] = []
     let chunk = ''
     for (const sentence of sentences) {
-      if (chunk && `${chunk}${sentence}`.length > 48) {
+      if (chunk && `${chunk}${sentence}`.length > 80) {
         chunks.push(chunk)
         chunk = sentence
       } else {
@@ -632,13 +640,11 @@ export default function CattiExamPage() {
 
   async function playRecordingStartCue() {
     setErkouPhase('录音即将开始')
-    await speakChineseCue('开始口译。听到提示音后开始录音。')
-    await playBeep(920, 260)
+    await playBeep(1040, 180)
   }
 
   async function playRecordingEndCue() {
-    await playBeep(660, 260)
-    await speakChineseCue('本段录音结束。')
+    await playBeep(760, 180)
   }
 
   async function startCandidateErkouFlow() {
@@ -668,14 +674,6 @@ export default function CattiExamPage() {
       return
     }
 
-    if (completedSegmentCount === 0 && nextIndex === 0) {
-      setErkouPhase('考试说明')
-      await speakChineseCue('CATTI 二级口译实务模拟考试现在开始。本考试不显示原文。请认真听每段录音并连续完成口译。系统会自动录音；听到提示音后开始口译，再次听到提示音表示本段录音结束。')
-    } else {
-      setErkouPhase('考试说明')
-      await speakChineseCue('考试继续。请听下一段录音。')
-    }
-
     await playSegmentWithCue(nextSegment, nextIndex)
   }
 
@@ -685,10 +683,11 @@ export default function CattiExamPage() {
     setActiveSegmentIndex(index)
     setErkouPhase('准备中')
 
-    const previousSegment = segments[index - 1]
-    const passageChanged = !previousSegment || previousSegment.passage_order !== segment.passage_order
-    const passageCue = passageChanged ? `${erkouPassageChineseTitle(segment)}开始。` : ''
-    await speakChineseCue(`${passageCue}第 ${index + 1} 段录音即将播放，请注意听。`)
+    const cueText = erkouCueBeforeSegment(segment, segments[index - 1])
+    if (cueText) {
+      setErkouPhase('考试说明')
+      await speakChineseCue(cueText)
+    }
     void playSegment(segment)
   }
 
@@ -871,7 +870,7 @@ export default function CattiExamPage() {
       autoFlowRef.current = false
       setErkouPhase('考试完成')
       setPhaseRemainingSeconds(null)
-      void speakChineseCue('本场考试全部录音完成。请确认后提交考试录音。')
+      void speakChineseCue(ERKOU_CUE_TEXT.examComplete)
       return
     }
 
@@ -1095,7 +1094,7 @@ export default function CattiExamPage() {
                   <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">听音口译</p>
                   <h3 className="mt-3 break-words font-serif text-[clamp(28px,8vw,52px)] leading-tight text-ink-900">{displayDirection(activeDirection)}口译</h3>
                   <p className="mt-5 max-w-2xl text-base leading-8 text-ink-600">
-                    考试过程中不显示原文。请根据中文语音提示和提示音完成听辨、口译与录音。
+                    考试过程中不显示原文。请根据篇章提示和提示音完成听辨、口译与录音。
                   </p>
                 </div>
               </div>
@@ -1104,7 +1103,7 @@ export default function CattiExamPage() {
                 <div className="border-b border-line px-5 py-5 sm:px-6">
                   <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">考试引导</p>
                   <p className="mt-2 break-words font-serif text-xl text-ink-900 sm:text-2xl">全程自动进行</p>
-                  <p className="mt-3 text-sm leading-7 text-ink-600">听提示音开始与结束口译。除上传失败重试外，考试过程中不需要手动切段。</p>
+                  <p className="mt-3 text-sm leading-7 text-ink-600">篇章切换时会播放语音提示，段落之间只保留提示音。除上传失败重试外，考试过程中不需要手动切段。</p>
                 </div>
 
                 <div className="space-y-3 px-5 py-5 sm:px-6">
@@ -1384,13 +1383,18 @@ function passageLabel(passage: CattiMockPassage) {
   return passage.direction === 'C-E' ? `中译英${passage.passage_order}` : `英译中${passage.passage_order}`
 }
 
-function erkouPassageChineseTitle(segment: Pick<CattiMockSegment, 'passage_order' | 'direction'>) {
-  const order = segment.passage_order ?? 1
-  if (order === 1) return '第一篇英译中'
-  if (order === 2) return '第二篇英译中'
-  if (order === 3) return '第一篇中译英'
-  if (order === 4) return '第二篇中译英'
-  return segment.direction === 'C-E' ? '中译英' : '英译中'
+function erkouCueBeforeSegment(segment: CattiMockSegment, previousSegment?: CattiMockSegment) {
+  const currentOrder = segment.passage_order ?? 1
+  const previousOrder = previousSegment?.passage_order ?? null
+  const passageChanged = !previousSegment || previousOrder !== currentOrder
+  const switchedToCe = !!previousSegment && segment.direction === 'C-E' && previousSegment.direction !== 'C-E'
+
+  if (!passageChanged && !switchedToCe) return ''
+  if (!previousSegment && segment.direction !== 'C-E') return ERKOU_CUE_TEXT.ecStart
+  if (switchedToCe || currentOrder === 3) return ERKOU_CUE_TEXT.ecToCe
+  if (segment.direction !== 'C-E' && currentOrder === 2) return ERKOU_CUE_TEXT.ecSecondPassage
+  if (segment.direction === 'C-E' && currentOrder === 4) return ERKOU_CUE_TEXT.ceSecondPassage
+  return ''
 }
 
 function erkouPassageDisplayTitle(segment: Pick<CattiMockSegment, 'passage_order' | 'direction'>) {
