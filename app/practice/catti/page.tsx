@@ -1255,7 +1255,7 @@ function MockExamCard({
       </div>
 
       {isErkou && (
-        <div className="grid grid-cols-1 gap-3 rounded-2xl border border-line bg-canvas/30 p-3 text-sm text-ink-700 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-1.5 rounded-2xl border border-line bg-canvas/30 p-1 text-sm text-ink-700 md:grid-cols-2">
           <AudioProfileLine
             label="E-C 音频"
             value={`${optionLabel(ecVoiceOptions, exam.ec_voice_profile, 'formal_diplomat_male')} / ${speedProfileLabel(exam.ec_speed_profile)} / ${optionLabel(ecAccentOptions, exam.ec_accent_profile, 'neutral')}`}
@@ -1558,9 +1558,9 @@ function ExamMeta({ label, value }: { label: string; value: string }) {
 
 function AudioProfileLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-xl bg-white px-4 py-3">
-      <p className="mb-1 text-[11px] text-ink-500">{label}</p>
-      <p className="break-words text-sm font-medium leading-6 text-ink-900">{value}</p>
+    <div className="min-w-0 rounded-xl bg-white px-1.5 py-1">
+      <p className="mb-0.5 text-[11px] text-ink-500">{label}</p>
+      <p className="break-words text-sm font-medium leading-5 text-ink-900" style={{ overflowWrap: 'anywhere' }}>{value}</p>
     </div>
   )
 }
