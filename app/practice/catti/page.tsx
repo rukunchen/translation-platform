@@ -120,6 +120,10 @@ type GenerateAudioResponse = {
   done?: boolean
 }
 
+type ResetAttemptResponse = {
+  deleted_count?: number
+}
+
 type PassageDraft = {
   id?: string
   passage_order: number
@@ -533,6 +537,7 @@ export default function CattiMockCenterPage() {
   const [deletingExamId, setDeletingExamId] = useState<string | null>(null)
   const [statusBusyExamId, setStatusBusyExamId] = useState<string | null>(null)
   const [audioBusyExamId, setAudioBusyExamId] = useState<string | null>(null)
+  const [resettingExamId, setResettingExamId] = useState<string | null>(null)
 
   const load = useCallback(async (uid: string, admin: boolean, examType: ExamTypeId) => {
     setLoading(true)
@@ -982,6 +987,29 @@ export default function CattiMockCenterPage() {
     setAttempts(prev => prev.filter(row => row.exam_id !== exam.id))
   }
 
+  async function restartExam(exam: CattiMockExam) {
+    if (exam.exam_type !== 'erbi_practice' && exam.exam_type !== 'erkou_practice') {
+      alert('该考试类型作答页面将在后续阶段开放。')
+      return
+    }
+    if (!confirm('重新考试会清除你在这套模考中的旧作答、报告和录音记录，并重新计时。是否继续？')) return
+
+    setResettingExamId(exam.id)
+    const { error } = await apiJSON<ResetAttemptResponse>('/api/catti/reset-attempt', {
+      method: 'POST',
+      body: JSON.stringify({ examId: exam.id }),
+    })
+    setResettingExamId(null)
+
+    if (error) {
+      alert('重新考试失败：' + error)
+      return
+    }
+
+    setAttempts(prev => prev.filter(row => row.exam_id !== exam.id))
+    router.push(`/practice/catti/exam/${exam.id}`)
+  }
+
   async function generateExamAudio(exam: CattiMockExam) {
     if (!isAdmin || exam.exam_type !== 'erkou_practice') return
     if (exam.tts_status === 'generating') {
@@ -1112,10 +1140,12 @@ export default function CattiMockCenterPage() {
                           deleting={deletingExamId === exam.id}
                           statusBusy={statusBusyExamId === exam.id}
                           audioBusy={audioBusyExamId === exam.id || exam.tts_status === 'generating'}
+                          restartBusy={resettingExamId === exam.id}
                           onEdit={() => openEditExam(exam)}
                           onDelete={() => { void deleteExam(exam) }}
                           onToggleStatus={() => { void toggleExamStatus(exam) }}
                           onGenerateAudio={() => { void generateExamAudio(exam) }}
+                          onRestart={() => { void restartExam(exam) }}
                           onStart={() => {
                             if (selectedIsErbi || selectedIsErkou) {
                               router.push(`/practice/catti/exam/${exam.id}`)
@@ -1199,10 +1229,12 @@ function MockExamCard({
   deleting,
   statusBusy,
   audioBusy,
+  restartBusy,
   onEdit,
   onDelete,
   onToggleStatus,
   onGenerateAudio,
+  onRestart,
   onStart,
   onReport,
 }: {
@@ -1216,10 +1248,12 @@ function MockExamCard({
   deleting: boolean
   statusBusy: boolean
   audioBusy: boolean
+  restartBusy: boolean
   onEdit: () => void
   onDelete: () => void
   onToggleStatus: () => void
   onGenerateAudio: () => void
+  onRestart: () => void
   onStart: () => void
   onReport: () => void
 }) {
@@ -1283,6 +1317,7 @@ function MockExamCard({
           </>
         )}
         {latestCompletedAttempt && <Button size="sm" variant="secondary" onClick={onReport}>查看报告</Button>}
+        {latestAttempt && <Button size="sm" variant="secondary" loading={restartBusy} onClick={onRestart}>重新考试</Button>}
         <Button size="sm" variant="primary" onClick={onStart}>
           {latestAttempt?.status === 'in_progress' ? '继续考试' : '开始考试'}
         </Button>
