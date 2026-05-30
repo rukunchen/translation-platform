@@ -15,13 +15,18 @@ import { supabase } from '@/lib/supabase'
 import { countPracticeWords } from '@/lib/translationPractice'
 
 const ADMIN_EMAIL = 'rukunchen@hotmail.com'
-const examSelect = 'id, created_by, title, exam_type, direction, difficulty, duration_minutes, source_text, reference_translation, scoring_note, voice_type, speech_rate, pause_mode, pause_seconds, segment_mode, tts_status, status, created_at, updated_at'
+const examSelect = 'id, created_by, title, exam_type, direction, difficulty, duration_minutes, source_text, reference_translation, scoring_note, voice_type, speech_rate, pause_mode, pause_seconds, segment_mode, tts_status, ec_voice_profile, ec_accent_profile, ec_speed_profile, ec_speech_rate_value, ce_voice_profile, ce_accent_profile, ce_speed_profile, ce_speech_rate_value, status, created_at, updated_at'
 
 type ExamTypeId = 'erbi_practice' | 'erkou_practice' | 'sanbi_practice' | 'sankou_practice'
 type SegmentMode = 'auto' | 'manual'
 type SpeechRate = 'slow' | 'standard' | 'fast'
 type VoiceType = 'male' | 'female' | 'neutral'
 type PauseMode = 'auto' | 'fixed'
+type EcVoiceProfile = 'formal_diplomat_male' | 'formal_diplomat_female' | 'british_standard_male' | 'british_standard_female' | 'british_news' | 'american_conference_male' | 'american_conference_female' | 'indian_light' | 'indian_heavy' | 'international_non_native'
+type EcAccentProfile = 'neutral' | 'british' | 'american' | 'indian_light' | 'indian_heavy' | 'non_native_light' | 'non_native_heavy'
+type CeVoiceProfile = 'chinese_diplomat_male' | 'chinese_diplomat_female' | 'chinese_news_male' | 'chinese_news_female' | 'chinese_public_speech_male' | 'chinese_public_speech_female' | 'chinese_conference_male' | 'chinese_conference_female' | 'mandarin_standard_male' | 'mandarin_standard_female'
+type CeAccentProfile = 'mandarin_standard' | 'mandarin_news' | 'mandarin_diplomatic' | 'mandarin_public_speech' | 'mandarin_conference'
+type TtsSpeedProfile = 'slow_training' | 'standard_exam' | 'fast_challenge' | 'pressure_training'
 
 type ExamType = {
   id: ExamTypeId
@@ -47,6 +52,14 @@ type CattiMockExam = {
   pause_seconds: number | null
   segment_mode: SegmentMode | string | null
   tts_status: string | null
+  ec_voice_profile: EcVoiceProfile | string | null
+  ec_accent_profile: EcAccentProfile | string | null
+  ec_speed_profile: TtsSpeedProfile | string | null
+  ec_speech_rate_value: number | string | null
+  ce_voice_profile: CeVoiceProfile | string | null
+  ce_accent_profile: CeAccentProfile | string | null
+  ce_speed_profile: TtsSpeedProfile | string | null
+  ce_speech_rate_value: number | string | null
   status: 'draft' | 'published' | string
   created_at: string
   updated_at: string
@@ -130,6 +143,12 @@ type ExamDraft = {
   scoring_note: string
   voice_type: VoiceType
   speech_rate: SpeechRate
+  ec_voice_profile: EcVoiceProfile
+  ec_accent_profile: EcAccentProfile
+  ec_speed_profile: TtsSpeedProfile
+  ce_voice_profile: CeVoiceProfile
+  ce_accent_profile: CeAccentProfile
+  ce_speed_profile: TtsSpeedProfile
   pause_mode: PauseMode
   pause_seconds: string
   segment_mode: SegmentMode
@@ -143,6 +162,74 @@ const examTypes: ExamType[] = [
   { id: 'sanbi_practice', title: 'CATTI 三笔实务', note: '暂未开放', enabled: false },
   { id: 'sankou_practice', title: 'CATTI 三口实务', note: '暂未开放', enabled: false },
 ]
+
+const ecVoiceOptions: Array<{ value: EcVoiceProfile; label: string }> = [
+  { value: 'formal_diplomat_male', label: '正式外交英文男声' },
+  { value: 'formal_diplomat_female', label: '正式外交英文女声' },
+  { value: 'british_standard_male', label: '英伦标准男声' },
+  { value: 'british_standard_female', label: '英伦标准女声' },
+  { value: 'british_news', label: '英伦新闻播报' },
+  { value: 'american_conference_male', label: '美式会议男声' },
+  { value: 'american_conference_female', label: '美式会议女声' },
+  { value: 'indian_light', label: '印度英语轻口音' },
+  { value: 'indian_heavy', label: '印度英语重口音' },
+  { value: 'international_non_native', label: '国际会议非母语英语' },
+]
+
+const ecAccentOptions: Array<{ value: EcAccentProfile; label: string }> = [
+  { value: 'neutral', label: '标准清晰' },
+  { value: 'british', label: '英伦口音' },
+  { value: 'american', label: '美式口音' },
+  { value: 'indian_light', label: '印度英语轻口音' },
+  { value: 'indian_heavy', label: '印度英语重口音' },
+  { value: 'non_native_light', label: '非母语轻口音' },
+  { value: 'non_native_heavy', label: '非母语重口音' },
+]
+
+const ceVoiceOptions: Array<{ value: CeVoiceProfile; label: string }> = [
+  { value: 'chinese_diplomat_male', label: '中文外交男声' },
+  { value: 'chinese_diplomat_female', label: '中文外交女声' },
+  { value: 'chinese_news_male', label: '中文新闻播报男声' },
+  { value: 'chinese_news_female', label: '中文新闻播报女声' },
+  { value: 'chinese_public_speech_male', label: '中文领导讲话风格男声' },
+  { value: 'chinese_public_speech_female', label: '中文领导讲话风格女声' },
+  { value: 'chinese_conference_male', label: '中文会议发言男声' },
+  { value: 'chinese_conference_female', label: '中文会议发言女声' },
+  { value: 'mandarin_standard_male', label: '标准普通话男声' },
+  { value: 'mandarin_standard_female', label: '标准普通话女声' },
+]
+
+const ceAccentOptions: Array<{ value: CeAccentProfile; label: string }> = [
+  { value: 'mandarin_standard', label: '标准普通话' },
+  { value: 'mandarin_news', label: '新闻播报普通话' },
+  { value: 'mandarin_diplomatic', label: '外交发言普通话' },
+  { value: 'mandarin_public_speech', label: '正式讲话普通话' },
+  { value: 'mandarin_conference', label: '会议发言普通话' },
+]
+
+const speedOptions: Array<{ value: TtsSpeedProfile; label: string; ecRate: number; ceRate: number }> = [
+  { value: 'slow_training', label: '慢速训练', ecRate: 0.85, ceRate: 0.85 },
+  { value: 'standard_exam', label: '标准考试', ecRate: 1, ceRate: 1 },
+  { value: 'fast_challenge', label: '偏快挑战', ecRate: 1.1, ceRate: 1.08 },
+  { value: 'pressure_training', label: '高压训练', ecRate: 1.2, ceRate: 1.15 },
+]
+
+function optionLabel<T extends string>(options: Array<{ value: T; label: string }>, value: string | null | undefined, fallback: T) {
+  return options.find(option => option.value === (value || fallback))?.label || options.find(option => option.value === fallback)?.label || fallback
+}
+
+function normalizeOption<T extends string>(options: Array<{ value: T; label: string }>, value: string | null | undefined, fallback: T): T {
+  return options.find(option => option.value === value)?.value || fallback
+}
+
+function speechRateValueForProfile(profile: TtsSpeedProfile, direction: 'E-C' | 'C-E') {
+  const option = speedOptions.find(item => item.value === profile) ?? speedOptions[1]
+  return direction === 'C-E' ? option.ceRate : option.ecRate
+}
+
+function speedProfileLabel(value: string | null | undefined) {
+  return optionLabel(speedOptions, value, 'standard_exam')
+}
 
 const passageTemplate: Array<Pick<PassageDraft, 'passage_order' | 'direction'>> = [
   { passage_order: 1, direction: 'E-C' },
@@ -163,6 +250,12 @@ function emptyExamDraft(examType: 'erbi_practice' | 'erkou_practice'): ExamDraft
     scoring_note: '',
     voice_type: 'neutral',
     speech_rate: 'standard',
+    ec_voice_profile: 'formal_diplomat_male',
+    ec_accent_profile: 'neutral',
+    ec_speed_profile: 'standard_exam',
+    ce_voice_profile: 'chinese_diplomat_male',
+    ce_accent_profile: 'mandarin_standard',
+    ce_speed_profile: 'standard_exam',
     pause_mode: 'auto',
     pause_seconds: '',
     segment_mode: 'auto',
@@ -587,6 +680,12 @@ export default function CattiMockCenterPage() {
       scoring_note: exam.scoring_note || '',
       voice_type: exam.voice_type === 'male' || exam.voice_type === 'female' ? exam.voice_type : 'neutral',
       speech_rate: exam.speech_rate === 'slow' || exam.speech_rate === 'fast' ? exam.speech_rate : 'standard',
+      ec_voice_profile: normalizeOption(ecVoiceOptions, exam.ec_voice_profile, 'formal_diplomat_male'),
+      ec_accent_profile: normalizeOption(ecAccentOptions, exam.ec_accent_profile, 'neutral'),
+      ec_speed_profile: normalizeOption(speedOptions, exam.ec_speed_profile, 'standard_exam'),
+      ce_voice_profile: normalizeOption(ceVoiceOptions, exam.ce_voice_profile, 'chinese_diplomat_male'),
+      ce_accent_profile: normalizeOption(ceAccentOptions, exam.ce_accent_profile, 'mandarin_standard'),
+      ce_speed_profile: normalizeOption(speedOptions, exam.ce_speed_profile, 'standard_exam'),
       pause_mode: exam.pause_mode === 'fixed' ? 'fixed' : 'auto',
       pause_seconds: exam.pause_seconds != null ? String(exam.pause_seconds) : '',
       segment_mode: exam.segment_mode === 'manual' ? 'manual' : 'auto',
@@ -638,6 +737,14 @@ export default function CattiMockCenterPage() {
         scoring_note: legacyCombinedText(filledPassages, 'scoring_note') || draft.scoring_note.trim() || null,
         voice_type: draft.voice_type,
         speech_rate: draft.speech_rate,
+        ec_voice_profile: draft.ec_voice_profile,
+        ec_accent_profile: draft.ec_accent_profile,
+        ec_speed_profile: draft.ec_speed_profile,
+        ec_speech_rate_value: speechRateValueForProfile(draft.ec_speed_profile, 'E-C'),
+        ce_voice_profile: draft.ce_voice_profile,
+        ce_accent_profile: draft.ce_accent_profile,
+        ce_speed_profile: draft.ce_speed_profile,
+        ce_speech_rate_value: speechRateValueForProfile(draft.ce_speed_profile, 'C-E'),
         pause_mode: draft.pause_mode,
         pause_seconds: draft.pause_mode === 'fixed' ? Math.round(fixedPause as number) : null,
         segment_mode: draft.segment_mode,
@@ -687,6 +794,8 @@ export default function CattiMockCenterPage() {
         return segmentTexts.map((text, index) => {
           const estimatedPlaySeconds = estimatePlaySeconds(text, passage.direction)
           const recordingSeconds = estimateRecordingSeconds(text, passage.direction)
+          const voiceProfile = passage.direction === 'C-E' ? draft.ce_voice_profile : draft.ec_voice_profile
+          const speedProfile = passage.direction === 'C-E' ? draft.ce_speed_profile : draft.ec_speed_profile
           const row = {
             exam_id: saved.id,
             segment_order: globalOrder,
@@ -698,8 +807,8 @@ export default function CattiMockCenterPage() {
             source_text: text,
             reference_translation: referenceSegments[index] || null,
             audio_url: null,
-            tts_voice: draft.voice_type,
-            speech_rate: draft.speech_rate,
+            tts_voice: voiceProfile,
+            speech_rate: speedProfile,
             estimated_play_seconds: estimatedPlaySeconds,
             recording_seconds: recordingSeconds,
             transition_seconds: 5,
@@ -1125,7 +1234,7 @@ function MockExamCard({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-line bg-canvas px-2 py-1 text-[11px] text-ink-600">{isErkou ? displayDirection(exam.direction) : displayExamDirections(exam, passages)}</span>
+            <span className="rounded-full border border-line bg-canvas px-2 py-1 text-[11px] text-ink-600">{isErkou ? '英译中 / 中译英' : displayExamDirections(exam, passages)}</span>
             <span className="rounded-full border border-line bg-canvas px-2 py-1 text-[11px] text-ink-600">{exam.difficulty || '二级'}</span>
             {(isAdmin || isErkou) && <StatusBadge status={exam.status} />}
           </div>
@@ -1144,6 +1253,19 @@ function MockExamCard({
         <ExamMeta label="是否已参加" value={latestAttempt ? '已参加' : '未参加'} />
         <ExamMeta label={isErkou ? '音频状态' : '最近成绩'} value={isErkou ? displayTtsStatus(exam.tts_status) : (latestScoredAttempt?.total_score != null ? `${latestScoredAttempt.total_score}` : '暂无')} />
       </div>
+
+      {isErkou && (
+        <div className="grid grid-cols-1 gap-3 rounded-2xl border border-line bg-canvas/30 p-3 text-sm text-ink-700 md:grid-cols-2">
+          <AudioProfileLine
+            label="E-C 音频"
+            value={`${optionLabel(ecVoiceOptions, exam.ec_voice_profile, 'formal_diplomat_male')} / ${speedProfileLabel(exam.ec_speed_profile)} / ${optionLabel(ecAccentOptions, exam.ec_accent_profile, 'neutral')}`}
+          />
+          <AudioProfileLine
+            label="C-E 音频"
+            value={`${optionLabel(ceVoiceOptions, exam.ce_voice_profile, 'chinese_diplomat_male')} / ${speedProfileLabel(exam.ce_speed_profile)} / ${optionLabel(ceAccentOptions, exam.ce_accent_profile, 'mandarin_standard')}`}
+          />
+        </div>
+      )}
 
       <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">
         {isAdmin && (
@@ -1285,25 +1407,49 @@ function ExamEditorModal({
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Select label="分段方式" value={draft.segment_mode} onChange={e => update({ segment_mode: e.target.value === 'manual' ? 'manual' : 'auto' })}>
                   <option value="auto">自动分段</option>
                   <option value="manual">手动分段</option>
-                </Select>
-                <Select label="播放速度" value={draft.speech_rate} onChange={e => update({ speech_rate: e.target.value === 'slow' || e.target.value === 'fast' ? e.target.value : 'standard' })}>
-                  <option value="slow">偏慢</option>
-                  <option value="standard">标准</option>
-                  <option value="fast">偏快</option>
-                </Select>
-                <Select label="音色" value={draft.voice_type} onChange={e => update({ voice_type: e.target.value === 'male' || e.target.value === 'female' ? e.target.value : 'neutral' })}>
-                  <option value="male">男声</option>
-                  <option value="female">女声</option>
-                  <option value="neutral">中性</option>
                 </Select>
                 <Select label="停顿方式" value={draft.pause_mode} onChange={e => update({ pause_mode: e.target.value === 'fixed' ? 'fixed' : 'auto' })}>
                   <option value="auto">自动</option>
                   <option value="fixed">固定秒数</option>
                 </Select>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-line bg-canvas/30 p-5">
+                  <h3 className="font-serif text-xl text-ink-900">E-C 英译汉原文音频设置</h3>
+                  <p className="mt-2 text-sm leading-7 text-ink-600">用于生成 E-C 两篇英文材料的原文音频。</p>
+                  <div className="mt-4 grid grid-cols-1 gap-4">
+                    <Select label="E-C 声音角色" value={draft.ec_voice_profile} onChange={e => update({ ec_voice_profile: normalizeOption(ecVoiceOptions, e.target.value, 'formal_diplomat_male') })}>
+                      {ecVoiceOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </Select>
+                    <Select label="E-C 口音类型" value={draft.ec_accent_profile} onChange={e => update({ ec_accent_profile: normalizeOption(ecAccentOptions, e.target.value, 'neutral') })}>
+                      {ecAccentOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </Select>
+                    <Select label="E-C 语速模式" value={draft.ec_speed_profile} onChange={e => update({ ec_speed_profile: normalizeOption(speedOptions, e.target.value, 'standard_exam') })}>
+                      {speedOptions.map(option => <option key={option.value} value={option.value}>{option.label} · {option.ecRate.toFixed(2)}x</option>)}
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-line bg-canvas/30 p-5">
+                  <h3 className="font-serif text-xl text-ink-900">C-E 汉译英原文音频设置</h3>
+                  <p className="mt-2 text-sm leading-7 text-ink-600">用于生成 C-E 两篇中文材料的原文音频。</p>
+                  <div className="mt-4 grid grid-cols-1 gap-4">
+                    <Select label="C-E 声音角色" value={draft.ce_voice_profile} onChange={e => update({ ce_voice_profile: normalizeOption(ceVoiceOptions, e.target.value, 'chinese_diplomat_male') })}>
+                      {ceVoiceOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </Select>
+                    <Select label="C-E 普通话风格" value={draft.ce_accent_profile} onChange={e => update({ ce_accent_profile: normalizeOption(ceAccentOptions, e.target.value, 'mandarin_standard') })}>
+                      {ceAccentOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </Select>
+                    <Select label="C-E 语速模式" value={draft.ce_speed_profile} onChange={e => update({ ce_speed_profile: normalizeOption(speedOptions, e.target.value, 'standard_exam') })}>
+                      {speedOptions.map(option => <option key={option.value} value={option.value}>{option.label} · {option.ceRate.toFixed(2)}x</option>)}
+                    </Select>
+                  </div>
+                </div>
               </div>
 
               {draft.pause_mode === 'fixed' && (
@@ -1406,6 +1552,15 @@ function ExamMeta({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-line bg-canvas/40 px-4 py-3">
       <p className="text-[11px] text-ink-500 mb-1">{label}</p>
       <p className="text-sm font-medium text-ink-900 truncate">{value}</p>
+    </div>
+  )
+}
+
+function AudioProfileLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-xl bg-white px-4 py-3">
+      <p className="mb-1 text-[11px] text-ink-500">{label}</p>
+      <p className="break-words text-sm font-medium leading-6 text-ink-900">{value}</p>
     </div>
   )
 }

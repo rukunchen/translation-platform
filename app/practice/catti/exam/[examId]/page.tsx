@@ -749,7 +749,7 @@ export default function CattiExamPage() {
   function playSegmentWithSpeechSynthesis(segment: CattiMockSegment) {
     audioRef.current = null
     const utterance = new SpeechSynthesisUtterance(segment.source_text)
-    utterance.rate = speechRateValue(segment.speech_rate)
+    utterance.rate = speechRateValue(segment.speech_rate, segment.direction)
     utterance.onend = () => finishSegmentPlayback(segment)
     utterance.onerror = () => {
       setPlayedSegments(prev => {
@@ -989,7 +989,8 @@ export default function CattiExamPage() {
     const flowStarted = completedSegmentCount > 0 || Object.keys(playedSegments).length > 0 || erkouPhase !== '准备中'
     const canStartFlow = !allSegmentsCompleted && !flowBusy && !currentRecording?.uploading && !currentRecording?.error
     const activeDirection = activeSegment.direction || exam.direction
-    const activePartTitle = erkouPassageChineseTitle(activeSegment)
+    const activePartTitle = erkouPassageDisplayTitle(activeSegment)
+    const activeAudioType = erkouAudioType(activeSegment)
     const progressPercent = Math.round((completedSegmentCount / segments.length) * 100)
     const phaseTitle = timeExpired && !allSegmentsCompleted ? '考试时间已到' : allSegmentsCompleted ? '考试录音已完成' : erkouPhaseTitle(erkouPhase)
     const phaseDescription = timeExpired && !allSegmentsCompleted ? '请尽快完成当前录音流程并提交考试录音。' : erkouPhaseDescription(erkouPhase, activeSegmentIndex, segments.length)
@@ -1056,9 +1057,10 @@ export default function CattiExamPage() {
                   <div className="mt-3 h-3 overflow-hidden rounded-full bg-white">
                     <div className="h-full rounded-full bg-brand transition-all duration-500" style={{ width: `${progressPercent}%` }} />
                   </div>
-                  <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
                     <StatusLine label="当前进度" value={`第 ${Math.min(activeSegmentIndex + 1, segments.length)} / ${segments.length} 段`} />
                     <StatusLine label="当前部分" value={activePartTitle} />
+                    <StatusLine label="音频类型" value={activeAudioType} />
                     <StatusLine
                       label="阶段计时"
                       value={phaseRemainingSeconds != null && phaseRemainingSeconds > 0 ? formatCountdown(phaseRemainingSeconds) : recordingStatus(currentRecording)}
@@ -1371,6 +1373,16 @@ function erkouPassageChineseTitle(segment: Pick<CattiMockSegment, 'passage_order
   return segment.direction === 'C-E' ? '中译英' : '英译中'
 }
 
+function erkouPassageDisplayTitle(segment: Pick<CattiMockSegment, 'passage_order' | 'direction'>) {
+  const order = segment.passage_order ?? 1
+  if (segment.direction === 'C-E') return `C-E Passage ${order <= 2 ? 1 : order - 2}`
+  return `E-C Passage ${order <= 2 ? order : 1}`
+}
+
+function erkouAudioType(segment: Pick<CattiMockSegment, 'direction'>) {
+  return segment.direction === 'C-E' ? '中文原文' : '英文原文'
+}
+
 function erkouPhaseTitle(phase: ErkouPhase) {
   if (phase === '准备中') return '请开始考试'
   if (phase === '考试说明') return '考试说明播放中'
@@ -1453,8 +1465,11 @@ function ExamStep({ done, active, label }: { done: boolean; active: boolean; lab
   )
 }
 
-function speechRateValue(value: string | null) {
+function speechRateValue(value: string | null, direction?: string | null) {
   if (value === 'slow') return 0.82
   if (value === 'fast') return 1.15
+  if (value === 'slow_training') return 0.85
+  if (value === 'fast_challenge') return direction === 'C-E' ? 1.08 : 1.1
+  if (value === 'pressure_training') return direction === 'C-E' ? 1.15 : 1.2
   return 1
 }
