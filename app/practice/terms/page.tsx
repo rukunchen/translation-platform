@@ -899,14 +899,14 @@ function CategoryMindmap({
         return (
           <div
             key={group.parent.id}
-            className="rounded-2xl border border-line bg-white/90 p-5 shadow-sm xl:grid xl:grid-cols-[minmax(300px,340px)_88px_minmax(0,1fr)] xl:items-center xl:gap-0"
+            className="rounded-2xl border border-line bg-white/90 p-4 shadow-sm xl:grid xl:grid-cols-[220px_64px_minmax(0,1fr)] xl:items-center xl:gap-0"
           >
             <div
               className="relative rounded-2xl text-white shadow-sm"
               style={{
                 backgroundColor: tone.solid,
                 boxShadow: `0 18px 36px ${tone.shadow}`,
-                padding: '30px 34px 26px',
+                padding: '22px 24px 20px',
               }}
             >
               {isAdmin && (
@@ -918,12 +918,12 @@ function CategoryMindmap({
                   onDelete={onDelete}
                 />
               )}
-              <p className="mb-3 break-words pr-12 text-[10px] uppercase leading-relaxed tracking-[0.12em] text-white/70">Level 1</p>
-              <h3 className="break-words pr-3 font-serif leading-snug" style={{ fontSize: 'clamp(1.1rem, 1.3vw, 1.3rem)', overflowWrap: 'anywhere' }}>{group.parent.name}</h3>
-              <p className="mt-3 line-clamp-2 min-h-[40px] pr-2 text-sm leading-relaxed text-white/78">
+              <p className="mb-2 break-words pr-12 text-[10px] uppercase leading-relaxed tracking-[0.08em] text-white/70">Level 1</p>
+              <h3 className="break-words pr-3 font-serif leading-snug" style={{ fontSize: 'clamp(1rem, 1.1vw, 1.16rem)', overflowWrap: 'anywhere' }}>{group.parent.name}</h3>
+              <p className="mt-2 line-clamp-2 min-h-[34px] pr-2 text-xs leading-relaxed text-white/78">
                 {group.parent.description || '公共词条一级分类'}
               </p>
-              <div className="mt-5 grid grid-cols-2 gap-4 border-t border-white/25 pt-4">
+              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/25 pt-3">
                 <MindmapMeta label="子节点" value={String(group.nodeCount)} light />
                 <MindmapMeta label="词条" value={String(group.totalTerms)} light />
               </div>
@@ -932,8 +932,8 @@ function CategoryMindmap({
             <div className="flex items-center justify-center py-3 xl:py-0" aria-hidden="true">
               <div className="hidden w-full items-center xl:flex">
                 <div className="h-px flex-1" style={{ backgroundColor: tone.line }} />
-                <span className="mx-2 text-lg" style={{ color: tone.text }}>▶</span>
-                <div className="h-px w-3" style={{ backgroundColor: tone.line }} />
+                <span className="mx-1.5 text-base" style={{ color: tone.text }}>▶</span>
+                <div className="h-px w-2" style={{ backgroundColor: tone.line }} />
               </div>
               <div className="flex flex-col items-center xl:hidden">
                 <div className="h-6 w-px" style={{ backgroundColor: tone.line }} />
@@ -941,7 +941,7 @@ function CategoryMindmap({
               </div>
             </div>
 
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))' }}>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {group.children.map(child => {
                 const childStats = stats[child.id] ?? { termCount: 0, savedCount: 0, latestUpdatedAt: null }
                 return (
@@ -956,11 +956,11 @@ function CategoryMindmap({
                         onOpen(child)
                       }
                     }}
-                    className="group relative min-h-[152px] cursor-pointer rounded-2xl border text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-brand/10"
+                    className="group relative min-h-[112px] cursor-pointer rounded-2xl border text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-brand/10"
                     style={{
                       backgroundColor: tone.softBg,
                       borderColor: tone.softBorder,
-                      padding: '28px 34px 24px',
+                      padding: '18px 22px 16px',
                     }}
                   >
                     {isAdmin && (
@@ -971,12 +971,12 @@ function CategoryMindmap({
                         onDelete={onDelete}
                       />
                     )}
-                    <div className="flex h-full flex-col justify-between gap-4">
+                    <div className="flex h-full flex-col justify-between gap-3">
                       <div>
-                        <p className="mb-2 break-words pr-12 text-[10px] uppercase leading-relaxed tracking-[0.08em]" style={{ color: tone.text }}>Level 2</p>
-                        <h4 className="break-words pr-2 font-serif leading-snug text-ink-900" style={{ fontSize: 'clamp(0.95rem, 1vw, 1.08rem)', overflowWrap: 'anywhere' }}>{child.name}</h4>
+                        <p className="mb-1.5 break-words pr-10 text-[10px] uppercase leading-relaxed tracking-[0.06em]" style={{ color: tone.text }}>Level 2</p>
+                        <h4 className="line-clamp-2 break-words pr-2 font-serif leading-snug text-ink-900" style={{ fontSize: 'clamp(0.92rem, 0.9vw, 1rem)', overflowWrap: 'anywhere' }}>{child.name}</h4>
                       </div>
-                      <div className="grid grid-cols-3 gap-3 border-t pt-3" style={{ borderColor: tone.softBorder }}>
+                      <div className="grid grid-cols-3 gap-2 border-t pt-2.5" style={{ borderColor: tone.softBorder }}>
                         <MindmapMeta label="词条" value={String(childStats.termCount)} />
                         <MindmapMeta label="已加入" value={String(childStats.savedCount)} />
                         <div>
