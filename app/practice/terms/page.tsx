@@ -893,7 +893,7 @@ function CategoryMindmap({
   deletingCategoryId: string | null
 }) {
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       {groups.map(group => {
         const tone = CATEGORY_TONES[group.color]
         return (
