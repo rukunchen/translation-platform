@@ -394,6 +394,43 @@ function erkouPassageDraftsFromSegments(exam: CattiMockExam, segments: CattiMock
   })
 }
 
+function legacyCombinedSections(text: string | null | undefined) {
+  const value = text?.trim()
+  if (!value) return []
+
+  const matches = Array.from(value.matchAll(/(?:^|\n\n)【([^】]+)】\n([\s\S]*?)(?=\n\n【[^】]+】\n|$)/g))
+  if (matches.length === 0) return [{ title: '', text: value }]
+
+  return matches.map(match => ({
+    title: match[1]?.trim() || '',
+    text: match[2]?.trim() || '',
+  }))
+}
+
+function erkouPassageDraftsFromExam(exam: CattiMockExam, segments: CattiMockSegment[]): PassageDraft[] {
+  const segmentDrafts = erkouPassageDraftsFromSegments(exam, segments)
+  const sourceSections = legacyCombinedSections(exam.source_text)
+  const referenceSections = legacyCombinedSections(exam.reference_translation)
+  if (sourceSections.length === 0 && referenceSections.length === 0) return segmentDrafts
+
+  return passageTemplate.map((template, index) => {
+    const segmentDraft = segmentDrafts[index]
+    const sourceSection = sourceSections[index]
+    const referenceSection = referenceSections[index]
+    const title = sourceSection?.title || segmentDraft?.title || passageTitle(template.passage_order, template.direction, exam.exam_type)
+
+    return {
+      passage_order: template.passage_order,
+      direction: template.direction,
+      title,
+      source_text: sourceSection?.text || segmentDraft?.source_text || '',
+      reference_translation: referenceSection?.text || segmentDraft?.reference_translation || '',
+      scoring_note: segmentDraft?.scoring_note || '',
+      max_score: segmentDraft?.max_score || '25',
+    }
+  })
+}
+
 function fallbackPassageOrder(segmentOrder: number) {
   if (segmentOrder <= 5) return 1
   if (segmentOrder <= 10) return 2
@@ -727,7 +764,7 @@ export default function CattiMockCenterPage() {
       pause_seconds: exam.pause_seconds != null ? String(exam.pause_seconds) : '',
       segment_mode: exam.segment_mode === 'manual' ? 'manual' : 'auto',
       passages: exam.exam_type === 'erkou_practice'
-        ? erkouPassageDraftsFromSegments(exam, segmentsByExam[exam.id] ?? [])
+        ? erkouPassageDraftsFromExam(exam, segmentsByExam[exam.id] ?? [])
         : passageDraftsFromExam(exam, passagesByExam[exam.id] ?? []),
       status: exam.status === 'published' ? 'published' : 'draft',
     })
