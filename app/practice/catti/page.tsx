@@ -167,28 +167,33 @@ const examTypes: ExamType[] = [
   { id: 'sankou_practice', title: 'CATTI 三口实务', note: '暂未开放', enabled: false },
 ]
 
-const examTypeTone: Record<ExamTypeId, { card: string; selected: string; note: string; badge: string }> = {
+const examTypeTone: Record<ExamTypeId, {
+  cardStyle: { backgroundColor: string; borderColor: string }
+  selectedStyle: { backgroundColor: string; borderColor: string; boxShadow: string }
+  note: string
+  badge: string
+}> = {
   erbi_practice: {
-    card: 'border-amber-100 bg-amber-50/50',
-    selected: 'border-amber-200 shadow-[var(--shadow-card-hover)]',
+    cardStyle: { backgroundColor: 'rgb(255 251 235 / 0.62)', borderColor: 'rgb(254 243 199)' },
+    selectedStyle: { backgroundColor: 'rgb(255 251 235 / 0.78)', borderColor: 'rgb(253 230 138)', boxShadow: 'var(--shadow-card-hover)' },
     note: 'text-amber-800',
     badge: 'border-amber-200 bg-amber-50 text-amber-800',
   },
   erkou_practice: {
-    card: 'border-rose-100 bg-rose-50/45',
-    selected: 'border-rose-200 shadow-[var(--shadow-card-hover)]',
+    cardStyle: { backgroundColor: 'rgb(255 241 242 / 0.56)', borderColor: 'rgb(255 228 230)' },
+    selectedStyle: { backgroundColor: 'rgb(255 241 242 / 0.76)', borderColor: 'rgb(254 205 211)', boxShadow: 'var(--shadow-card-hover)' },
     note: 'text-rose-800',
     badge: 'border-rose-200 bg-rose-50 text-rose-800',
   },
   sanbi_practice: {
-    card: 'border-blue-100 bg-blue-50/45',
-    selected: 'border-blue-200 shadow-[var(--shadow-card-hover)]',
+    cardStyle: { backgroundColor: 'rgb(239 246 255 / 0.58)', borderColor: 'rgb(219 234 254)' },
+    selectedStyle: { backgroundColor: 'rgb(239 246 255 / 0.78)', borderColor: 'rgb(191 219 254)', boxShadow: 'var(--shadow-card-hover)' },
     note: 'text-blue-800',
     badge: 'border-blue-200 bg-blue-50 text-blue-800',
   },
   sankou_practice: {
-    card: 'border-violet-100 bg-violet-50/45',
-    selected: 'border-violet-200 shadow-[var(--shadow-card-hover)]',
+    cardStyle: { backgroundColor: 'rgb(245 243 255 / 0.58)', borderColor: 'rgb(237 233 254)' },
+    selectedStyle: { backgroundColor: 'rgb(245 243 255 / 0.78)', borderColor: 'rgb(221 214 254)', boxShadow: 'var(--shadow-card-hover)' },
     note: 'text-violet-800',
     badge: 'border-violet-200 bg-violet-50 text-violet-800',
   },
@@ -1225,12 +1230,15 @@ function ExamTypeCard({
 }) {
   const tone = examTypeTone[type.id]
   return (
-    <Card
-      padding="md"
-      variant="default"
-      interactive={type.enabled}
+    <button
+      type="button"
+      disabled={!type.enabled}
       onClick={type.enabled ? onClick : undefined}
-      className={cn('transition-all duration-300', tone.card, selected && tone.selected, !type.enabled && 'opacity-65')}
+      className={cn(
+        'w-full rounded-2xl border text-left transition-all duration-300',
+        type.enabled ? 'cursor-pointer hover:shadow-[var(--shadow-card-hover)]' : 'cursor-not-allowed opacity-65'
+      )}
+      style={{ padding: 28, ...(selected ? tone.selectedStyle : tone.cardStyle) }}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -1244,7 +1252,7 @@ function ExamTypeCard({
           {type.enabled ? '可用' : '未开放'}
         </span>
       </div>
-    </Card>
+    </button>
   )
 }
 

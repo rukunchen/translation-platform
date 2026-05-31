@@ -279,7 +279,7 @@ export default function TermLearningPage() {
                 description="按公共分类浏览热词、术语和常用表达。"
                 metric={`${categories.length} 个分类`}
                 buttonLabel="浏览公共词条库"
-                toneClass="border-amber-100 bg-amber-50/50"
+                toneStyle={{ backgroundColor: 'rgb(255 251 235 / 0.62)', borderColor: 'rgb(254 243 199)' }}
                 accentClass="text-amber-800"
                 onOpen={openLibraryView}
               />
@@ -289,7 +289,7 @@ export default function TermLearningPage() {
                 description="已加入个人词条本的公共词条。"
                 metric={`${savedTerms} 条词条`}
                 buttonLabel="查看我的词条本"
-                toneClass="border-blue-100 bg-blue-50/45"
+                toneStyle={{ backgroundColor: 'rgb(239 246 255 / 0.58)', borderColor: 'rgb(219 234 254)' }}
                 accentClass="text-blue-800"
                 onOpen={openTermbookView}
               />
@@ -299,7 +299,7 @@ export default function TermLearningPage() {
                 description="分类抽题、选择题训练与错译识别"
                 metric="设置测试"
                 buttonLabel="进入词条测试"
-                toneClass="border-violet-100 bg-violet-50/45"
+                toneStyle={{ backgroundColor: 'rgb(245 243 255 / 0.58)', borderColor: 'rgb(237 233 254)' }}
                 accentClass="text-violet-800"
                 onOpen={openTermTest}
               />
@@ -463,7 +463,7 @@ function TermPortalCard({
   description,
   metric,
   buttonLabel,
-  toneClass,
+  toneStyle,
   accentClass,
   onOpen,
   disabled,
@@ -473,13 +473,13 @@ function TermPortalCard({
   description: string
   metric: string
   buttonLabel: string
-  toneClass?: string
+  toneStyle?: { backgroundColor: string; borderColor: string }
   accentClass?: string
   onOpen?: () => void
   disabled?: boolean
 }) {
   return (
-    <Card padding="md" className={toneClass || 'border-line/80 bg-surface/60'}>
+    <div className="rounded-2xl border transition-all duration-300" style={{ padding: 28, ...(toneStyle || {}) }}>
       <div className="flex h-full flex-col justify-between gap-6">
         <div>
           <Eyebrow tone="muted" className="mb-2">{eyebrow}</Eyebrow>
@@ -491,7 +491,7 @@ function TermPortalCard({
           <Button variant="secondary" onClick={onOpen} disabled={disabled}>{buttonLabel}</Button>
         </div>
       </div>
-    </Card>
+    </div>
   )
 }
 

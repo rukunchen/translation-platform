@@ -815,10 +815,10 @@ function PracticeLabEntry({ overview }: {
   overview: PracticeOverview
 }) {
   const metrics = [
-    { label: '已练篇章', value: overview.practicedItems, note: '篇', cls: 'border-amber-100 bg-amber-50/50', valueCls: 'text-amber-800' },
-    { label: '今日待复习', value: overview.reviewDue, note: '项', cls: 'border-blue-100 bg-blue-50/45', valueCls: 'text-blue-800' },
-    { label: '表达卡片', value: overview.expressionCards, note: '张', cls: 'border-violet-100 bg-violet-50/45', valueCls: 'text-violet-800' },
-    { label: '高频问题', value: overview.frequentIssueCount, note: overview.frequentIssueType, cls: 'border-emerald-100 bg-emerald-50/45', valueCls: 'text-emerald-800' },
+    { label: '已练篇章', value: overview.practicedItems, note: '篇', style: { backgroundColor: 'rgb(255 251 235 / 0.62)', borderColor: 'rgb(254 243 199)' }, valueCls: 'text-amber-800' },
+    { label: '今日待复习', value: overview.reviewDue, note: '项', style: { backgroundColor: 'rgb(239 246 255 / 0.58)', borderColor: 'rgb(219 234 254)' }, valueCls: 'text-blue-800' },
+    { label: '表达卡片', value: overview.expressionCards, note: '张', style: { backgroundColor: 'rgb(245 243 255 / 0.58)', borderColor: 'rgb(237 233 254)' }, valueCls: 'text-violet-800' },
+    { label: '高频问题', value: overview.frequentIssueCount, note: overview.frequentIssueType, style: { backgroundColor: 'rgb(236 253 245 / 0.58)', borderColor: 'rgb(209 250 229)' }, valueCls: 'text-emerald-800' },
   ]
 
   return (
@@ -840,7 +840,7 @@ function PracticeLabEntry({ overview }: {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {metrics.map(metric => (
-              <div key={metric.label} className={cn('rounded-2xl border transition-all duration-300', metric.cls)} style={{ padding: '20px' }}>
+              <div key={metric.label} className="rounded-2xl border transition-all duration-300" style={{ padding: '20px', ...metric.style }}>
                 <p className="text-xs text-ink-500 mb-3">{metric.label}</p>
                 <div className="flex items-end gap-2">
                   <span className={cn('font-serif text-3xl leading-none', metric.valueCls)}>{metric.value}</span>
