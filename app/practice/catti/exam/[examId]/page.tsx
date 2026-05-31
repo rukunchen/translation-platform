@@ -121,6 +121,7 @@ export default function CattiExamPage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [exam, setExam] = useState<CattiMockExam | null>(null)
   const [attempt, setAttempt] = useState<CattiMockAttempt | null>(null)
+  const [candidateName, setCandidateName] = useState('')
   const [passages, setPassages] = useState<CattiMockPassage[]>([])
   const [segments, setSegments] = useState<CattiMockSegment[]>([])
   const [activePassageId, setActivePassageId] = useState('')
@@ -163,6 +164,13 @@ export default function CattiExamPage() {
     }
 
     const admin = (user.email || '').toLowerCase() === ADMIN_EMAIL
+    const metadata = user.user_metadata as Record<string, unknown> | null | undefined
+    const metadataName =
+      typeof metadata?.name === 'string' ? metadata.name :
+        typeof metadata?.full_name === 'string' ? metadata.full_name :
+          typeof metadata?.display_name === 'string' ? metadata.display_name :
+            ''
+    setCandidateName((metadataName.trim() || (user.email ? user.email.split('@')[0] : '')).trim())
     setUserId(user.id)
     setIsAdmin(admin)
 
@@ -683,7 +691,7 @@ export default function CattiExamPage() {
     setActiveSegmentIndex(index)
     setErkouPhase('准备中')
 
-    const cueText = erkouCueBeforeSegment(segment, segments[index - 1])
+    const cueText = erkouCueBeforeSegment(segment, segments[index - 1], candidateName)
     if (cueText) {
       setErkouPhase('考试说明')
       await speakChineseCue(cueText)
@@ -1383,14 +1391,20 @@ function passageLabel(passage: CattiMockPassage) {
   return passage.direction === 'C-E' ? `中译英${passage.passage_order}` : `英译中${passage.passage_order}`
 }
 
-function erkouCueBeforeSegment(segment: CattiMockSegment, previousSegment?: CattiMockSegment) {
+function erkouStartCue(candidateName: string) {
+  const cleanName = candidateName.trim().replace(/同学$/u, '')
+  const greeting = cleanName ? `${cleanName}同学你好` : '同学你好'
+  return `${greeting}，欢迎您来到译境翻译平台的二口实务模拟考试。接下来大约一个小时的时间，就让我与您一起度过吧。祝您考试成功。${ERKOU_CUE_TEXT.ecStart}`
+}
+
+function erkouCueBeforeSegment(segment: CattiMockSegment, previousSegment?: CattiMockSegment, candidateName = '') {
   const currentOrder = segment.passage_order ?? 1
   const previousOrder = previousSegment?.passage_order ?? null
   const passageChanged = !previousSegment || previousOrder !== currentOrder
   const switchedToCe = !!previousSegment && segment.direction === 'C-E' && previousSegment.direction !== 'C-E'
 
   if (!passageChanged && !switchedToCe) return ''
-  if (!previousSegment && segment.direction !== 'C-E') return ERKOU_CUE_TEXT.ecStart
+  if (!previousSegment && segment.direction !== 'C-E') return erkouStartCue(candidateName)
   if (switchedToCe || currentOrder === 3) return ERKOU_CUE_TEXT.ecToCe
   if (segment.direction !== 'C-E' && currentOrder === 2) return ERKOU_CUE_TEXT.ecSecondPassage
   if (segment.direction === 'C-E' && currentOrder === 4) return ERKOU_CUE_TEXT.ceSecondPassage
