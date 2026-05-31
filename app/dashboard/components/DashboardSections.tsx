@@ -815,10 +815,10 @@ function PracticeLabEntry({ overview }: {
   overview: PracticeOverview
 }) {
   const metrics = [
-    { label: '已练篇章', value: overview.practicedItems, note: '篇' },
-    { label: '今日待复习', value: overview.reviewDue, note: '项' },
-    { label: '表达卡片', value: overview.expressionCards, note: '张' },
-    { label: '高频问题', value: overview.frequentIssueCount, note: overview.frequentIssueType },
+    { label: '已练篇章', value: overview.practicedItems, note: '篇', cls: 'border-amber-100 bg-amber-50/50', valueCls: 'text-amber-800' },
+    { label: '今日待复习', value: overview.reviewDue, note: '项', cls: 'border-blue-100 bg-blue-50/45', valueCls: 'text-blue-800' },
+    { label: '表达卡片', value: overview.expressionCards, note: '张', cls: 'border-violet-100 bg-violet-50/45', valueCls: 'text-violet-800' },
+    { label: '高频问题', value: overview.frequentIssueCount, note: overview.frequentIssueType, cls: 'border-emerald-100 bg-emerald-50/45', valueCls: 'text-emerald-800' },
   ]
 
   return (
@@ -840,10 +840,10 @@ function PracticeLabEntry({ overview }: {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {metrics.map(metric => (
-              <div key={metric.label} className="rounded-2xl border border-line bg-surface/70" style={{ padding: '20px' }}>
+              <div key={metric.label} className={cn('rounded-2xl border transition-all duration-300', metric.cls)} style={{ padding: '20px' }}>
                 <p className="text-xs text-ink-500 mb-3">{metric.label}</p>
                 <div className="flex items-end gap-2">
-                  <span className="font-serif text-3xl text-ink-900 leading-none">{metric.value}</span>
+                  <span className={cn('font-serif text-3xl leading-none', metric.valueCls)}>{metric.value}</span>
                   <span className="text-xs text-ink-600 truncate pb-0.5">{metric.note}</span>
                 </div>
               </div>

@@ -167,6 +167,33 @@ const examTypes: ExamType[] = [
   { id: 'sankou_practice', title: 'CATTI 三口实务', note: '暂未开放', enabled: false },
 ]
 
+const examTypeTone: Record<ExamTypeId, { card: string; selected: string; note: string; badge: string }> = {
+  erbi_practice: {
+    card: 'border-amber-100 bg-amber-50/50',
+    selected: 'border-amber-200 shadow-[var(--shadow-card-hover)]',
+    note: 'text-amber-800',
+    badge: 'border-amber-200 bg-amber-50 text-amber-800',
+  },
+  erkou_practice: {
+    card: 'border-rose-100 bg-rose-50/45',
+    selected: 'border-rose-200 shadow-[var(--shadow-card-hover)]',
+    note: 'text-rose-800',
+    badge: 'border-rose-200 bg-rose-50 text-rose-800',
+  },
+  sanbi_practice: {
+    card: 'border-blue-100 bg-blue-50/45',
+    selected: 'border-blue-200 shadow-[var(--shadow-card-hover)]',
+    note: 'text-blue-800',
+    badge: 'border-blue-200 bg-blue-50 text-blue-800',
+  },
+  sankou_practice: {
+    card: 'border-violet-100 bg-violet-50/45',
+    selected: 'border-violet-200 shadow-[var(--shadow-card-hover)]',
+    note: 'text-violet-800',
+    badge: 'border-violet-200 bg-violet-50 text-violet-800',
+  },
+}
+
 const ecVoiceOptions: Array<{ value: EcVoiceProfile; label: string }> = [
   { value: 'formal_diplomat_male', label: '正式外交英文男声' },
   { value: 'formal_diplomat_female', label: '正式外交英文女声' },
@@ -1196,22 +1223,23 @@ function ExamTypeCard({
   selected: boolean
   onClick: () => void
 }) {
+  const tone = examTypeTone[type.id]
   return (
     <Card
       padding="md"
-      variant={selected ? 'default' : 'surface'}
+      variant="default"
       interactive={type.enabled}
       onClick={type.enabled ? onClick : undefined}
-      className={cn(!type.enabled && 'opacity-65')}
+      className={cn('transition-all duration-300', tone.card, selected && tone.selected, !type.enabled && 'opacity-65')}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="font-serif text-xl text-ink-900 mb-2">{type.title}</h2>
-          <p className={cn('text-sm', type.enabled ? 'text-brand' : 'text-ink-500')}>{type.note}</p>
+          <p className={cn('text-sm', type.enabled ? tone.note : 'text-ink-500')}>{type.note}</p>
         </div>
         <span className={cn(
           'rounded-full border px-2 py-1 text-[11px]',
-          selected ? 'border-brand-200 bg-brand-50 text-brand-700' : 'border-line bg-white text-ink-500'
+          type.enabled ? tone.badge : 'border-line bg-white/70 text-ink-400'
         )}>
           {type.enabled ? '可用' : '未开放'}
         </span>

@@ -279,6 +279,8 @@ export default function TermLearningPage() {
                 description="按公共分类浏览热词、术语和常用表达。"
                 metric={`${categories.length} 个分类`}
                 buttonLabel="浏览公共词条库"
+                toneClass="border-amber-100 bg-amber-50/50"
+                accentClass="text-amber-800"
                 onOpen={openLibraryView}
               />
               <TermPortalCard
@@ -287,6 +289,8 @@ export default function TermLearningPage() {
                 description="已加入个人词条本的公共词条。"
                 metric={`${savedTerms} 条词条`}
                 buttonLabel="查看我的词条本"
+                toneClass="border-blue-100 bg-blue-50/45"
+                accentClass="text-blue-800"
                 onOpen={openTermbookView}
               />
               <TermPortalCard
@@ -295,6 +299,8 @@ export default function TermLearningPage() {
                 description="分类抽题、选择题训练与错译识别"
                 metric="设置测试"
                 buttonLabel="进入词条测试"
+                toneClass="border-violet-100 bg-violet-50/45"
+                accentClass="text-violet-800"
                 onOpen={openTermTest}
               />
             </section>
@@ -457,6 +463,8 @@ function TermPortalCard({
   description,
   metric,
   buttonLabel,
+  toneClass,
+  accentClass,
   onOpen,
   disabled,
 }: {
@@ -465,11 +473,13 @@ function TermPortalCard({
   description: string
   metric: string
   buttonLabel: string
+  toneClass?: string
+  accentClass?: string
   onOpen?: () => void
   disabled?: boolean
 }) {
   return (
-    <Card padding="md" className="border-line/80 bg-surface/60">
+    <Card padding="md" className={toneClass || 'border-line/80 bg-surface/60'}>
       <div className="flex h-full flex-col justify-between gap-6">
         <div>
           <Eyebrow tone="muted" className="mb-2">{eyebrow}</Eyebrow>
@@ -477,7 +487,7 @@ function TermPortalCard({
           <p className="mt-2 text-sm leading-relaxed text-ink-600">{description}</p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span className="font-mono text-sm text-ink-700">{metric}</span>
+          <span className={['font-mono text-sm', accentClass || 'text-ink-700'].join(' ')}>{metric}</span>
           <Button variant="secondary" onClick={onOpen} disabled={disabled}>{buttonLabel}</Button>
         </div>
       </div>
