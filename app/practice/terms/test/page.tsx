@@ -567,7 +567,7 @@ function QuizView({
           <Button variant="ghost" onClick={onExit}>退出测试</Button>
         </div>
 
-        <div className="mb-7 rounded-2xl border border-line bg-surface/70 px-7 py-6 sm:px-8 sm:py-7">
+        <div className="mb-7 rounded-2xl border border-line bg-surface/70 px-7 py-6 text-center sm:px-8 sm:py-7">
           <p className="mb-3 text-xs text-ink-500">题干</p>
           <p className="break-words font-serif text-2xl leading-snug text-ink-900 sm:text-3xl">{question.prompt}</p>
         </div>
