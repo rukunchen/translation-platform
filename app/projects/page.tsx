@@ -36,6 +36,18 @@ type MemberRow = {
   role: string
 }
 
+type SegmentRow = {
+  id: string
+  document_id: string
+  status?: string | null
+  target?: string | null
+  translator_target?: string | null
+  review_target?: string | null
+  reviewed_at?: string | null
+  metadata?: Record<string, unknown> | null
+  [key: string]: unknown
+}
+
 const langNames: Record<string, string> = {
   en: '英', zh: '中', ja: '日', ko: '韩', fr: '法', de: '德', es: '西', ru: '俄',
 }
@@ -57,11 +69,49 @@ function displayDescription(project: Project): string {
   return description.split('\n').slice(1).join('\n').trim() || '暂无描述'
 }
 
+function percent(value: number, total: number): number {
+  if (total <= 0) return 0
+  return Math.round((value / total) * 100)
+}
+
+function valueOf(row: SegmentRow, keys: string[]): string {
+  for (const key of keys) {
+    const value = row[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return ''
+}
+
+function segmentStatus(row: SegmentRow): string {
+  return String(row.status || '').toLowerCase()
+}
+
+function isSegmentTranslated(row: SegmentRow): boolean {
+  return Boolean(valueOf(row, [
+    'human_translation',
+    'manual_translation',
+    'translator_translation',
+    'translator_target',
+    'target_text',
+    'translation',
+    'target',
+  ]))
+}
+
+function isSegmentReviewed(row: SegmentRow): boolean {
+  const status = segmentStatus(row)
+  const reviewedText = valueOf(row, ['reviewed_translation', 'review_translation', 'review_target'])
+  return ['reviewed', 'locked', 'approved', 'passed', '已审校', '已锁定'].includes(status)
+    || Boolean(row.reviewed_at)
+    || (Boolean(reviewedText) && ['reviewed', 'locked', 'approved', 'passed', '通过'].includes(status))
+}
+
 export default function ProjectsPage() {
   const router = useRouter()
   const [projects, setProjects] = useState<Project[]>([])
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [members, setMembers] = useState<MemberRow[]>([])
+  const [segments, setSegments] = useState<SegmentRow[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -81,13 +131,37 @@ export default function ProjectsPage() {
       setProjects([])
       setDocuments([])
       setMembers([])
+      setSegments([])
       setErrorMessage(error || '项目加载失败')
       return
     }
 
-    setProjects(data.projects)
-    setDocuments(data.documents)
-    setMembers(data.members)
+    const docs = data.documents ?? []
+    setProjects(data.projects ?? [])
+    setDocuments(docs)
+    setMembers(data.members ?? [])
+
+    const docIds = docs.map(doc => doc.id)
+    if (docIds.length === 0) {
+      setSegments([])
+      return
+    }
+
+    const segmentRes = await supabase
+      .from('segments')
+      .select('id, document_id, status, target, translator_target, review_target, reviewed_at, metadata')
+      .in('document_id', docIds)
+
+    if (segmentRes.error && /translator_target|review_target|reviewed_at|metadata|schema cache|column/i.test(segmentRes.error.message)) {
+      const fallbackRes = await supabase
+        .from('segments')
+        .select('id, document_id, status, target')
+        .in('document_id', docIds)
+      setSegments((fallbackRes.data ?? []) as SegmentRow[])
+      return
+    }
+
+    setSegments((segmentRes.data ?? []) as SegmentRow[])
   }, [])
 
   useEffect(() => {
@@ -160,33 +234,52 @@ export default function ProjectsPage() {
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 2xl:grid-cols-3">
                 {projects.map(project => {
                   const docs = documents.filter(doc => doc.project_id === project.id)
+                  const docIds = new Set(docs.map(doc => doc.id))
+                  const projectSegments = segments.filter(segment => docIds.has(segment.document_id))
                   const memberCount = members.filter(member => member.project_id === project.id).length
                   const latest = docs.map(doc => doc.updated_at ?? doc.created_at).filter(Boolean).sort().pop()
                   const firstDoc = docs[0]
                   const langPair = firstDoc
-                    ? `${langNames[firstDoc.source_language] ?? firstDoc.source_language} -> ${langNames[firstDoc.target_language] ?? firstDoc.target_language}`
+                    ? `${langNames[firstDoc.source_language] ?? firstDoc.source_language} → ${langNames[firstDoc.target_language] ?? firstDoc.target_language}`
                     : '待添加文档'
+                  const total = projectSegments.length
+                  const translated = projectSegments.filter(isSegmentTranslated).length
+                  const reviewed = projectSegments.filter(isSegmentReviewed).length
+                  const locked = projectSegments.filter(segment => segmentStatus(segment) === 'locked').length
                   return (
-                    <Card key={project.id} padding="md" as="article" className="flex h-full min-h-[330px] flex-col">
-                      <div className="mb-4 flex items-start justify-between gap-3">
-                        <h2 className="font-serif text-xl leading-snug text-ink-900 line-clamp-2">{project.name}</h2>
-                        {isPptProject(project) && <span className="rounded-md border border-brand-200 bg-brand-50 px-2 py-1 text-[10px] font-medium text-brand whitespace-nowrap">PPT</span>}
+                    <article
+                      key={project.id}
+                      className="group flex h-full min-h-[300px] flex-col rounded-2xl border border-line bg-white transition-all hover:border-brand/40 hover:shadow-[var(--shadow-card-hover)]"
+                      style={{ padding: 32 }}
+                    >
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <h2 className="min-w-0 flex-1 font-serif text-xl leading-tight tracking-tight text-ink-900 line-clamp-1">{project.name}</h2>
+                        <div className="flex flex-col items-end gap-1">
+                          {isPptProject(project) && (
+                            <span className="rounded-md border border-brand-200 bg-brand-50 px-2 py-1 text-[10px] font-medium text-brand whitespace-nowrap">PPT 分页翻译</span>
+                          )}
+                          <span className="rounded-md border border-line bg-canvas px-2 py-1 text-[10px] text-ink-600 whitespace-nowrap">{langPair}</span>
+                        </div>
                       </div>
-                      <p className="mb-6 min-h-[44px] text-sm leading-relaxed text-ink-600 line-clamp-2">{displayDescription(project)}</p>
-                      <div className="mb-5 grid grid-cols-2 gap-3">
-                        <ProjectMetric label="文档" value={`${docs.length} 个`} />
-                        <ProjectMetric label="成员" value={`${memberCount} 位`} />
-                        <ProjectMetric label="语言方向" value={langPair} wide />
+                      <p className="mb-5 min-h-[36px] text-xs leading-relaxed text-ink-600 line-clamp-2">{displayDescription(project)}</p>
+                      <div className="mb-5 space-y-3">
+                        <ProjectProgress label="翻译" value={translated} total={total} pct={percent(translated, total)} color="bg-amber-200" />
+                        <ProjectProgress label="审校" value={reviewed} total={total} pct={percent(reviewed, total)} color="bg-blue-200" />
+                        <ProjectProgress label="锁定" value={locked} total={total} pct={percent(locked, total)} color="bg-emerald-200" />
                       </div>
-                      <p className="mb-5 rounded-lg border border-line bg-white px-3.5 py-2 text-xs text-ink-500">
-                        最近更新：{latest ? new Date(latest).toLocaleDateString('zh-CN') : '暂无文档更新'}
-                      </p>
+                      <div className="mb-5 flex flex-wrap items-center gap-3 text-[11px] text-ink-600">
+                        <span>{docs.length} 个文档</span>
+                        <span className="text-ink-300">·</span>
+                        <span>{memberCount} 位成员</span>
+                        <span className="text-ink-300">·</span>
+                        <span>{latest ? new Date(latest).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) : '暂无更新'}</span>
+                      </div>
                       <div className="mt-auto flex flex-wrap gap-2 border-t border-line pt-5">
                         <Button size="sm" variant="brand" onClick={() => router.push(projectHref(project))}>进入项目</Button>
                         {!isPptProject(project) && <Button size="sm" variant="ghost" onClick={() => router.push(`/projects/${project.id}/glossary`)}>术语库</Button>}
                         {!isPptProject(project) && firstDoc && <Button size="sm" variant="ghost" onClick={() => router.push(`/documents/${firstDoc.id}/parallel`)}>实验</Button>}
                       </div>
-                    </Card>
+                    </article>
                   )
                 })}
               </div>
@@ -215,11 +308,16 @@ export default function ProjectsPage() {
   )
 }
 
-function ProjectMetric({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+function ProjectProgress({ label, value, total, pct, color }: { label: string; value: number; total: number; pct: number; color: string }) {
   return (
-    <div className={`min-w-0 rounded-xl border border-line bg-surface px-4 py-3 ${wide ? 'col-span-2' : ''}`}>
-      <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-400">{label}</p>
-      <p className="truncate text-sm font-medium tabular-nums text-ink-900">{value}</p>
+    <div>
+      <div className="mb-1 flex items-center justify-between text-[11px]">
+        <span className="text-ink-600">{label}</span>
+        <span className="text-ink-700">{value}/{total} · {pct}%</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-canvas">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+      </div>
     </div>
   )
 }

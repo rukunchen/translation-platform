@@ -210,7 +210,6 @@ export default function TranslationPracticeHomePage() {
               actions={
                 <div className="flex flex-wrap justify-end gap-2">
                   <Button variant="primary" onClick={() => setCreateMode('practice')}>新建练习</Button>
-                  <Button variant="secondary" onClick={() => router.push('/practice/catti')}>CATTI 模考</Button>
                   <Button variant="secondary" onClick={() => setCreateMode('import')}>导入材料</Button>
                   <Button variant="secondary" onClick={() => router.push('/practice/review')}>今日复习</Button>
                   <Button variant="ghost" onClick={() => router.push('/practice/cards')}>表达卡片</Button>
