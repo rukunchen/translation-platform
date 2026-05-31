@@ -7,6 +7,51 @@ function cleanText(value: unknown): string {
 
 const PPT_FALLBACK_PREFIX = '__PPT_SLIDE_TRANSLATION_META__'
 
+export async function GET(req: NextRequest) {
+  const { user } = await supabaseFromRequest(req)
+  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+
+  const admin = supabaseAdmin()
+  const { data: memberships, error: membershipError } = await admin
+    .from('project_members')
+    .select('project_id')
+    .eq('user_id', user.id)
+
+  if (membershipError) return NextResponse.json({ error: membershipError.message }, { status: 500 })
+
+  const ids = Array.from(new Set((memberships ?? []).map(row => row.project_id as string).filter(Boolean)))
+  if (ids.length === 0) {
+    return NextResponse.json({ projects: [], documents: [], members: [] })
+  }
+
+  const [projectRes, documentRes, memberRes] = await Promise.all([
+    admin
+      .from('projects')
+      .select('id, name, description, created_at, updated_at, type')
+      .in('id', ids)
+      .order('updated_at', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(50),
+    admin
+      .from('documents')
+      .select('id, project_id, title, source_language, target_language, updated_at, created_at')
+      .in('project_id', ids),
+    admin
+      .from('project_members')
+      .select('project_id, user_id, role')
+      .in('project_id', ids),
+  ])
+
+  const error = projectRes.error || documentRes.error || memberRes.error
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({
+    projects: projectRes.data ?? [],
+    documents: documentRes.data ?? [],
+    members: memberRes.data ?? [],
+  })
+}
+
 export async function POST(req: NextRequest) {
   const { user } = await supabaseFromRequest(req)
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })

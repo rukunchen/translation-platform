@@ -63,38 +63,31 @@ export default function ProjectsPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [members, setMembers] = useState<MemberRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [creating, setCreating] = useState(false)
 
-  const loadProjects = useCallback(async (userId: string) => {
-    const { data: memberships } = await supabase
-      .from('project_members')
-      .select('project_id')
-      .eq('user_id', userId)
-    const ids = Array.from(new Set((memberships ?? []).map(row => row.project_id as string).filter(Boolean)))
-    if (ids.length === 0) {
+  const loadProjects = useCallback(async () => {
+    setErrorMessage('')
+    const { data, error } = await apiJSON<{
+      projects: Project[]
+      documents: DocumentRow[]
+      members: MemberRow[]
+    }>('/api/projects')
+
+    if (error || !data) {
       setProjects([])
       setDocuments([])
       setMembers([])
+      setErrorMessage(error || '项目加载失败')
       return
     }
 
-    const [{ data: projectRows }, { data: documentRows }, { data: memberRows }] = await Promise.all([
-      supabase
-        .from('projects')
-        .select('id, name, description, created_at, updated_at, type')
-        .in('id', ids)
-        .order('updated_at', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(50),
-      supabase.from('documents').select('id, project_id, title, source_language, target_language, updated_at, created_at').in('project_id', ids),
-      supabase.from('project_members').select('project_id, user_id, role').in('project_id', ids),
-    ])
-    setProjects((projectRows ?? []) as Project[])
-    setDocuments((documentRows ?? []) as DocumentRow[])
-    setMembers((memberRows ?? []) as MemberRow[])
+    setProjects(data.projects)
+    setDocuments(data.documents)
+    setMembers(data.members)
   }, [])
 
   useEffect(() => {
@@ -104,7 +97,7 @@ export default function ProjectsPage() {
         router.push('/')
         return
       }
-      await loadProjects(user.id)
+      await loadProjects()
       setLoading(false)
     })
   }, [loadProjects, router])
@@ -143,6 +136,12 @@ export default function ProjectsPage() {
                 </div>
               }
             />
+
+            {errorMessage && (
+              <Card padding="md" className="mb-5 border-red-200 bg-red-50 text-sm text-red-700">
+                项目加载失败：{errorMessage}
+              </Card>
+            )}
 
             {loading ? (
               <Card padding="lg" className="text-center text-sm text-ink-500">加载中...</Card>
