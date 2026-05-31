@@ -224,7 +224,7 @@ export default function TranslationPracticeHomePage() {
                 title="CATTI 模考中心"
                 description="二笔、二口实务训练与模考报告。"
                 buttonLabel="进入模考中心"
-                tone="amber"
+                tone="rose"
                 onOpen={() => router.push('/practice/catti')}
               />
               <PracticeEntryCard
@@ -232,7 +232,7 @@ export default function TranslationPracticeHomePage() {
                 title="词条学习"
                 description="热词分类、卡片记忆与个人词条本"
                 buttonLabel="进入词条学习"
-                tone="blue"
+                tone="cyan"
                 onOpen={() => router.push('/practice/terms')}
               />
             </section>
@@ -404,7 +404,7 @@ function PracticeEntryCard({
   title: string
   description: string
   buttonLabel: string
-  tone: 'amber' | 'blue'
+  tone: keyof typeof practiceMetricTone
   onOpen: () => void
 }) {
   const entryTone = practiceMetricTone[tone]
@@ -423,6 +423,14 @@ function PracticeEntryCard({
 }
 
 const practiceMetricTone = {
+  rose: {
+    style: { backgroundColor: 'rgb(255 241 242 / 0.56)', borderColor: 'rgb(255 228 230)' },
+    valueClass: 'text-rose-800',
+  },
+  cyan: {
+    style: { backgroundColor: 'rgb(236 254 255 / 0.58)', borderColor: 'rgb(207 250 254)' },
+    valueClass: 'text-cyan-800',
+  },
   amber: {
     style: { backgroundColor: 'rgb(255 251 235 / 0.62)', borderColor: 'rgb(254 243 199)' },
     valueClass: 'text-amber-800',
