@@ -567,12 +567,12 @@ function QuizView({
           <Button variant="ghost" onClick={onExit}>退出测试</Button>
         </div>
 
-        <div className="mb-8 rounded-2xl border border-line bg-surface/70 px-6 py-7">
-          <p className="mb-2 text-xs text-ink-500">题干</p>
-          <p className="break-words font-serif text-3xl leading-snug text-ink-900">{question.prompt}</p>
+        <div className="mb-7 rounded-2xl border border-line bg-surface/70 px-7 py-6 sm:px-8 sm:py-7">
+          <p className="mb-3 text-xs text-ink-500">题干</p>
+          <p className="break-words font-serif text-2xl leading-snug text-ink-900 sm:text-3xl">{question.prompt}</p>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {question.options.map((option, index) => (
             <OptionButton
               key={`${question.id}-${option}`}
@@ -780,7 +780,7 @@ function OptionButton({
       disabled={disabled}
       onClick={onClick}
       className={[
-        'flex w-full items-start gap-4 rounded-xl border px-5 py-4 text-left transition-colors',
+        'flex w-full items-center gap-5 rounded-xl border px-6 py-4 text-left transition-colors sm:px-7',
         correct && 'border-emerald-300 bg-emerald-50 text-emerald-900',
         wrong && 'border-red-300 bg-red-50 text-red-800',
         !correct && !wrong && selected && 'border-ink-900 bg-canvas text-ink-900',
@@ -791,7 +791,7 @@ function OptionButton({
       <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-current font-mono text-xs">
         {label}
       </span>
-      <span className="break-words text-sm leading-relaxed">{option}</span>
+      <span className="break-words text-base leading-relaxed">{option}</span>
     </button>
   )
 }
