@@ -6,6 +6,7 @@ import Sidebar from '@/components/Sidebar'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Eyebrow } from '@/components/ui/Eyebrow'
+import { apiJSON } from '@/lib/apiFetch'
 import { supabase } from '@/lib/supabase'
 
 type SelectionState = {
@@ -53,6 +54,20 @@ type ReadingNote = {
   userNote: string
   tags: string[]
   createdAt: string
+}
+
+type NewsHotspotItem = {
+  title: string
+  source: string
+  url: string
+  publishedAt: string
+}
+
+type NewsHotspotsPayload = {
+  date: string
+  updatedAt: string
+  domestic: NewsHotspotItem[]
+  international: NewsHotspotItem[]
 }
 
 const GENRE_OPTIONS = ['经济', '政治', '中国', '心理学', '文学', '历史', '文化', '科技', '商务', '法律', '其他']
@@ -197,6 +212,102 @@ function noteFromRow(row: ReadingNoteRow): ReadingNote {
   }
 }
 
+function NewsHotspotColumn({
+  title,
+  eyebrow,
+  items,
+  loading,
+  error,
+}: {
+  title: string
+  eyebrow: string
+  items: NewsHotspotItem[]
+  loading: boolean
+  error: string
+}) {
+  return (
+    <Card padding="none" className="overflow-hidden">
+      <div className="border-b border-line bg-surface/80" style={{ padding: '14px 18px' }}>
+        <Eyebrow tone="muted">{eyebrow}</Eyebrow>
+        <h3 className="mt-1 font-serif text-xl text-ink-900">{title}</h3>
+      </div>
+      <div style={{ padding: '14px 18px' }}>
+        {loading ? (
+          <div className="space-y-2.5">
+            {Array.from({ length: 10 }).map((_, index) => (
+              <div key={index} className="h-5 rounded bg-line/60" />
+            ))}
+          </div>
+        ) : error ? (
+          <p className="text-sm text-ink-500">新闻热点暂时无法加载，请稍后再试。</p>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-ink-500">暂无新闻热点。</p>
+        ) : (
+          <ol className="space-y-2.5">
+            {items.slice(0, 10).map((item, index) => {
+              const content = (
+                <span className="line-clamp-1 text-sm leading-6 text-ink-800 transition-colors hover:text-brand">
+                  {item.title}
+                </span>
+              )
+              return (
+                <li key={`${item.source}-${item.url || item.title}`} className="grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-2">
+                  <span className="font-mono text-xs leading-6 text-ink-400">{String(index + 1).padStart(2, '0')}</span>
+                  {item.url ? (
+                    <a href={item.url} target="_blank" rel="noreferrer" title={item.title}>
+                      {content}
+                    </a>
+                  ) : content}
+                </li>
+              )
+            })}
+          </ol>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+function NewsHotspotsPanel({
+  hotspots,
+  loading,
+  error,
+}: {
+  hotspots: NewsHotspotsPayload | null
+  loading: boolean
+  error: string
+}) {
+  return (
+    <section className="mb-6">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <Eyebrow tone="muted">Daily Hotspots</Eyebrow>
+          <h2 className="mt-1 font-serif text-2xl text-ink-900">新闻热点</h2>
+        </div>
+        <span className="font-mono text-xs uppercase tracking-[0.12em] text-ink-400">
+          {hotspots?.date ? `更新 ${hotspots.date}` : 'daily refresh'}
+        </span>
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <NewsHotspotColumn
+          eyebrow="China"
+          title="国内新闻热点"
+          items={hotspots?.domestic || []}
+          loading={loading}
+          error={error}
+        />
+        <NewsHotspotColumn
+          eyebrow="World"
+          title="国外新闻热点"
+          items={hotspots?.international || []}
+          loading={loading}
+          error={error}
+        />
+      </div>
+    </section>
+  )
+}
+
 export default function ReadingRoomPage() {
   const router = useRouter()
   const readerRef = useRef<HTMLDivElement | null>(null)
@@ -230,6 +341,9 @@ export default function ReadingRoomPage() {
   const [explainingNoteId, setExplainingNoteId] = useState<string | null>(null)
   const [explainingSelection, setExplainingSelection] = useState(false)
   const [storageError, setStorageError] = useState('')
+  const [newsHotspots, setNewsHotspots] = useState<NewsHotspotsPayload | null>(null)
+  const [newsLoading, setNewsLoading] = useState(false)
+  const [newsError, setNewsError] = useState('')
   const readingLayout = buildReadingLayout(cleanText, article?.title)
   const cleanWordCount = wordCount(cleanText)
   const readerTextStyle = {
@@ -279,6 +393,19 @@ export default function ReadingRoomPage() {
     return nextArticles
   }
 
+  const loadNewsHotspots = async () => {
+    setNewsLoading(true)
+    setNewsError('')
+    const { data, error } = await apiJSON<NewsHotspotsPayload>('/api/reading/news-hotspots')
+    if (error || !data) {
+      setNewsHotspots(null)
+      setNewsError(error || '新闻热点暂时无法加载')
+    } else {
+      setNewsHotspots(data)
+    }
+    setNewsLoading(false)
+  }
+
   const loadNotesForArticle = async (articleId: string) => {
     const { data: loadedNotes, error: notesError } = await supabase
       .from('reading_notes')
@@ -324,6 +451,7 @@ export default function ReadingRoomPage() {
       setUserId(user.id)
       setStorageError('')
       await loadArticleLibrary(user.id)
+      void loadNewsHotspots()
 
       if (!alive) return
       setCheckingAuth(false)
@@ -688,6 +816,8 @@ export default function ReadingRoomPage() {
         {mode === 'library' ? (
           <div className="flex-1 overflow-y-auto" style={{ padding: 24 }}>
             <div className="mx-auto max-w-6xl">
+              <NewsHotspotsPanel hotspots={newsHotspots} loading={newsLoading} error={newsError} />
+
               <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
                 <div>
                   <Eyebrow tone="muted">Library</Eyebrow>
