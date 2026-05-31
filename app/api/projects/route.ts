@@ -27,9 +27,8 @@ export async function GET(req: NextRequest) {
   const [projectRes, documentRes, memberRes] = await Promise.all([
     admin
       .from('projects')
-      .select('id, name, description, created_at, updated_at, type')
+      .select('id, name, description, created_at')
       .in('id', ids)
-      .order('updated_at', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(50),
     admin
