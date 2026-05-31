@@ -28,6 +28,8 @@ const DOMESTIC_FEEDS: FeedSource[] = [
 
 const INTERNATIONAL_FEEDS: FeedSource[] = [
   { name: 'BBC News', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
+  { name: 'The Guardian', url: 'https://www.theguardian.com/world/rss' },
+  { name: 'NPR', url: 'https://feeds.npr.org/1004/rss.xml' },
 ]
 
 let dailyCache: NewsHotspotsPayload | null = null
@@ -162,14 +164,23 @@ export async function GET() {
     return NextResponse.json({ error: '新闻热点暂时无法加载' }, { status: 502 })
   }
 
-  dailyCache = {
+  const payload = {
     date: today,
     updatedAt: new Date().toISOString(),
     domestic,
     international,
   }
+  const isComplete = domestic.length > 0 && international.length > 0
 
-  return NextResponse.json(dailyCache, {
-    headers: { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=86400' },
+  if (isComplete) {
+    dailyCache = payload
+  }
+
+  return NextResponse.json(payload, {
+    headers: {
+      'Cache-Control': isComplete
+        ? 'public, max-age=300, stale-while-revalidate=86400'
+        : 'public, max-age=60',
+    },
   })
 }
