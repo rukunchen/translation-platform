@@ -899,10 +899,10 @@ function CategoryMindmap({
         return (
           <div
             key={group.parent.id}
-            className="rounded-2xl border border-line bg-white/90 p-4 shadow-sm lg:grid lg:grid-cols-[240px_92px_minmax(0,1fr)] lg:items-center lg:gap-0"
+            className="rounded-2xl border border-line bg-white/90 p-5 shadow-sm lg:grid lg:grid-cols-[minmax(270px,300px)_96px_minmax(0,1fr)] lg:items-center lg:gap-0"
           >
             <div
-              className="relative rounded-2xl px-5 py-5 text-white shadow-sm"
+              className="relative rounded-2xl px-7 py-6 text-white shadow-sm"
               style={{ backgroundColor: tone.solid, boxShadow: `0 18px 36px ${tone.shadow}` }}
             >
               {isAdmin && (
@@ -914,12 +914,12 @@ function CategoryMindmap({
                   onDelete={onDelete}
                 />
               )}
-              <p className="mb-3 text-[11px] uppercase tracking-[0.18em] text-white/70">Level 1</p>
-              <h3 className="break-words font-serif text-2xl leading-snug">{group.parent.name}</h3>
-              <p className="mt-3 line-clamp-2 min-h-[40px] text-sm leading-relaxed text-white/78">
+              <p className="mb-3 break-words pr-12 text-[10px] uppercase leading-relaxed tracking-[0.16em] text-white/70">Level 1</p>
+              <h3 className="break-words pr-3 font-serif leading-snug" style={{ fontSize: 'clamp(1.28rem, 1.6vw, 1.5rem)' }}>{group.parent.name}</h3>
+              <p className="mt-3 line-clamp-2 min-h-[40px] pr-2 text-sm leading-relaxed text-white/78">
                 {group.parent.description || '公共词条一级分类'}
               </p>
-              <div className="mt-5 grid grid-cols-2 gap-3 border-t border-white/25 pt-4">
+              <div className="mt-5 grid grid-cols-2 gap-4 border-t border-white/25 pt-4">
                 <MindmapMeta label="子节点" value={String(group.nodeCount)} light />
                 <MindmapMeta label="词条" value={String(group.totalTerms)} light />
               </div>
@@ -937,7 +937,7 @@ function CategoryMindmap({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))' }}>
               {group.children.map(child => {
                 const childStats = stats[child.id] ?? { termCount: 0, savedCount: 0, latestUpdatedAt: null }
                 return (
@@ -952,7 +952,7 @@ function CategoryMindmap({
                         onOpen(child)
                       }
                     }}
-                    className="group relative min-h-[128px] cursor-pointer rounded-2xl border px-4 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-brand/10"
+                    className="group relative min-h-[140px] cursor-pointer rounded-2xl border px-6 py-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-brand/10"
                     style={{ backgroundColor: tone.softBg, borderColor: tone.softBorder }}
                   >
                     {isAdmin && (
@@ -965,10 +965,10 @@ function CategoryMindmap({
                     )}
                     <div className="flex h-full flex-col justify-between gap-4">
                       <div>
-                        <p className="mb-2 text-[11px] uppercase tracking-[0.16em]" style={{ color: tone.text }}>Level 2</p>
-                        <h4 className="break-words font-serif text-xl leading-snug text-ink-900">{child.name}</h4>
+                        <p className="mb-2 break-words pr-12 text-[10px] uppercase leading-relaxed tracking-[0.14em]" style={{ color: tone.text }}>Level 2</p>
+                        <h4 className="break-words pr-2 font-serif leading-snug text-ink-900" style={{ fontSize: 'clamp(1.08rem, 1.3vw, 1.25rem)' }}>{child.name}</h4>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 border-t pt-3" style={{ borderColor: tone.softBorder }}>
+                      <div className="grid grid-cols-3 gap-3 border-t pt-3" style={{ borderColor: tone.softBorder }}>
                         <MindmapMeta label="词条" value={String(childStats.termCount)} />
                         <MindmapMeta label="已加入" value={String(childStats.savedCount)} />
                         <div>
