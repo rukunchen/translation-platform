@@ -91,8 +91,16 @@ html, body {
   color: var(--color-ink-900);
 }
 
+@font-face {
+  font-family: "YijingWordmark";
+  src: url("/fonts/yijing-wordmark.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 .brand-wordmark {
-  font-family: "字魂游龙篆书", "ZiHunYouLongZhuanShu", "YouLongZhuanShu", "Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif;
+  font-family: "YijingWordmark", "字魂游龙篆书", "ZiHunYouLongZhuanShu", "YouLongZhuanShu", "Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif;
   font-weight: 400;
   letter-spacing: 0;
   line-height: 1;
