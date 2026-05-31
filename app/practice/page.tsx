@@ -242,10 +242,10 @@ export default function TranslationPracticeHomePage() {
                 <p className="mt-2 text-xs text-ink-500">常规练习、复盘问题与表达卡片独立统计。</p>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <PracticeMetric label="已练篇章" value={practicedCount} note={`共 ${items.length} 篇材料`} />
-                <PracticeMetric label="待复习" value={dueCards + dueItems} note={`${dueCards} 张表达卡`} />
-                <PracticeMetric label="表达卡片" value={cards.length} note="复盘中可继续补充" />
-                <PracticeMetric label="高频问题类型" value={topIssue?.[1] ?? 0} note={topIssue?.[0] ?? '暂无问题标记'} />
+                <PracticeMetric label="已练篇章" value={practicedCount} note={`共 ${items.length} 篇材料`} tone="amber" />
+                <PracticeMetric label="待复习" value={dueCards + dueItems} note={`${dueCards} 张表达卡`} tone="blue" />
+                <PracticeMetric label="表达卡片" value={cards.length} note="复盘中可继续补充" tone="violet" />
+                <PracticeMetric label="高频问题类型" value={topIssue?.[1] ?? 0} note={topIssue?.[0] ?? '暂无问题标记'} tone="emerald" />
               </div>
             </section>
 
@@ -417,12 +417,32 @@ function PracticeEntryCard({
   )
 }
 
-function PracticeMetric({ label, value, note }: { label: string; value: number; note: string }) {
+const practiceMetricTone = {
+  amber: {
+    style: { backgroundColor: 'rgb(255 251 235 / 0.62)', borderColor: 'rgb(254 243 199)' },
+    valueClass: 'text-amber-800',
+  },
+  blue: {
+    style: { backgroundColor: 'rgb(239 246 255 / 0.58)', borderColor: 'rgb(219 234 254)' },
+    valueClass: 'text-blue-800',
+  },
+  violet: {
+    style: { backgroundColor: 'rgb(245 243 255 / 0.58)', borderColor: 'rgb(237 233 254)' },
+    valueClass: 'text-violet-800',
+  },
+  emerald: {
+    style: { backgroundColor: 'rgb(236 253 245 / 0.58)', borderColor: 'rgb(209 250 229)' },
+    valueClass: 'text-emerald-800',
+  },
+}
+
+function PracticeMetric({ label, value, note, tone }: { label: string; value: number; note: string; tone: keyof typeof practiceMetricTone }) {
+  const metricTone = practiceMetricTone[tone]
   return (
-    <div className="rounded-xl border border-line bg-white px-5 py-4">
+    <div className="rounded-xl border px-5 py-4" style={metricTone.style}>
       <p className="mb-2 text-xs text-ink-500">{label}</p>
       <div className="flex items-end justify-between gap-4">
-        <p className="font-serif text-3xl leading-none text-ink-900">{value}</p>
+        <p className={cn('font-serif text-3xl leading-none', metricTone.valueClass)}>{value}</p>
         <p className="min-w-0 truncate pb-0.5 text-right text-xs text-ink-600">{note}</p>
       </div>
     </div>
