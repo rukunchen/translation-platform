@@ -62,9 +62,9 @@ export default function LoginPage() {
       {/* 左侧：暖米色 — 品牌叙述 */}
       <section className="lg:w-1/2 bg-canvas relative flex items-center justify-center px-10 sm:px-12 lg:px-16 py-24 min-h-screen">
         {/* 顶部 logo */}
-        <div className="absolute top-10 left-10 sm:top-10 sm:left-12 lg:top-12 lg:left-16 flex items-center gap-3">
-          <Logo size={40} priority className="flex-shrink-0" />
-          <span className="brand-wordmark text-ink-900 text-[40px]">译境</span>
+        <div className="absolute top-10 left-10 sm:top-10 sm:left-12 lg:top-12 lg:left-16 flex items-center gap-[14px]">
+          <Logo size={48} priority className="flex-shrink-0" />
+          <span className="brand-wordmark brand-wordmark-compact text-ink-900 text-[40px]">译境</span>
         </div>
 
         {/* 中部主内容 */}

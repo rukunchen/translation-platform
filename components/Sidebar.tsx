@@ -259,10 +259,10 @@ function SidebarContent({
         <Link
           href="/dashboard"
           onClick={onNavigate}
-          className="flex items-center gap-3 cursor-pointer group"
+          className="flex items-center gap-[10px] cursor-pointer group"
         >
-          <Logo size={40} priority className="flex-shrink-0 group-hover:scale-105 transition-transform" />
-          <span className="brand-wordmark text-white text-[28px]">译境</span>
+          <Logo size={34} priority className="flex-shrink-0 group-hover:scale-105 transition-transform" />
+          <span className="brand-wordmark brand-wordmark-compact text-white text-[28px]">译境</span>
         </Link>
       </div>
 

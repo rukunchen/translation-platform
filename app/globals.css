@@ -106,6 +106,14 @@ html, body {
   line-height: 1;
 }
 
+.brand-wordmark-compact {
+  display: inline-block;
+  font-feature-settings: "palt" 1;
+  font-kerning: normal;
+  transform: scaleX(0.96);
+  transform-origin: left center;
+}
+
 .landing-slogan {
   font-family: "Source Han Serif SC", "Source Han Serif CN", "Noto Serif CJK SC", "思源宋体", "Songti SC", SimSun, serif;
   font-weight: 700;
