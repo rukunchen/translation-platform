@@ -17,6 +17,8 @@ type TermCategory = {
   id: string
   name: string
   description: string | null
+  parent_id: string | null
+  level: number | null
 }
 
 type PublicTerm = {
@@ -32,6 +34,7 @@ type PublicTerm = {
 }
 
 type TermForm = {
+  parent_category_id: string
   category_id: string
   source_text: string
   target_text: string
@@ -79,6 +82,7 @@ export default function TermCategoryPage() {
   const [savingAdminTerm, setSavingAdminTerm] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importMode, setImportMode] = useState<ImportMode>('text')
+  const [importParentCategoryId, setImportParentCategoryId] = useState('')
   const [importCategoryId, setImportCategoryId] = useState('')
   const [importText, setImportText] = useState('')
   const [excelFileName, setExcelFileName] = useState('')
@@ -105,12 +109,12 @@ export default function TermCategoryPage() {
     const [categoryRes, categoriesRes, termsRes, termbookRes] = await Promise.all([
       supabase
         .from('term_categories')
-        .select('id, name, description')
+        .select('id, name, description, parent_id, level')
         .eq('id', categoryId)
         .maybeSingle(),
       supabase
         .from('term_categories')
-        .select('id, name, description')
+        .select('id, name, description, parent_id, level')
         .order('sort_order', { ascending: true })
         .order('name', { ascending: true }),
       supabase
@@ -136,12 +140,16 @@ export default function TermCategoryPage() {
     setCategories(categoriesRes.error ? [categoryRes.data as TermCategory] : (categoriesRes.data ?? []) as TermCategory[])
     setTerms(termsRes.error ? [] : (termsRes.data ?? []) as PublicTerm[])
     setAddedTermIds(new Set((termbookRes.data ?? []).map(item => item.public_term_id).filter(Boolean) as string[]))
-    setTermForm(prev => prev.category_id ? prev : { ...prev, category_id: categoryId })
-    setImportCategoryId(prev => prev || categoryId)
+    const nextCategories = categoriesRes.error ? [categoryRes.data as TermCategory] : (categoriesRes.data ?? []) as TermCategory[]
+    const currentSelection = createCategorySelection(categoryId, nextCategories)
+    setTermForm(prev => prev.category_id ? prev : { ...prev, ...currentSelection })
+    setImportParentCategoryId(prev => prev || currentSelection.parent_category_id)
+    setImportCategoryId(prev => prev || currentSelection.category_id)
     if (currentEmail.toLowerCase() === ADMIN_EMAIL && shouldOpenAdminImport) {
       setAdminNotice('')
       setImportMode('text')
-      setImportCategoryId(categoryId)
+      setImportParentCategoryId(currentSelection.parent_category_id)
+      setImportCategoryId(currentSelection.category_id)
       setImportText('')
       setExcelFileName('')
       setImportPreview([])
@@ -228,14 +236,16 @@ export default function TermCategoryPage() {
 
   function openAddDialog() {
     setAdminNotice('')
-    setTermForm(createTermForm(categoryId))
+    setTermForm(createTermForm(categoryId, categories))
     setShowAddDialog(true)
   }
 
   function openImportDialog() {
     setAdminNotice('')
     setImportMode('text')
-    setImportCategoryId(categoryId)
+    const selection = createCategorySelection(categoryId, categories)
+    setImportParentCategoryId(selection.parent_category_id)
+    setImportCategoryId(selection.category_id)
     setImportText('')
     setExcelFileName('')
     setImportPreview([])
@@ -244,15 +254,33 @@ export default function TermCategoryPage() {
 
   async function saveAdminTerm() {
     if (!isAdmin || !userId) return
-    const nextCategoryId = termForm.category_id || categoryId
+    const nextCategoryId = termForm.category_id
     const sourceText = termForm.source_text.trim()
     const targetText = termForm.target_text.trim()
     if (!nextCategoryId || !sourceText || !targetText) {
-      alert('分类、中文和英文为必填项。')
+      alert('最终分类、中文和英文为必填项。')
       return
     }
 
     setSavingAdminTerm(true)
+    const existingTermRes = await supabase
+      .from('public_terms')
+      .select('id')
+      .eq('category_id', nextCategoryId)
+      .eq('source_text', sourceText)
+      .eq('target_text', targetText)
+      .limit(1)
+    if (existingTermRes.error) {
+      setSavingAdminTerm(false)
+      alert('检查重复词条失败：' + existingTermRes.error.message)
+      return
+    }
+    if ((existingTermRes.data ?? []).length > 0) {
+      setSavingAdminTerm(false)
+      alert('该分类下已存在相同中文和英文的词条。')
+      return
+    }
+
     const { error } = await supabase.from('public_terms').insert({
       category_id: nextCategoryId,
       source_text: sourceText,
@@ -284,11 +312,11 @@ export default function TermCategoryPage() {
   async function parseImportText() {
     if (!isAdmin) return
     if (!importCategoryId) {
-      alert('请先选择分类。')
+      alert('请先选择最终导入分类。')
       return
     }
 
-    const fallbackCategory = findCategoryById(categories, importCategoryId) ?? category
+    const fallbackCategory = findImportableCategoryById(categories, importCategoryId)
     const rows = importText
       .split(/\r?\n/)
       .map((line, index) => ({ line: line.trim(), lineNumber: index + 1 }))
@@ -328,7 +356,7 @@ export default function TermCategoryPage() {
       return
     }
 
-    const fallbackCategory = findCategoryById(categories, importCategoryId) ?? category
+    const fallbackCategory = findImportableCategoryById(categories, importCategoryId)
     const rows = rawRows.map((row, index) => parseExcelRow(row, index + 2, categories, fallbackCategory))
     await previewWithDuplicateCheck(rows)
   }
@@ -394,9 +422,10 @@ export default function TermCategoryPage() {
 
   async function downloadExcelTemplate() {
     const XLSX = await import('xlsx')
+    const templateCategory = categoryPathLabel(categories, importCategoryId) || category?.name || ''
     const worksheet = XLSX.utils.aoa_to_sheet([
       ['分类', '中文', '英文', '解释', '例句', '标签', '来源', '难度'],
-      [category?.name ?? '', '高质量发展', 'high-quality development', '强调质量和效益的发展方式', 'The policy emphasizes high-quality development.', '经济,大会热词', '测试模板', '基础'],
+      [templateCategory, '高质量发展', 'high-quality development', '强调质量和效益的发展方式', 'The policy emphasizes high-quality development.', '经济,大会热词', '测试模板', '基础'],
     ])
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, '词条导入模板')
@@ -493,6 +522,7 @@ export default function TermCategoryPage() {
               <BatchImportDialog
                 categories={categories}
                 mode={importMode}
+                parentCategoryId={importParentCategoryId}
                 categoryId={importCategoryId}
                 text={importText}
                 excelFileName={excelFileName}
@@ -505,6 +535,12 @@ export default function TermCategoryPage() {
                 }}
                 onCategoryChange={value => {
                   setImportCategoryId(value)
+                  setImportPreview([])
+                }}
+                onParentCategoryChange={value => {
+                  setImportParentCategoryId(value)
+                  const children = childCategoriesOf(categories, value)
+                  setImportCategoryId(children.length > 0 ? '' : value)
                   setImportPreview([])
                 }}
                 onTextChange={value => {
@@ -543,10 +579,16 @@ function AdminTermDialog({
   return (
     <AdminModal title="添加词条" onClose={onClose}>
       <form className="space-y-5" onSubmit={event => { event.preventDefault(); void onSave() }}>
-        <Select label="分类" value={form.category_id} onChange={event => onChange({ category_id: event.target.value })}>
-          {categories.length === 0 && <option value={form.category_id}>当前分类</option>}
-          {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
-        </Select>
+        <CategoryHierarchySelect
+          categories={categories}
+          parentCategoryId={form.parent_category_id}
+          categoryId={form.category_id}
+          onParentChange={parentId => {
+            const children = childCategoriesOf(categories, parentId)
+            onChange({ parent_category_id: parentId, category_id: children.length > 0 ? '' : parentId })
+          }}
+          onCategoryChange={categoryId => onChange({ category_id: categoryId })}
+        />
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Input label="中文" value={form.source_text} onChange={event => onChange({ source_text: event.target.value })} required />
           <Input label="英文" value={form.target_text} onChange={event => onChange({ target_text: event.target.value })} required />
@@ -570,6 +612,7 @@ function AdminTermDialog({
 function BatchImportDialog({
   categories,
   mode,
+  parentCategoryId,
   categoryId,
   text,
   excelFileName,
@@ -577,6 +620,7 @@ function BatchImportDialog({
   parsing,
   importing,
   onModeChange,
+  onParentCategoryChange,
   onCategoryChange,
   onTextChange,
   onParse,
@@ -587,6 +631,7 @@ function BatchImportDialog({
 }: {
   categories: TermCategory[]
   mode: ImportMode
+  parentCategoryId: string
   categoryId: string
   text: string
   excelFileName: string
@@ -594,6 +639,7 @@ function BatchImportDialog({
   parsing: boolean
   importing: boolean
   onModeChange: (value: ImportMode) => void
+  onParentCategoryChange: (value: string) => void
   onCategoryChange: (value: string) => void
   onTextChange: (value: string) => void
   onParse: () => Promise<void>
@@ -624,10 +670,13 @@ function BatchImportDialog({
           </button>
         </div>
 
-        <Select label="选择分类" value={categoryId} onChange={event => onCategoryChange(event.target.value)}>
-          {categories.length === 0 && <option value={categoryId}>当前分类</option>}
-          {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
-        </Select>
+        <CategoryHierarchySelect
+          categories={categories}
+          parentCategoryId={parentCategoryId}
+          categoryId={categoryId}
+          onParentChange={onParentCategoryChange}
+          onCategoryChange={onCategoryChange}
+        />
 
         {mode === 'text' ? (
           <>
@@ -693,6 +742,49 @@ function BatchImportDialog({
         </div>
       </div>
     </AdminModal>
+  )
+}
+
+function CategoryHierarchySelect({
+  categories,
+  parentCategoryId,
+  categoryId,
+  onParentChange,
+  onCategoryChange,
+}: {
+  categories: TermCategory[]
+  parentCategoryId: string
+  categoryId: string
+  onParentChange: (value: string) => void
+  onCategoryChange: (value: string) => void
+}) {
+  const parentCategories = parentCategoryOptions(categories)
+  const childCategories = childCategoriesOf(categories, parentCategoryId)
+  const selectedParent = findCategoryById(categories, parentCategoryId)
+  const finalPath = categoryPathLabel(categories, categoryId)
+
+  return (
+    <div className="space-y-4">
+      <Select label="一级分类" value={parentCategoryId} onChange={event => onParentChange(event.target.value)} required>
+        <option value="">请选择一级分类</option>
+        {parentCategories.map(category => (
+          <option key={category.id} value={category.id}>{category.name}</option>
+        ))}
+      </Select>
+
+      {parentCategoryId && childCategories.length > 0 && (
+        <Select label="二级分类" value={categoryId} onChange={event => onCategoryChange(event.target.value)} required>
+          <option value="">请选择二级分类</option>
+          {childCategories.map(category => (
+            <option key={category.id} value={category.id}>{category.name}</option>
+          ))}
+        </Select>
+      )}
+
+      <div className="rounded-xl border border-line bg-surface/70 px-4 py-3 text-xs leading-relaxed text-ink-600">
+        最终导入位置：{finalPath || (selectedParent && childCategories.length === 0 ? selectedParent.name : '请选择分类')}
+      </div>
+    </div>
   )
 }
 
@@ -840,9 +932,11 @@ function TermMeta({ label, value }: { label: string; value: string }) {
   )
 }
 
-function createTermForm(categoryId: string): TermForm {
+function createTermForm(categoryId: string, categories: TermCategory[] = []): TermForm {
+  const selection = createCategorySelection(categoryId, categories)
   return {
-    category_id: categoryId,
+    parent_category_id: selection.parent_category_id,
+    category_id: selection.category_id,
     source_text: '',
     target_text: '',
     definition: '',
@@ -850,6 +944,18 @@ function createTermForm(categoryId: string): TermForm {
     tags: '',
     source: '',
     difficulty: '',
+  }
+}
+
+function createCategorySelection(categoryId: string, categories: TermCategory[]) {
+  const selected = findCategoryById(categories, categoryId)
+  if (!selected) return { parent_category_id: '', category_id: categoryId }
+  if (selected.parent_id) return { parent_category_id: selected.parent_id, category_id: selected.id }
+
+  const children = childCategoriesOf(categories, selected.id)
+  return {
+    parent_category_id: selected.id,
+    category_id: children.length > 0 ? '' : selected.id,
   }
 }
 
@@ -890,7 +996,7 @@ function parseExcelRow(
   const source = pickExcelCell(row, ['来源', 'source'])
   const difficulty = pickExcelCell(row, ['难度', 'difficulty'])
   const categoryText = pickExcelCell(row, ['分类', 'category'])
-  const matchedCategory = categoryText ? findCategoryByName(categories, categoryText) : fallbackCategory
+  const matchedCategory = categoryText ? findImportableCategoryByName(categories, categoryText) : fallbackCategory
 
   if (!sourceText || !targetText) {
     const row = makePreviewRow(lineNumber, matchedCategory, sourceText, targetText, definition, exampleSentence, tagText, source, difficulty, 'invalid', '中文和英文必填')
@@ -898,9 +1004,15 @@ function parseExcelRow(
   }
 
   if (!matchedCategory) {
+    const matchedParent = categoryText ? findCategoryByName(categories, categoryText) : null
+    const message = matchedParent && childCategoriesOf(categories, matchedParent.id).length > 0
+      ? '该一级分类下有二级分类，请指定二级分类'
+      : categoryText
+        ? '未识别分类'
+        : '请先选择最终导入分类'
     return {
-      ...makePreviewRow(lineNumber, null, sourceText, targetText, definition, exampleSentence, tagText, source, difficulty, 'unknown_category', '未识别分类'),
-      category_name: categoryText,
+      ...makePreviewRow(lineNumber, null, sourceText, targetText, definition, exampleSentence, tagText, source, difficulty, 'unknown_category', message),
+      category_name: categoryText || '',
     }
   }
 
@@ -955,7 +1067,7 @@ function markDuplicateRows(
 
 function previewStatusText(row: ImportPreviewRow) {
   if (row.status === 'ready') return '可导入'
-  if (row.status === 'unknown_category') return '未识别分类'
+  if (row.status === 'unknown_category') return row.message || '未识别分类'
   return row.message
 }
 
@@ -995,7 +1107,36 @@ function findCategoryById(categories: TermCategory[], id: string) {
 
 function findCategoryByName(categories: TermCategory[], name: string) {
   const normalized = normalizeText(name)
-  return categories.find(category => normalizeText(category.name) === normalized) ?? null
+  return categories.find(category => {
+    return normalizeText(category.name) === normalized || normalizeText(categoryPathLabel(categories, category.id)) === normalized
+  }) ?? null
+}
+
+function findImportableCategoryById(categories: TermCategory[], id: string) {
+  const matched = findCategoryById(categories, id)
+  if (!matched) return null
+  return childCategoriesOf(categories, matched.id).length > 0 ? null : matched
+}
+
+function findImportableCategoryByName(categories: TermCategory[], name: string) {
+  const matched = findCategoryByName(categories, name)
+  if (!matched) return null
+  return childCategoriesOf(categories, matched.id).length > 0 ? null : matched
+}
+
+function parentCategoryOptions(categories: TermCategory[]) {
+  return categories.filter(category => !category.parent_id || (category.level ?? 1) === 1)
+}
+
+function childCategoriesOf(categories: TermCategory[], parentId: string) {
+  return categories.filter(category => category.parent_id === parentId)
+}
+
+function categoryPathLabel(categories: TermCategory[], categoryId: string) {
+  const selected = findCategoryById(categories, categoryId)
+  if (!selected) return ''
+  const parent = selected.parent_id ? findCategoryById(categories, selected.parent_id) : null
+  return parent ? `${parent.name} / ${selected.name}` : selected.name
 }
 
 function pickExcelCell(row: Record<string, unknown>, aliases: string[]) {

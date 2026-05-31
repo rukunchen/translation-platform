@@ -18,6 +18,11 @@ type TermCategory = {
   name: string
   description: string | null
   sort_order: number | null
+  parent_id: string | null
+  level: number | null
+  color: string | null
+  group_key: string | null
+  is_featured: boolean | null
   updated_at: string | null
 }
 
@@ -47,10 +52,116 @@ type CategoryStats = {
   latestUpdatedAt: string | null
 }
 
+type CategoryMindmapGroup = {
+  parent: TermCategory
+  children: TermCategory[]
+  nodeCount: number
+  totalTerms: number
+  color: CategoryColorKey
+}
+
 type CategoryForm = {
+  level: '1' | '2'
+  parent_id: string
   name: string
   description: string
+  color: string
   sort_order: string
+}
+
+type CategoryEditForm = {
+  parent_id: string
+  name: string
+  description: string
+  color: string
+  sort_order: string
+}
+
+const CATEGORY_COLORS = [
+  { value: 'orange', label: 'orange，橙色' },
+  { value: 'purple', label: 'purple，紫色' },
+  { value: 'blue', label: 'blue，蓝色' },
+  { value: 'green', label: 'green，绿色' },
+  { value: 'cyan', label: 'cyan，青色' },
+  { value: 'rose', label: 'rose，玫瑰色' },
+  { value: 'slate', label: 'slate，灰蓝色' },
+  { value: 'gray', label: 'gray，灰色' },
+]
+
+type CategoryColorKey = 'orange' | 'purple' | 'blue' | 'green' | 'cyan' | 'rose' | 'slate' | 'gray'
+
+const CATEGORY_TONES: Record<CategoryColorKey, {
+  solid: string
+  softBg: string
+  softBorder: string
+  line: string
+  text: string
+  shadow: string
+}> = {
+  orange: {
+    solid: 'rgb(194 99 55)',
+    softBg: 'rgb(255 247 237 / 0.72)',
+    softBorder: 'rgb(253 186 116)',
+    line: 'rgb(253 186 116)',
+    text: 'rgb(154 52 18)',
+    shadow: 'rgb(194 99 55 / 0.18)',
+  },
+  purple: {
+    solid: 'rgb(124 58 237)',
+    softBg: 'rgb(245 243 255 / 0.72)',
+    softBorder: 'rgb(196 181 253)',
+    line: 'rgb(196 181 253)',
+    text: 'rgb(91 33 182)',
+    shadow: 'rgb(124 58 237 / 0.18)',
+  },
+  blue: {
+    solid: 'rgb(37 99 235)',
+    softBg: 'rgb(239 246 255 / 0.72)',
+    softBorder: 'rgb(147 197 253)',
+    line: 'rgb(147 197 253)',
+    text: 'rgb(30 64 175)',
+    shadow: 'rgb(37 99 235 / 0.16)',
+  },
+  green: {
+    solid: 'rgb(22 128 82)',
+    softBg: 'rgb(240 253 244 / 0.72)',
+    softBorder: 'rgb(134 239 172)',
+    line: 'rgb(134 239 172)',
+    text: 'rgb(22 101 52)',
+    shadow: 'rgb(22 128 82 / 0.16)',
+  },
+  cyan: {
+    solid: 'rgb(14 116 144)',
+    softBg: 'rgb(236 254 255 / 0.72)',
+    softBorder: 'rgb(103 232 249)',
+    line: 'rgb(103 232 249)',
+    text: 'rgb(21 94 117)',
+    shadow: 'rgb(14 116 144 / 0.16)',
+  },
+  rose: {
+    solid: 'rgb(190 18 60)',
+    softBg: 'rgb(255 241 242 / 0.72)',
+    softBorder: 'rgb(253 164 175)',
+    line: 'rgb(253 164 175)',
+    text: 'rgb(159 18 57)',
+    shadow: 'rgb(190 18 60 / 0.15)',
+  },
+  slate: {
+    solid: 'rgb(71 85 105)',
+    softBg: 'rgb(248 250 252 / 0.82)',
+    softBorder: 'rgb(203 213 225)',
+    line: 'rgb(203 213 225)',
+    text: 'rgb(51 65 85)',
+    shadow: 'rgb(71 85 105 / 0.14)',
+  },
+  gray: {
+    solid: 'rgb(87 83 78)',
+    softBg: 'rgb(250 250 249 / 0.82)',
+    softBorder: 'rgb(214 211 209)',
+    line: 'rgb(214 211 209)',
+    text: 'rgb(68 64 60)',
+    shadow: 'rgb(87 83 78 / 0.12)',
+  },
 }
 
 async function loadPublicTermIndexes() {
@@ -84,7 +195,10 @@ export default function TermLearningPage() {
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null)
   const [showCategoryDialog, setShowCategoryDialog] = useState(false)
   const [savingCategory, setSavingCategory] = useState(false)
-  const [categoryForm, setCategoryForm] = useState<CategoryForm>(() => createCategoryForm(10))
+  const [categoryForm, setCategoryForm] = useState<CategoryForm>(() => createCategoryForm())
+  const [editingCategory, setEditingCategory] = useState<TermCategory | null>(null)
+  const [editCategoryForm, setEditCategoryForm] = useState<CategoryEditForm>(() => createCategoryEditForm(null))
+  const [savingEditedCategory, setSavingEditedCategory] = useState(false)
 
   const isAdmin = userEmail.toLowerCase() === ADMIN_EMAIL
 
@@ -94,7 +208,7 @@ export default function TermLearningPage() {
     const [categoryRes, termRes, termbookRes] = await Promise.all([
       supabase
         .from('term_categories')
-        .select('id, name, description, sort_order, updated_at')
+        .select('id, name, description, sort_order, parent_id, level, color, group_key, is_featured, updated_at')
         .order('sort_order', { ascending: true })
         .order('name', { ascending: true }),
       loadPublicTermIndexes(),
@@ -175,6 +289,13 @@ export default function TermLearningPage() {
   }, [categories, publicTerms, termbookItems])
 
   const totalTerms = publicTerms.length
+  const parentCategories = useMemo(() => {
+    return categories.filter(category => !category.parent_id || (category.level ?? 1) === 1)
+  }, [categories])
+  const categoryMindmapGroups = useMemo(() => {
+    return buildCategoryMindmapGroups(categories, categoryStats)
+  }, [categories, categoryStats])
+
   const savedTerms = termbookItems.length
   const filteredTermbookItems = useMemo(() => {
     if (termbookStatusFilter === 'all') return termbookItems
@@ -208,7 +329,19 @@ export default function TermLearningPage() {
 
   async function removeCategory(category: TermCategory) {
     if (!userId || !isAdmin) return
-    if (!confirm(`确定删除“${category.name}”分类吗？该分类下的公共词条也会一并删除。`)) return
+    const hasChildren = categories.some(child => child.parent_id === category.id)
+    if (hasChildren) {
+      alert('该分类下仍有子分类，不能直接删除。请先处理子分类。')
+      return
+    }
+    const stats = categoryStats[category.id] ?? { termCount: 0, savedCount: 0, latestUpdatedAt: null }
+    if (stats.termCount > 0) {
+      alert('该分类下仍有词条，不能直接删除。请先移动或删除词条。')
+      return
+    }
+    if (!confirm(`确定删除“${category.name}”分类吗？`)) {
+      return
+    }
     setDeletingCategoryId(category.id)
     const { error } = await supabase
       .from('term_categories')
@@ -222,6 +355,88 @@ export default function TermLearningPage() {
     await load(userId)
   }
 
+  function openEditCategoryDialog(category: TermCategory) {
+    if (!isAdmin) return
+    setEditingCategory(category)
+    setEditCategoryForm(createCategoryEditForm(category))
+  }
+
+  async function updateCategory() {
+    if (!userId || !isAdmin || !editingCategory) return
+    const name = editCategoryForm.name.trim()
+    const parentId = editCategoryForm.parent_id || null
+    const parentCategory = parentId ? parentCategories.find(category => category.id === parentId) : null
+
+    if (!name) {
+      alert('请填写分类名称。')
+      return
+    }
+    if (parentId === editingCategory.id) {
+      alert('不能把分类设置为自己的父级。')
+      return
+    }
+    if (parentId && !parentCategory) {
+      alert('请选择有效的父级分类。')
+      return
+    }
+    if (parentId && categories.some(category => category.parent_id === editingCategory.id)) {
+      alert('该分类下仍有子分类，不能改为二级分类。请先处理子分类。')
+      return
+    }
+
+    const duplicateInCurrentList = categories.some(category => {
+      if (category.id === editingCategory.id || category.name !== name) return false
+      return (category.parent_id ?? null) === parentId
+    })
+    if (duplicateInCurrentList) {
+      alert('该父级下已存在同名分类。')
+      return
+    }
+
+    setSavingEditedCategory(true)
+    let duplicateQuery = supabase
+      .from('term_categories')
+      .select('id')
+      .eq('name', name)
+      .neq('id', editingCategory.id)
+      .limit(1)
+
+    duplicateQuery = parentId ? duplicateQuery.eq('parent_id', parentId) : duplicateQuery.is('parent_id', null)
+    const { data: duplicateRows, error: duplicateError } = await duplicateQuery
+    if (duplicateError) {
+      setSavingEditedCategory(false)
+      alert('检查重复分类失败：' + duplicateError.message)
+      return
+    }
+    if ((duplicateRows ?? []).length > 0) {
+      setSavingEditedCategory(false)
+      alert('该父级下已存在同名分类。')
+      return
+    }
+
+    const { error } = await supabase
+      .from('term_categories')
+      .update({
+        name,
+        description: nullableText(editCategoryForm.description),
+        color: editCategoryForm.color || parentCategory?.color || 'gray',
+        parent_id: parentId,
+        level: parentId ? 2 : 1,
+        group_key: parentId ? parentCategory?.group_key || inferGroupKey(name) : inferGroupKey(name),
+        is_featured: !parentId,
+        sort_order: nullableSortOrder(editCategoryForm.sort_order),
+      })
+      .eq('id', editingCategory.id)
+    setSavingEditedCategory(false)
+
+    if (error) {
+      alert('编辑分类失败：' + error.message)
+      return
+    }
+    setEditingCategory(null)
+    await load(userId)
+  }
+
   function openAdminImport() {
     if (categories.length === 0) {
       alert('请先新建分类，再导入词条。')
@@ -232,23 +447,65 @@ export default function TermLearningPage() {
   }
 
   function openCreateCategoryDialog() {
-    const nextSortOrder = categories.reduce((max, category) => Math.max(max, category.sort_order ?? 0), 0) + 10
-    setCategoryForm(createCategoryForm(nextSortOrder))
+    setCategoryForm(createCategoryForm())
     setShowCategoryDialog(true)
   }
 
   async function createCategory() {
     if (!userId || !isAdmin) return
     const name = categoryForm.name.trim()
+    const level = categoryForm.level === '2' ? 2 : 1
+    const parentId = level === 2 ? categoryForm.parent_id : ''
+    const parentCategory = parentId ? parentCategories.find(category => category.id === parentId) : null
     if (!name) {
       alert('请填写分类名称。')
       return
     }
+    if (level === 2 && !parentCategory) {
+      alert('请选择父级分类。')
+      return
+    }
+    const duplicateInCurrentList = categories.some(category => {
+      if (category.name !== name) return false
+      if (level === 1) return !category.parent_id
+      return category.parent_id === parentId
+    })
+    if (duplicateInCurrentList) {
+      alert('该父级下已存在同名分类。')
+      return
+    }
     setSavingCategory(true)
+    let duplicateQuery = supabase
+      .from('term_categories')
+      .select('id')
+      .eq('name', name)
+      .limit(1)
+
+    duplicateQuery = level === 1 ? duplicateQuery.is('parent_id', null) : duplicateQuery.eq('parent_id', parentId)
+    const { data: duplicateRows, error: duplicateError } = await duplicateQuery
+    if (duplicateError) {
+      setSavingCategory(false)
+      alert('检查重复分类失败：' + duplicateError.message)
+      return
+    }
+    if ((duplicateRows ?? []).length > 0) {
+      setSavingCategory(false)
+      alert('该父级下已存在同名分类。')
+      return
+    }
+
+    const sortOrder = parseSortOrder(categoryForm.sort_order, categories, level === 1 ? null : parentId)
+    const color = categoryForm.color || parentCategory?.color || 'gray'
+    const groupKey = level === 2 ? parentCategory?.group_key || inferGroupKey(name) : inferGroupKey(name)
     const { error } = await supabase.from('term_categories').insert({
       name,
       description: nullableText(categoryForm.description),
-      sort_order: Number(categoryForm.sort_order) || 0,
+      sort_order: sortOrder,
+      parent_id: level === 1 ? null : parentId,
+      level,
+      color,
+      group_key: groupKey,
+      is_featured: level === 1,
     })
     setSavingCategory(false)
     if (error) {
@@ -359,21 +616,15 @@ export default function TermLearningPage() {
                   <h2 className="mb-3 font-serif text-xl text-ink-900">暂无词条分类。请管理员先创建分类。</h2>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {categories.map(category => {
-                    const stats = categoryStats[category.id] ?? { termCount: 0, savedCount: 0, latestUpdatedAt: null }
-                    return (
-                      <CategoryCard
-                        key={category.id}
-                        category={category}
-                        stats={stats}
-                        onOpen={() => router.push(`/practice/terms/category/${category.id}`)}
-                        onDelete={isAdmin ? () => removeCategory(category) : undefined}
-                        deleting={deletingCategoryId === category.id}
-                      />
-                    )
-                  })}
-                </div>
+                <CategoryMindmap
+                  groups={categoryMindmapGroups}
+                  stats={categoryStats}
+                  onOpen={category => router.push(`/practice/terms/category/${category.id}`)}
+                  isAdmin={isAdmin}
+                  onEdit={openEditCategoryDialog}
+                  onDelete={removeCategory}
+                  deletingCategoryId={deletingCategoryId}
+                />
               )}
             </section>}
 
@@ -425,9 +676,22 @@ export default function TermLearningPage() {
               <CategoryDialog
                 form={categoryForm}
                 saving={savingCategory}
+                parentCategories={parentCategories}
                 onChange={patch => setCategoryForm(prev => ({ ...prev, ...patch }))}
                 onClose={() => setShowCategoryDialog(false)}
                 onSave={createCategory}
+              />
+            )}
+
+            {editingCategory && isAdmin && (
+              <CategoryEditDialog
+                category={editingCategory}
+                form={editCategoryForm}
+                saving={savingEditedCategory}
+                parentCategories={parentCategories}
+                onChange={patch => setEditCategoryForm(prev => ({ ...prev, ...patch }))}
+                onClose={() => setEditingCategory(null)}
+                onSave={updateCategory}
               />
             )}
           </MainContent>
@@ -440,16 +704,23 @@ export default function TermLearningPage() {
 function CategoryDialog({
   form,
   saving,
+  parentCategories,
   onChange,
   onClose,
   onSave,
 }: {
   form: CategoryForm
   saving: boolean
+  parentCategories: TermCategory[]
   onChange: (patch: Partial<CategoryForm>) => void
   onClose: () => void
   onSave: () => Promise<void>
 }) {
+  const selectedParent = parentCategories.find(category => category.id === form.parent_id)
+  const colorHint = form.level === '2' && !form.color && selectedParent?.color
+    ? `留空时继承父级颜色：${selectedParent.color}`
+    : undefined
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4 backdrop-blur-sm">
       <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white shadow-[var(--shadow-modal)]" style={{ padding: 32 }}>
@@ -458,12 +729,107 @@ function CategoryDialog({
           <button type="button" onClick={onClose} className="text-sm text-ink-400 hover:text-ink-900">关闭</button>
         </div>
         <form className="space-y-5" onSubmit={event => { event.preventDefault(); void onSave() }}>
+          <Select
+            label="分类层级"
+            value={form.level}
+            onChange={event => onChange({ level: event.target.value as CategoryForm['level'], parent_id: '', color: event.target.value === '2' ? '' : form.color || 'gray' })}
+          >
+            <option value="1">一级分类</option>
+            <option value="2">二级分类</option>
+          </Select>
+          {form.level === '2' && (
+            <Select
+              label="父级分类"
+              value={form.parent_id}
+              onChange={event => onChange({ parent_id: event.target.value })}
+              required
+            >
+              <option value="">请选择父级分类</option>
+              {parentCategories.map(category => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </Select>
+          )}
           <Input label="分类名称" value={form.name} onChange={event => onChange({ name: event.target.value })} required />
           <Textarea label="分类说明" value={form.description} onChange={event => onChange({ description: event.target.value })} rows={3} />
-          <Input label="排序" type="number" value={form.sort_order} onChange={event => onChange({ sort_order: event.target.value })} />
+          <Select
+            label="分类颜色"
+            value={form.color}
+            onChange={event => onChange({ color: event.target.value })}
+            hint={colorHint}
+          >
+            {form.level === '2' && <option value="">继承父级颜色</option>}
+            {CATEGORY_COLORS.map(color => (
+              <option key={color.value} value={color.value}>{color.label}</option>
+            ))}
+          </Select>
+          <Input
+            label="排序"
+            type="number"
+            value={form.sort_order}
+            onChange={event => onChange({ sort_order: event.target.value })}
+            placeholder="留空自动排序"
+          />
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
             <Button variant="secondary" onClick={onClose}>取消</Button>
             <Button variant="primary" type="submit" loading={saving}>保存分类</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function CategoryEditDialog({
+  category,
+  form,
+  saving,
+  parentCategories,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  category: TermCategory
+  form: CategoryEditForm
+  saving: boolean
+  parentCategories: TermCategory[]
+  onChange: (patch: Partial<CategoryEditForm>) => void
+  onClose: () => void
+  onSave: () => Promise<void>
+}) {
+  const parentOptions = parentCategories.filter(parent => parent.id !== category.id)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white shadow-[var(--shadow-modal)]" style={{ padding: 32 }}>
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h3 className="font-serif text-2xl text-ink-900">编辑分类</h3>
+          <button type="button" onClick={onClose} className="text-sm text-ink-400 hover:text-ink-900">关闭</button>
+        </div>
+        <form className="space-y-5" onSubmit={event => { event.preventDefault(); void onSave() }}>
+          <Input label="分类名称" value={form.name} onChange={event => onChange({ name: event.target.value })} required />
+          <Textarea label="分类说明" value={form.description} onChange={event => onChange({ description: event.target.value })} rows={3} />
+          <Select label="分类颜色" value={form.color} onChange={event => onChange({ color: event.target.value })}>
+            {CATEGORY_COLORS.map(color => (
+              <option key={color.value} value={color.value}>{color.label}</option>
+            ))}
+          </Select>
+          <Select label="父级分类" value={form.parent_id} onChange={event => onChange({ parent_id: event.target.value })}>
+            <option value="">无父级，作为一级分类</option>
+            {parentOptions.map(parent => (
+              <option key={parent.id} value={parent.id}>{parent.name}</option>
+            ))}
+          </Select>
+          <Input
+            label="排序"
+            type="number"
+            value={form.sort_order}
+            onChange={event => onChange({ sort_order: event.target.value })}
+            placeholder="留空不设置排序"
+          />
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={onClose}>取消</Button>
+            <Button variant="primary" type="submit" loading={saving}>保存修改</Button>
           </div>
         </form>
       </div>
@@ -509,52 +875,190 @@ function TermPortalCard({
   )
 }
 
-function CategoryCard({
-  category,
+function CategoryMindmap({
+  groups,
   stats,
   onOpen,
+  isAdmin,
+  onEdit,
   onDelete,
-  deleting,
+  deletingCategoryId,
 }: {
-  category: TermCategory
-  stats: CategoryStats
-  onOpen: () => void
-  onDelete?: () => void
-  deleting?: boolean
+  groups: CategoryMindmapGroup[]
+  stats: Record<string, CategoryStats>
+  onOpen: (category: TermCategory) => void
+  isAdmin: boolean
+  onEdit: (category: TermCategory) => void
+  onDelete: (category: TermCategory) => void
+  deletingCategoryId: string | null
 }) {
   return (
-    <Card padding="md" className="flex min-h-[230px] flex-col justify-between border-line/80">
-      <div>
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h3 className="font-serif text-xl text-ink-900">{category.name}</h3>
-            <p className="mt-2 min-h-[40px] text-sm leading-relaxed text-ink-600">
-              {category.description || '公共词条分类'}
-            </p>
+    <div className="space-y-5">
+      {groups.map(group => {
+        const tone = CATEGORY_TONES[group.color]
+        return (
+          <div
+            key={group.parent.id}
+            className="rounded-2xl border border-line bg-white/90 p-4 shadow-sm lg:grid lg:grid-cols-[240px_92px_minmax(0,1fr)] lg:items-center lg:gap-0"
+          >
+            <div
+              className="relative rounded-2xl px-5 py-5 text-white shadow-sm"
+              style={{ backgroundColor: tone.solid, boxShadow: `0 18px 36px ${tone.shadow}` }}
+            >
+              {isAdmin && (
+                <CategoryNodeMenu
+                  category={group.parent}
+                  light
+                  deleting={deletingCategoryId === group.parent.id}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                />
+              )}
+              <p className="mb-3 text-[11px] uppercase tracking-[0.18em] text-white/70">Level 1</p>
+              <h3 className="break-words font-serif text-2xl leading-snug">{group.parent.name}</h3>
+              <p className="mt-3 line-clamp-2 min-h-[40px] text-sm leading-relaxed text-white/78">
+                {group.parent.description || '公共词条一级分类'}
+              </p>
+              <div className="mt-5 grid grid-cols-2 gap-3 border-t border-white/25 pt-4">
+                <MindmapMeta label="子节点" value={String(group.nodeCount)} light />
+                <MindmapMeta label="词条" value={String(group.totalTerms)} light />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-center py-3 lg:py-0" aria-hidden="true">
+              <div className="hidden w-full items-center lg:flex">
+                <div className="h-px flex-1" style={{ backgroundColor: tone.line }} />
+                <span className="mx-2 text-lg" style={{ color: tone.text }}>▶</span>
+                <div className="h-px w-3" style={{ backgroundColor: tone.line }} />
+              </div>
+              <div className="flex flex-col items-center lg:hidden">
+                <div className="h-6 w-px" style={{ backgroundColor: tone.line }} />
+                <span className="text-base" style={{ color: tone.text }}>↓</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {group.children.map(child => {
+                const childStats = stats[child.id] ?? { termCount: 0, savedCount: 0, latestUpdatedAt: null }
+                return (
+                  <div
+                    key={child.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onOpen(child)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        onOpen(child)
+                      }
+                    }}
+                    className="group relative min-h-[128px] cursor-pointer rounded-2xl border px-4 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-brand/10"
+                    style={{ backgroundColor: tone.softBg, borderColor: tone.softBorder }}
+                  >
+                    {isAdmin && (
+                      <CategoryNodeMenu
+                        category={child}
+                        deleting={deletingCategoryId === child.id}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
+                      />
+                    )}
+                    <div className="flex h-full flex-col justify-between gap-4">
+                      <div>
+                        <p className="mb-2 text-[11px] uppercase tracking-[0.16em]" style={{ color: tone.text }}>Level 2</p>
+                        <h4 className="break-words font-serif text-xl leading-snug text-ink-900">{child.name}</h4>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 border-t pt-3" style={{ borderColor: tone.softBorder }}>
+                        <MindmapMeta label="词条" value={String(childStats.termCount)} />
+                        <MindmapMeta label="已加入" value={String(childStats.savedCount)} />
+                        <div>
+                          <p className="mb-1 text-[11px] text-ink-500">操作</p>
+                          <p className="text-xs font-medium transition-colors group-hover:text-ink-900" style={{ color: tone.text }}>进入学习</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-          <span className="shrink-0 rounded-full border border-line bg-canvas px-2.5 py-1 font-mono text-xs text-ink-600">
-            {category.sort_order ?? 0}
-          </span>
-        </div>
-        <div className="grid grid-cols-3 gap-2 border-t border-line pt-4">
-          <CategoryStat label="词条数量" value={String(stats.termCount)} />
-          <CategoryStat label="已加入" value={String(stats.savedCount)} />
-          <CategoryStat label="最近更新" value={formatDate(stats.latestUpdatedAt)} compact />
-        </div>
-      </div>
-      <div className="mt-6 flex justify-end gap-2">
-        {onDelete && <Button variant="danger" onClick={onDelete} loading={deleting}>删除分类</Button>}
-        <Button variant="ghost" onClick={onOpen}>进入学习</Button>
-      </div>
-    </Card>
+        )
+      })}
+    </div>
   )
 }
 
-function CategoryStat({ label, value, compact }: { label: string; value: string; compact?: boolean }) {
+function MindmapMeta({ label, value, light }: { label: string; value: string; light?: boolean }) {
   return (
     <div>
-      <p className="mb-1 text-[11px] text-ink-500">{label}</p>
-      <p className={compact ? 'text-xs text-ink-700' : 'font-mono text-sm text-ink-900'}>{value}</p>
+      <p className={light ? 'mb-1 text-[11px] text-white/65' : 'mb-1 text-[11px] text-ink-500'}>{label}</p>
+      <p className={light ? 'font-mono text-sm text-white' : 'font-mono text-sm text-ink-900'}>{value}</p>
+    </div>
+  )
+}
+
+function CategoryNodeMenu({
+  category,
+  light,
+  deleting,
+  onEdit,
+  onDelete,
+}: {
+  category: TermCategory
+  light?: boolean
+  deleting?: boolean
+  onEdit: (category: TermCategory) => void
+  onDelete: (category: TermCategory) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="absolute right-3 top-3 z-10">
+      <button
+        type="button"
+        aria-label="分类管理"
+        onClick={event => {
+          event.stopPropagation()
+          setOpen(prev => !prev)
+        }}
+        className={[
+          'flex h-8 w-8 items-center justify-center rounded-full border text-sm transition-colors',
+          light
+            ? 'border-white/20 bg-white/10 text-white/80 hover:bg-white/20 hover:text-white'
+            : 'border-line bg-white/80 text-ink-500 hover:border-ink-300 hover:text-ink-900',
+        ].join(' ')}
+      >
+        ···
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-10 w-32 overflow-hidden rounded-xl border border-line bg-white py-1 text-sm shadow-[var(--shadow-modal)]"
+          onClick={event => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="block w-full px-3 py-2 text-left text-ink-700 hover:bg-canvas hover:text-ink-900"
+            onClick={() => {
+              setOpen(false)
+              onEdit(category)
+            }}
+          >
+            编辑分类
+          </button>
+          <button
+            type="button"
+            disabled={deleting}
+            className="block w-full px-3 py-2 text-left text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+            onClick={() => {
+              setOpen(false)
+              onDelete(category)
+            }}
+          >
+            {deleting ? '删除中...' : '删除分类'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -651,15 +1155,86 @@ function formatDate(value: string | null) {
   })
 }
 
-function createCategoryForm(sortOrder: number): CategoryForm {
+function createCategoryForm(): CategoryForm {
   return {
+    level: '1',
+    parent_id: '',
     name: '',
     description: '',
-    sort_order: String(sortOrder),
+    color: 'gray',
+    sort_order: '',
+  }
+}
+
+function createCategoryEditForm(category: TermCategory | null): CategoryEditForm {
+  return {
+    parent_id: category?.parent_id ?? '',
+    name: category?.name ?? '',
+    description: category?.description ?? '',
+    color: category?.color || 'gray',
+    sort_order: category?.sort_order === null || category?.sort_order === undefined ? '' : String(category.sort_order),
   }
 }
 
 function nullableText(value: string) {
   const trimmed = value.trim()
   return trimmed || null
+}
+
+function nullableSortOrder(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function parseSortOrder(value: string, categories: TermCategory[], parentId: string | null) {
+  const trimmed = value.trim()
+  if (trimmed) {
+    const parsed = Number(trimmed)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return categories
+    .filter(category => (category.parent_id ?? null) === parentId)
+    .reduce((max, category) => Math.max(max, category.sort_order ?? 0), 0) + 10
+}
+
+function inferGroupKey(name: string) {
+  if (name.includes('大会热词') || name.includes('大会议热词')) return 'congress_terms'
+  if (name.includes('中华思想文化')) return 'chinese_culture'
+  if (name.includes('专题词条')) return 'topic_terms'
+  return null
+}
+
+function buildCategoryMindmapGroups(categories: TermCategory[], stats: Record<string, CategoryStats>): CategoryMindmapGroup[] {
+  const categoryById = new Map(categories.map(category => [category.id, category]))
+  const parents = categories
+    .filter(category => !category.parent_id || (category.level ?? 1) === 1 || !categoryById.has(category.parent_id))
+    .sort(sortCategories)
+
+  return parents.map(parent => {
+    const realChildren = categories
+      .filter(category => category.parent_id === parent.id && category.id !== parent.id && category.level !== 1)
+      .sort(sortCategories)
+    const children = realChildren.length > 0 ? realChildren : [parent]
+    const totalCategories = realChildren.length > 0 ? [parent, ...realChildren] : [parent]
+    return {
+      parent,
+      children,
+      nodeCount: children.length,
+      totalTerms: totalCategories.reduce((sum, category) => sum + (stats[category.id]?.termCount ?? 0), 0),
+      color: categoryColorKey(parent.color),
+    }
+  })
+}
+
+function sortCategories(a: TermCategory, b: TermCategory) {
+  const sortDelta = (a.sort_order ?? 0) - (b.sort_order ?? 0)
+  if (sortDelta !== 0) return sortDelta
+  return a.name.localeCompare(b.name, 'zh-CN')
+}
+
+function categoryColorKey(value: string | null): CategoryColorKey {
+  if (value && value in CATEGORY_TONES) return value as CategoryColorKey
+  return 'gray'
 }
