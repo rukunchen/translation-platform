@@ -117,6 +117,17 @@ export default function TermLearningPage() {
     })
   }, [load, router])
 
+  useEffect(() => {
+    function syncViewFromHash() {
+      if (window.location.hash === '#my-termbook') setActiveView('termbook')
+      if (window.location.hash === '#term-categories') setActiveView('library')
+    }
+
+    syncViewFromHash()
+    window.addEventListener('hashchange', syncViewFromHash)
+    return () => window.removeEventListener('hashchange', syncViewFromHash)
+  }, [])
+
   const categoryStats = useMemo(() => {
     const stats: Record<string, CategoryStats> = {}
     const termCategoryById = new Map<string, string>()
@@ -237,6 +248,10 @@ export default function TermLearningPage() {
     router.push('/practice/terms/study?scope=my-termbook')
   }
 
+  function openTermTest() {
+    router.push('/practice/terms/test')
+  }
+
   return (
     <div className="flex h-screen bg-canvas">
       <Sidebar />
@@ -257,7 +272,7 @@ export default function TermLearningPage() {
               }
             />
 
-            <section className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <section className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
               <TermPortalCard
                 eyebrow="Public Library"
                 title="公共词条库"
@@ -273,6 +288,14 @@ export default function TermLearningPage() {
                 metric={`${savedTerms} 条词条`}
                 buttonLabel="查看我的词条本"
                 onOpen={openTermbookView}
+              />
+              <TermPortalCard
+                eyebrow="Term Test"
+                title="词条测试"
+                description="分类抽题、选择题训练与错译识别"
+                metric="设置测试"
+                buttonLabel="进入词条测试"
+                onOpen={openTermTest}
               />
             </section>
 
@@ -295,6 +318,7 @@ export default function TermLearningPage() {
             <section className="mb-7 flex flex-wrap gap-2">
               <Button variant={activeView === 'library' ? 'primary' : 'secondary'} onClick={openLibraryView}>公共词条库</Button>
               <Button variant={activeView === 'termbook' ? 'primary' : 'secondary'} onClick={openTermbookView}>我的词条本</Button>
+              <Button variant="secondary" onClick={openTermTest}>词条测试</Button>
             </section>
 
             {activeView === 'library' && <section id="term-categories">
