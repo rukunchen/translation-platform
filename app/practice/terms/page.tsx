@@ -53,6 +53,23 @@ type CategoryForm = {
   sort_order: string
 }
 
+async function loadPublicTermIndexes() {
+  const pageSize = 1000
+  const rows: PublicTermIndex[] = []
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('public_terms')
+      .select('id, category_id, updated_at')
+      .order('id', { ascending: true })
+      .range(from, from + pageSize - 1)
+
+    if (error) return { data: rows, error }
+    rows.push(...((data ?? []) as PublicTermIndex[]))
+    if (!data || data.length < pageSize) return { data: rows, error: null }
+  }
+}
+
 export default function TermLearningPage() {
   const router = useRouter()
   const [userId, setUserId] = useState('')
@@ -80,9 +97,7 @@ export default function TermLearningPage() {
         .select('id, name, description, sort_order, updated_at')
         .order('sort_order', { ascending: true })
         .order('name', { ascending: true }),
-      supabase
-        .from('public_terms')
-        .select('id, category_id, updated_at'),
+      loadPublicTermIndexes(),
       supabase
         .from('user_termbook_items')
         .select('id, public_term_id, source_text, target_text, definition, example_sentence, personal_note, personal_tags, mastery_status, review_count, updated_at')
