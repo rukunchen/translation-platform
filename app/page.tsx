@@ -148,9 +148,6 @@ export default function LoginPage() {
             <h2 className="font-serif text-3xl text-ink-900 tracking-tight leading-tight">
               欢迎回来
             </h2>
-            <p className="text-ink-500 mt-2.5 text-sm leading-relaxed">
-              登录后进入你的翻译项目、审校任务和 AI 实验记录。
-            </p>
           </div>
 
           <form onSubmit={handleSubmit}
