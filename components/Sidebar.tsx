@@ -296,10 +296,10 @@ function SidebarContent({
       <div style={{ padding: '16px 16px 28px' }} className="space-y-1">
         <div className="flex items-center gap-3" style={{ padding: '10px 8px' }}>
           <div className="w-9 h-9 bg-brand rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-sm font-semibold">{initial}</span>
+            <span className="sidebar-white-text text-white text-sm font-semibold">{initial}</span>
           </div>
           <div className="flex flex-col min-w-0 leading-tight">
-            <span className="text-white text-sm font-medium truncate">{userName}</span>
+            <span className="sidebar-white-text text-white text-sm font-medium truncate">{userName}</span>
             <span className="text-ink-400 text-[11px] truncate">{userEmail}</span>
           </div>
         </div>
@@ -352,7 +352,7 @@ function WorkspaceItem({
           {icon}
         </span>
         <span className="min-w-0 flex-1">
-          <span className={cn('block truncate text-[13.5px] font-medium leading-tight', active ? 'text-white' : 'text-white/90 group-hover:text-white')}>
+          <span className={cn('sidebar-white-text block truncate text-[13.5px] font-medium leading-tight', active ? 'text-white' : 'text-white/90 group-hover:text-white')}>
             {label}
           </span>
           <span className={cn('mt-1 block truncate text-[11px] leading-tight', active ? 'text-white/55' : 'text-white/50')}>
@@ -387,7 +387,7 @@ function NavItem({
       style={{ paddingLeft: 12, paddingRight: 12 }}
     >
       <span className={cn('flex-shrink-0 flex items-center justify-center w-5', active ? 'text-brand' : '')}>{icon}</span>
-      <span className="truncate">{label}</span>
+      <span className={cn('truncate', active ? 'sidebar-white-text' : '')}>{label}</span>
       {active && <span className="ml-auto w-1 h-5 rounded-full bg-brand" />}
     </button>
   )
