@@ -304,49 +304,23 @@ export default function DashboardPage() {
   const [creating, setCreating] = useState(false)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
 
-  const loadAll = useCallback(async (userId: string) => {
-    const { data: myMemberships } = await supabase
-      .from('project_members')
-      .select('project_id')
-      .eq('user_id', userId)
-    const ids = Array.from(new Set((myMemberships ?? []).map(m => m.project_id as string).filter(Boolean)))
-
-    if (ids.length === 0) {
+  const loadAll = useCallback(async () => {
+    const { data, error } = await apiJSON<{ projects: Project[]; documents: DocumentRow[]; members: MemberRow[] }>('/api/projects')
+    if (error || !data) {
       setProjects([]); setDocuments([]); setSegments([]); setMembers([]); setParallel([])
       return
     }
 
-    const { data: ps } = await supabase
-      .from('projects')
-      .select('id, name, description, created_at, updated_at, type, metadata')
-      .in('id', ids)
-      .order('updated_at', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(50)
-    const projectsList = (ps ?? []) as Project[]
+    const projectsList = data.projects ?? []
+    const docs = data.documents ?? []
     setProjects(projectsList)
+    setDocuments(docs)
+    setMembers(data.members ?? [])
 
     if (projectsList.length === 0) {
-      setDocuments([]); setSegments([]); setMembers([]); setParallel([])
+      setSegments([]); setParallel([])
       return
     }
-    const projectIds = projectsList.map(p => p.id)
-
-    const [initialDocsRes, membersRes] = await Promise.all([
-      supabase.from('documents').select('id, project_id, title, source_language, target_language, document_type, updated_at, created_at').in('project_id', projectIds),
-      supabase.from('project_members').select('project_id, user_id, role').in('project_id', projectIds),
-    ])
-    let docsData: unknown = initialDocsRes.data
-    if (initialDocsRes.error && /document_type|schema cache|column/i.test(initialDocsRes.error.message)) {
-      const fallbackDocsRes = await supabase
-        .from('documents')
-        .select('id, project_id, title, source_language, target_language, updated_at, created_at')
-        .in('project_id', projectIds)
-      docsData = fallbackDocsRes.data
-    }
-    const docs = (docsData ?? []) as DocumentRow[]
-    setDocuments(docs)
-    setMembers((membersRes.data ?? []) as MemberRow[])
 
     // segments / parallel 通过 document_id 拉
     const docIds = docs.map(d => d.id)
@@ -409,7 +383,7 @@ export default function DashboardPage() {
     const user = session?.user
     if (!user) { router.push('/'); return }
     setUser(user as typeof user & { id: string })
-    await Promise.all([loadAll(user.id), loadPracticeOverview(user.id)])
+    await Promise.all([loadAll(), loadPracticeOverview(user.id)])
     setLoading(false)
   }, [loadAll, loadPracticeOverview, router])
 
@@ -439,7 +413,7 @@ export default function DashboardPage() {
     const { error } = await apiJSON(`/api/projects/${project.id}`, { method: 'DELETE' })
     setDeletingProjectId(null)
     if (error) { alert('删除失败：' + error); return }
-    if (user?.id) await loadAll(user.id)
+    if (user?.id) await loadAll()
   }
 
   const userName = user?.user_metadata?.name || (user?.email ? user.email.split('@')[0] : '同学')
