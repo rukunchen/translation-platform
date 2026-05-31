@@ -899,7 +899,7 @@ function CategoryMindmap({
         return (
           <div
             key={group.parent.id}
-            className="rounded-2xl border border-line bg-white/90 p-4 shadow-sm xl:grid xl:grid-cols-[220px_64px_minmax(0,1fr)] xl:items-center xl:gap-0"
+            className="p-4 xl:grid xl:grid-cols-[220px_64px_minmax(0,1fr)] xl:items-center xl:gap-0"
           >
             <div
               className="relative rounded-2xl text-white shadow-sm"
@@ -933,7 +933,6 @@ function CategoryMindmap({
               <div className="hidden w-full items-center xl:flex">
                 <div className="h-px flex-1" style={{ backgroundColor: tone.line }} />
                 <span className="mx-1.5 text-base" style={{ color: tone.text }}>▶</span>
-                <div className="h-px w-2" style={{ backgroundColor: tone.line }} />
               </div>
               <div className="flex flex-col items-center xl:hidden">
                 <div className="h-6 w-px" style={{ backgroundColor: tone.line }} />
