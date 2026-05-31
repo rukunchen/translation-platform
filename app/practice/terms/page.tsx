@@ -893,13 +893,14 @@ function CategoryMindmap({
   deletingCategoryId: string | null
 }) {
   return (
-    <div className="space-y-8">
-      {groups.map(group => {
+    <div>
+      {groups.map((group, index) => {
         const tone = CATEGORY_TONES[group.color]
         return (
           <div
             key={group.parent.id}
             className="p-4 xl:grid xl:grid-cols-[220px_64px_minmax(0,1fr)] xl:items-center xl:gap-0"
+            style={{ marginTop: index === 0 ? 0 : 40 }}
           >
             <div
               className="relative rounded-2xl text-white shadow-sm"
