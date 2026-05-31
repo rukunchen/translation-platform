@@ -321,7 +321,7 @@ export default function TermLearningPage() {
               </section>
             )}
 
-            <section className="my-8 flex flex-wrap gap-3">
+            <section className="mb-12 mt-12 flex flex-wrap gap-3 py-3">
               <Button variant={activeView === 'library' ? 'primary' : 'secondary'} onClick={openLibraryView}>公共词条库</Button>
               <Button variant={activeView === 'termbook' ? 'primary' : 'secondary'} onClick={openTermbookView}>我的词条本</Button>
             </section>
