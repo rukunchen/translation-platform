@@ -64,7 +64,7 @@ export default function LoginPage() {
         {/* 顶部 logo */}
         <div className="absolute top-10 left-10 sm:top-10 sm:left-12 lg:top-12 lg:left-16 flex items-center gap-3">
           <Logo size={40} priority className="flex-shrink-0" />
-          <span className="brand-wordmark text-ink-900 text-[30px]">译境</span>
+          <span className="brand-wordmark text-ink-900 text-[40px]">译境</span>
         </div>
 
         {/* 中部主内容 */}
@@ -85,27 +85,18 @@ export default function LoginPage() {
             />
           </div>
 
-          <h1 className="font-serif text-ink-900"
+          <h1 className="landing-slogan text-ink-900"
             style={{
-              fontFamily: 'var(--font-serif)',
               fontSize: 'clamp(28px, 3.4vw, 44px)',
-              lineHeight: 1.15,
-              letterSpacing: '-0.01em',
+              lineHeight: 1.18,
+              letterSpacing: 0,
               textAlign: 'center',
               margin: 0,
             }}>
             为{' '}
             <span
               style={{
-                fontFamily: '"Chalkboard SE", "Marker Felt", "Comic Sans MS", "Segoe Print", system-ui, sans-serif',
-                fontWeight: 700,
                 color: 'var(--color-brand)',
-                fontSize: '1.4em',
-                letterSpacing: '0.03em',
-                margin: '0 0.1em',
-                verticalAlign: 'baseline',
-                display: 'inline-block',
-                transform: 'rotate(-2deg)',
               }}>
               MTI
             </span>{' '}
