@@ -224,6 +224,7 @@ export default function TranslationPracticeHomePage() {
                 title="CATTI 模考中心"
                 description="二笔、二口实务训练与模考报告。"
                 buttonLabel="进入模考中心"
+                tone="amber"
                 onOpen={() => router.push('/practice/catti')}
               />
               <PracticeEntryCard
@@ -231,6 +232,7 @@ export default function TranslationPracticeHomePage() {
                 title="词条学习"
                 description="热词分类、卡片记忆与个人词条本"
                 buttonLabel="进入词条学习"
+                tone="blue"
                 onOpen={() => router.push('/practice/terms')}
               />
             </section>
@@ -395,16 +397,19 @@ function PracticeEntryCard({
   title,
   description,
   buttonLabel,
+  tone,
   onOpen,
 }: {
   eyebrow: string
   title: string
   description: string
   buttonLabel: string
+  tone: 'amber' | 'blue'
   onOpen: () => void
 }) {
+  const entryTone = practiceMetricTone[tone]
   return (
-    <Card padding="md" className="border-line/80 bg-surface/60">
+    <div className="rounded-2xl border transition-all duration-300" style={{ padding: 28, ...entryTone.style }}>
       <div className="flex h-full flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <Eyebrow tone="muted" className="mb-2">{eyebrow}</Eyebrow>
@@ -413,7 +418,7 @@ function PracticeEntryCard({
         </div>
         <Button variant="secondary" className="shrink-0" onClick={onOpen}>{buttonLabel}</Button>
       </div>
-    </Card>
+    </div>
   )
 }
 
