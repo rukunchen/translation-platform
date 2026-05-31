@@ -27,6 +27,7 @@ type Project = {
   name: string
   description: string | null
   created_at: string
+  updated_at?: string | null
   type?: string | null
   metadata?: Record<string, unknown> | null
 }
@@ -316,7 +317,12 @@ export default function DashboardPage() {
     }
 
     const { data: ps } = await supabase
-      .from('projects').select('*').in('id', ids).order('created_at', { ascending: false })
+      .from('projects')
+      .select('id, name, description, created_at, updated_at, type, metadata')
+      .in('id', ids)
+      .order('updated_at', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(50)
     const projectsList = (ps ?? []) as Project[]
     setProjects(projectsList)
 
@@ -438,6 +444,7 @@ export default function DashboardPage() {
 
   const userName = user?.user_metadata?.name || (user?.email ? user.email.split('@')[0] : '同学')
   const userId = user?.id
+  const firstExperimentHref = documents[0] ? `/documents/${documents[0].id}/parallel` : '/dashboard'
 
   const greeting = (() => {
     const h = new Date().getHours()
@@ -650,12 +657,7 @@ export default function DashboardPage() {
               projects={projects}
               projectProgressRows={projectProgressRows}
               onCreateProject={() => setShowModal(true)}
-              onOpenExperiment={() => {
-                const firstDoc = documents[0]
-                if (firstDoc) router.push(`/documents/${firstDoc.id}/parallel`)
-                else router.push('/dashboard')
-              }}
-              onOpen={(href) => router.push(href)}
+              experimentHref={firstExperimentHref}
             />
 
             <ProjectsSection
@@ -663,31 +665,21 @@ export default function DashboardPage() {
               projectCount={projects.length}
               deletingProjectId={deletingProjectId}
               onCreateProject={() => setShowModal(true)}
-              onCreatePptProject={() => router.push('/projects/new-ppt')}
-              onOpen={(href) => router.push(href)}
               onPrefetch={(href) => router.prefetch(href)}
               onDelete={(project) => { void deleteProject(project) }}
             />
 
             <PracticeEntrySection
               overview={practiceOverview}
-              onOpen={() => router.push('/practice')}
             />
 
             <RecentExperimentsSection
               experiments={experiments}
-              onOpen={(href) => router.push(href)}
             />
 
-            <KnowledgeEntrySection
-              onOpenFrontier={() => router.push('/frontier')}
-              onOpenReading={() => router.push('/reading')}
-            />
+            <KnowledgeEntrySection />
 
-            <WritingEntrySection
-              onOpenWriting={() => router.push('/writing')}
-              onOpenTemplates={() => router.push('/writing/templates')}
-            />
+            <WritingEntrySection />
 
             <p className="mt-12 text-center text-[11px] text-ink-500">
               译境 · 内部研究与协作平台

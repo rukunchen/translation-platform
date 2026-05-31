@@ -16,6 +16,7 @@ type Project = {
   name: string
   description: string | null
   created_at: string
+  updated_at?: string | null
   type?: string | null
 }
 
@@ -81,7 +82,13 @@ export default function ProjectsPage() {
     }
 
     const [{ data: projectRows }, { data: documentRows }, { data: memberRows }] = await Promise.all([
-      supabase.from('projects').select('*').in('id', ids).order('created_at', { ascending: false }),
+      supabase
+        .from('projects')
+        .select('id, name, description, created_at, updated_at, type')
+        .in('id', ids)
+        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(50),
       supabase.from('documents').select('id, project_id, title, source_language, target_language, updated_at, created_at').in('project_id', ids),
       supabase.from('project_members').select('project_id, user_id, role').in('project_id', ids),
     ])

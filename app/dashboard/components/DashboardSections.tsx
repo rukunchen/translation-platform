@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import Link from 'next/link'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Eyebrow } from '@/components/ui/Eyebrow'
@@ -172,6 +173,64 @@ const dashboardPrimaryButtonClass = 'dashboard-action-primary'
 const dashboardButtonClass = 'dashboard-action'
 const dashboardDangerButtonClass = 'dashboard-action-danger'
 const PPT_FALLBACK_PREFIX = '__PPT_SLIDE_TRANSLATION_META__'
+type DashboardLinkVariant = 'brand' | 'secondary' | 'ghost'
+
+const dashboardLinkVariantClass: Record<DashboardLinkVariant, string> = {
+  brand: 'bg-brand text-white hover:bg-brand-600 active:bg-brand-700',
+  secondary: 'bg-white text-ink-900 border-2 border-ink-900 hover:bg-ink-900 hover:text-white',
+  ghost: 'bg-transparent text-ink-500 hover:bg-canvas hover:text-ink-900',
+}
+
+const dashboardLinkStyle = { paddingLeft: 12, paddingRight: 12, paddingTop: 7, paddingBottom: 7 }
+
+function DashboardLink({
+  href,
+  children,
+  variant = 'ghost',
+  className,
+}: {
+  href: string
+  children: ReactNode
+  variant?: DashboardLinkVariant
+  className?: string
+}) {
+  return (
+    <Link
+      href={href}
+      style={dashboardLinkStyle}
+      className={cn(
+        'inline-flex items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors',
+        dashboardLinkVariantClass[variant],
+        className
+      )}
+    >
+      {children}
+    </Link>
+  )
+}
+
+function DashboardLinkVisual({
+  children,
+  variant = 'ghost',
+  className,
+}: {
+  children: ReactNode
+  variant?: DashboardLinkVariant
+  className?: string
+}) {
+  return (
+    <span
+      style={dashboardLinkStyle}
+      className={cn(
+        'inline-flex items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors',
+        dashboardLinkVariantClass[variant],
+        className
+      )}
+    >
+      {children}
+    </span>
+  )
+}
 
 function isPptProject(project: Project): boolean {
   return project.type === 'ppt_slide_translation'
@@ -240,8 +299,7 @@ export function TodoOverviewSection({
   projects,
   projectProgressRows,
   onCreateProject,
-  onOpenExperiment,
-  onOpen,
+  experimentHref,
 }: {
   projectCount: number
   todoCount: number
@@ -251,8 +309,7 @@ export function TodoOverviewSection({
   projects: Project[]
   projectProgressRows: ProjectProgressRow[]
   onCreateProject: () => void
-  onOpenExperiment: () => void
-  onOpen: (href: string) => void
+  experimentHref: string
 }) {
   if (projectCount === 0) return null
 
@@ -267,7 +324,7 @@ export function TodoOverviewSection({
       }
     >
       {todoCount === 0 ? (
-        <TodoEmptyState onCreateProject={onCreateProject} onOpenExperiment={onOpenExperiment} />
+        <TodoEmptyState onCreateProject={onCreateProject} experimentHref={experimentHref} />
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4" style={{ marginBottom: 28 }}>
@@ -277,8 +334,8 @@ export function TodoOverviewSection({
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)] gap-6" style={{ marginBottom: 28 }}>
-            <PriorityTasksCard tasks={priorityTodos} projects={projects} onOpen={onOpen} />
-            <ProjectProgressCard rows={projectProgressRows} onOpen={onOpen} />
+            <PriorityTasksCard tasks={priorityTodos} projects={projects} />
+            <ProjectProgressCard rows={projectProgressRows} />
           </div>
         </>
       )}
@@ -291,8 +348,6 @@ export function ProjectsSection({
   projectCount,
   deletingProjectId,
   onCreateProject,
-  onCreatePptProject,
-  onOpen,
   onPrefetch,
   onDelete,
 }: {
@@ -300,8 +355,6 @@ export function ProjectsSection({
   projectCount: number
   deletingProjectId: string | null
   onCreateProject: () => void
-  onCreatePptProject: () => void
-  onOpen: (href: string) => void
   onPrefetch: (href: string) => void
   onDelete: (project: Project) => void
 }) {
@@ -315,9 +368,10 @@ export function ProjectsSection({
           <Button variant="brand" className={dashboardPrimaryButtonClass} onClick={onCreateProject} leftIcon={<span className="text-base leading-none">+</span>}>
             新建项目
           </Button>
-          <Button variant="secondary" className={dashboardButtonClass} onClick={onCreatePptProject} leftIcon={<span className="text-base leading-none">+</span>}>
+          <DashboardLink href="/projects/new-ppt" variant="secondary" className={dashboardButtonClass}>
+            <span className="text-base leading-none">+</span>
             新增 PPT 翻译项目
-          </Button>
+          </DashboardLink>
         </div>
       }
     >
@@ -335,7 +389,7 @@ export function ProjectsSection({
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <Button variant="brand" className={dashboardPrimaryButtonClass} onClick={onCreateProject}>创建第一个项目</Button>
-            <Button variant="secondary" className={dashboardButtonClass} onClick={onCreatePptProject}>新增 PPT 翻译项目</Button>
+            <DashboardLink href="/projects/new-ppt" variant="secondary" className={dashboardButtonClass}>新增 PPT 翻译项目</DashboardLink>
           </div>
         </Card>
       ) : (
@@ -345,7 +399,6 @@ export function ProjectsSection({
               key={s.project.id}
               s={s}
               deleting={deletingProjectId === s.project.id}
-              onOpen={onOpen}
               onPrefetch={onPrefetch}
               onDelete={() => onDelete(s.project)}
             />
@@ -358,32 +411,28 @@ export function ProjectsSection({
 
 export function PracticeEntrySection({
   overview,
-  onOpen,
 }: {
   overview: PracticeOverview
-  onOpen: () => void
 }) {
   return (
     <DashboardSection
       eyebrow="Translation Practice Lab"
       title="译训库"
       action={
-        <Button size="sm" variant="ghost" className={dashboardButtonClass} onClick={onOpen}>
+        <DashboardLink href="/practice" variant="ghost" className={dashboardButtonClass}>
           进入题库 →
-        </Button>
+        </DashboardLink>
       }
     >
-      <PracticeLabEntry overview={overview} onOpen={onOpen} />
+      <PracticeLabEntry overview={overview} />
     </DashboardSection>
   )
 }
 
 export function RecentExperimentsSection({
   experiments,
-  onOpen,
 }: {
   experiments: Experiment[]
-  onOpen: (href: string) => void
 }) {
   return (
     <DashboardSection
@@ -430,9 +479,9 @@ export function RecentExperimentsSection({
                   </span>
                 </div>
                 <div className="text-right">
-                  <Button size="sm" variant="ghost" className={dashboardButtonClass} onClick={() => onOpen(`/documents/${e.docId}/parallel`)}>
+                  <DashboardLink href={`/documents/${e.docId}/parallel`} variant="ghost" className={dashboardButtonClass}>
                     查看 →
-                  </Button>
+                  </DashboardLink>
                 </div>
               </div>
             ))}
@@ -449,21 +498,15 @@ export function RecentExperimentsSection({
   )
 }
 
-export function WritingEntrySection({
-  onOpenWriting,
-  onOpenTemplates,
-}: {
-  onOpenWriting: () => void
-  onOpenTemplates: () => void
-}) {
+export function WritingEntrySection() {
   return (
     <DashboardSection
       eyebrow="Academic Writing"
       title="论文写作工坊"
       action={
-        <Button size="sm" variant="ghost" className={dashboardButtonClass} onClick={onOpenWriting}>
+        <DashboardLink href="/writing" variant="ghost" className={dashboardButtonClass}>
           进入工坊 →
-        </Button>
+        </DashboardLink>
       }
     >
       <Card padding="md" variant="surface" className="mb-6">
@@ -473,97 +516,101 @@ export function WritingEntrySection({
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card padding="md" interactive onClick={onOpenWriting} className="h-full flex flex-col">
-          <div className="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center mb-5">
-            <span className="text-brand font-serif text-xl">新</span>
-          </div>
-          <h3 className="font-serif text-xl text-ink-900 mb-2">新建论文</h3>
-          <p className="text-sm text-ink-600 leading-relaxed mb-7 flex-1">
-            选择中文或英文论文模板，快速生成论文结构。
-          </p>
-          <div className="mt-auto">
-            <Button size="sm" variant="secondary" className={dashboardButtonClass} onClick={(e) => { e.stopPropagation(); onOpenWriting() }}>
+        <Link href="/writing" className="block h-full">
+          <Card padding="md" interactive className="h-full flex flex-col">
+            <div className="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center mb-5">
+              <span className="text-brand font-serif text-xl">新</span>
+            </div>
+            <h3 className="font-serif text-xl text-ink-900 mb-2">新建论文</h3>
+            <p className="text-sm text-ink-600 leading-relaxed mb-7 flex-1">
+              选择中文或英文论文模板，快速生成论文结构。
+            </p>
+            <div className="mt-auto">
+              <DashboardLinkVisual variant="secondary" className={dashboardButtonClass}>
               新建论文
-            </Button>
-          </div>
-        </Card>
+              </DashboardLinkVisual>
+            </div>
+          </Card>
+        </Link>
 
-        <Card padding="md" interactive onClick={onOpenWriting} className="h-full flex flex-col">
-          <div className="w-10 h-10 bg-canvas rounded-xl flex items-center justify-center mb-5">
-            <span className="text-ink-700 font-serif text-xl">稿</span>
-          </div>
-          <h3 className="font-serif text-xl text-ink-900 mb-2">我的论文</h3>
-          <p className="text-sm text-ink-600 leading-relaxed mb-7 flex-1">
-            继续编辑已有论文项目，检查格式并导出。
-          </p>
-          <div className="mt-auto">
-            <Button size="sm" variant="secondary" className={dashboardButtonClass} onClick={(e) => { e.stopPropagation(); onOpenWriting() }}>
+        <Link href="/writing" className="block h-full">
+          <Card padding="md" interactive className="h-full flex flex-col">
+            <div className="w-10 h-10 bg-canvas rounded-xl flex items-center justify-center mb-5">
+              <span className="text-ink-700 font-serif text-xl">稿</span>
+            </div>
+            <h3 className="font-serif text-xl text-ink-900 mb-2">我的论文</h3>
+            <p className="text-sm text-ink-600 leading-relaxed mb-7 flex-1">
+              继续编辑已有论文项目，检查格式并导出。
+            </p>
+            <div className="mt-auto">
+              <DashboardLinkVisual variant="secondary" className={dashboardButtonClass}>
               查看论文
-            </Button>
-          </div>
-        </Card>
+              </DashboardLinkVisual>
+            </div>
+          </Card>
+        </Link>
 
-        <Card padding="md" interactive onClick={onOpenWriting} className="h-full flex flex-col">
-          <div className="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center mb-5">
-            <span className="text-brand font-serif text-xl">式</span>
-          </div>
-          <h3 className="font-serif text-xl text-ink-900 mb-2">模板库</h3>
-          <p className="text-sm text-ink-600 leading-relaxed mb-7 flex-1">
-            查看中文论文、英文论文、开题报告、翻译实践报告、APA 等预设模板。
-          </p>
-          <div className="mt-auto">
-            <Button size="sm" variant="secondary" className={dashboardButtonClass} onClick={(e) => { e.stopPropagation(); onOpenTemplates() }}>
+        <Link href="/writing/templates" className="block h-full">
+          <Card padding="md" interactive className="h-full flex flex-col">
+            <div className="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center mb-5">
+              <span className="text-brand font-serif text-xl">式</span>
+            </div>
+            <h3 className="font-serif text-xl text-ink-900 mb-2">模板库</h3>
+            <p className="text-sm text-ink-600 leading-relaxed mb-7 flex-1">
+              查看中文论文、英文论文、开题报告、翻译实践报告、APA 等预设模板。
+            </p>
+            <div className="mt-auto">
+              <DashboardLinkVisual variant="secondary" className={dashboardButtonClass}>
               查看模板
-            </Button>
-          </div>
-        </Card>
+              </DashboardLinkVisual>
+            </div>
+          </Card>
+        </Link>
       </div>
     </DashboardSection>
   )
 }
 
-export function KnowledgeEntrySection({
-  onOpenFrontier,
-  onOpenReading,
-}: {
-  onOpenFrontier: () => void
-  onOpenReading: () => void
-}) {
+export function KnowledgeEntrySection() {
   return (
     <DashboardSection
       eyebrow="Reading & Research"
       title="阅读与前沿"
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card padding="md" interactive onClick={onOpenFrontier} className="h-full flex flex-col">
-          <div className="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center mb-5">
-            <span className="text-brand font-serif text-xl">前</span>
-          </div>
-          <h3 className="font-serif text-xl text-ink-900 mb-2">前沿文献</h3>
-          <p className="text-sm text-ink-600 leading-relaxed mb-7 flex-1">
-            跟踪翻译、语言、AI 与学术研究方向的前沿文献，整理阅读线索和研究素材。
-          </p>
-          <div className="mt-auto">
-            <Button size="sm" variant="secondary" className={dashboardButtonClass} onClick={(e) => { e.stopPropagation(); onOpenFrontier() }}>
+        <Link href="/frontier" className="block h-full">
+          <Card padding="md" interactive className="h-full flex flex-col">
+            <div className="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center mb-5">
+              <span className="text-brand font-serif text-xl">前</span>
+            </div>
+            <h3 className="font-serif text-xl text-ink-900 mb-2">前沿文献</h3>
+            <p className="text-sm text-ink-600 leading-relaxed mb-7 flex-1">
+              跟踪翻译、语言、AI 与学术研究方向的前沿文献，整理阅读线索和研究素材。
+            </p>
+            <div className="mt-auto">
+              <DashboardLinkVisual variant="secondary" className={dashboardButtonClass}>
               进入前沿文献
-            </Button>
-          </div>
-        </Card>
+              </DashboardLinkVisual>
+            </div>
+          </Card>
+        </Link>
 
-        <Card padding="md" interactive onClick={onOpenReading} className="h-full flex flex-col">
-          <div className="w-10 h-10 bg-canvas rounded-xl flex items-center justify-center mb-5">
-            <span className="text-ink-700 font-serif text-xl">读</span>
-          </div>
-          <h3 className="font-serif text-xl text-ink-900 mb-2">深读室</h3>
-          <p className="text-sm text-ink-600 leading-relaxed mb-7 flex-1">
-            进入长文精读和阅读笔记空间，沉淀原文理解、术语、论证结构和表达积累。
-          </p>
-          <div className="mt-auto">
-            <Button size="sm" variant="secondary" className={dashboardButtonClass} onClick={(e) => { e.stopPropagation(); onOpenReading() }}>
+        <Link href="/reading" className="block h-full">
+          <Card padding="md" interactive className="h-full flex flex-col">
+            <div className="w-10 h-10 bg-canvas rounded-xl flex items-center justify-center mb-5">
+              <span className="text-ink-700 font-serif text-xl">读</span>
+            </div>
+            <h3 className="font-serif text-xl text-ink-900 mb-2">深读室</h3>
+            <p className="text-sm text-ink-600 leading-relaxed mb-7 flex-1">
+              进入长文精读和阅读笔记空间，沉淀原文理解、术语、论证结构和表达积累。
+            </p>
+            <div className="mt-auto">
+              <DashboardLinkVisual variant="secondary" className={dashboardButtonClass}>
               进入深读室
-            </Button>
-          </div>
-        </Card>
+              </DashboardLinkVisual>
+            </div>
+          </Card>
+        </Link>
       </div>
     </DashboardSection>
   )
@@ -637,9 +684,8 @@ function TodoStatusCard({ summary }: { summary: StatusSummary }) {
   )
 }
 
-function ProjectProgressCard({ rows, onOpen }: {
+function ProjectProgressCard({ rows }: {
   rows: ProjectProgressRow[]
-  onOpen: (href: string) => void
 }) {
   return (
     <Card padding="md" className="h-full">
@@ -663,9 +709,9 @@ function ProjectProgressCard({ rows, onOpen }: {
                 </div>
                 <div className="flex items-center gap-3 sm:justify-end">
                   <span className="text-xs text-ink-600 whitespace-nowrap">待处理 {row.pendingCount} 条</span>
-                  <Button size="sm" variant="ghost" className={dashboardButtonClass} onClick={() => onOpen(row.href)}>
+                  <DashboardLink href={row.href} variant="ghost" className={dashboardButtonClass}>
                     {row.action} →
-                  </Button>
+                  </DashboardLink>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
@@ -680,10 +726,9 @@ function ProjectProgressCard({ rows, onOpen }: {
   )
 }
 
-function PriorityTasksCard({ tasks, projects, onOpen }: {
+function PriorityTasksCard({ tasks, projects }: {
   tasks: PriorityTodo[]
   projects: Project[]
-  onOpen: (href: string) => void
 }) {
   return (
     <Card padding="md" className="h-full">
@@ -720,9 +765,9 @@ function PriorityTasksCard({ tasks, projects, onOpen }: {
                     <p className="text-sm text-ink-900 font-medium truncate">{taskSubject(task)}</p>
                     <p className="text-xs text-ink-500 mt-1 truncate">{task.suggestion}</p>
                   </div>
-                  <Button size="sm" variant="ghost" className={dashboardButtonClass} onClick={() => onOpen(todoHref(task, projects))}>
+                  <DashboardLink href={todoHref(task, projects)} variant="ghost" className={dashboardButtonClass}>
                     {status.action} →
-                  </Button>
+                  </DashboardLink>
                 </div>
               </div>
             )
@@ -733,9 +778,9 @@ function PriorityTasksCard({ tasks, projects, onOpen }: {
   )
 }
 
-function TodoEmptyState({ onCreateProject, onOpenExperiment }: {
+function TodoEmptyState({ onCreateProject, experimentHref }: {
   onCreateProject: () => void
-  onOpenExperiment: () => void
+  experimentHref: string
 }) {
   return (
     <Card padding="lg" variant="surface" className="text-center">
@@ -748,7 +793,7 @@ function TodoEmptyState({ onCreateProject, onOpenExperiment }: {
       </p>
       <div className="flex flex-wrap justify-center gap-3">
         <Button variant="brand" className={dashboardPrimaryButtonClass} onClick={onCreateProject}>新建项目</Button>
-        <Button variant="secondary" className={dashboardButtonClass} onClick={onOpenExperiment}>开启 AI 翻译实验</Button>
+        <DashboardLink href={experimentHref} variant="secondary" className={dashboardButtonClass}>开启 AI 翻译实验</DashboardLink>
       </div>
     </Card>
   )
@@ -766,9 +811,8 @@ function MiniProgressRow({ label, pct, color }: { label: string; pct: number; co
   )
 }
 
-function PracticeLabEntry({ overview, onOpen }: {
+function PracticeLabEntry({ overview }: {
   overview: PracticeOverview
-  onOpen: () => void
 }) {
   const metrics = [
     { label: '已练篇章', value: overview.practicedItems, note: '篇' },
@@ -778,41 +822,42 @@ function PracticeLabEntry({ overview, onOpen }: {
   ]
 
   return (
-    <Card padding="lg" interactive onClick={onOpen} className="overflow-hidden">
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(460px,0.95fr)] gap-8 items-center">
-        <div>
-          <div className="w-11 h-11 rounded-2xl border border-brand-200 bg-brand-50 flex items-center justify-center mb-5">
-            <span className="font-serif text-brand text-xl">训</span>
-          </div>
-          <h3 className="font-serif text-2xl text-ink-900 mb-3">译训库</h3>
-          <p className="text-sm text-ink-600 leading-relaxed max-w-2xl mb-6">
-            整理 CATTI、MTI、课程和商务翻译练习，支持原文、我的译文、参考译文对比，问题标记，表达积累和间隔复习。
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Button variant="brand" className={dashboardPrimaryButtonClass} onClick={onOpen}>开始练习</Button>
-            <Button variant="secondary" className={dashboardButtonClass} onClick={onOpen}>进入题库</Button>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {metrics.map(metric => (
-            <div key={metric.label} className="rounded-2xl border border-line bg-surface/70" style={{ padding: '20px' }}>
-              <p className="text-xs text-ink-500 mb-3">{metric.label}</p>
-              <div className="flex items-end gap-2">
-                <span className="font-serif text-3xl text-ink-900 leading-none">{metric.value}</span>
-                <span className="text-xs text-ink-600 truncate pb-0.5">{metric.note}</span>
-              </div>
+    <Link href="/practice" className="block">
+      <Card padding="lg" interactive className="overflow-hidden">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(460px,0.95fr)] gap-8 items-center">
+          <div>
+            <div className="w-11 h-11 rounded-2xl border border-brand-200 bg-brand-50 flex items-center justify-center mb-5">
+              <span className="font-serif text-brand text-xl">训</span>
             </div>
-          ))}
+            <h3 className="font-serif text-2xl text-ink-900 mb-3">译训库</h3>
+            <p className="text-sm text-ink-600 leading-relaxed max-w-2xl mb-6">
+              整理 CATTI、MTI、课程和商务翻译练习，支持原文、我的译文、参考译文对比，问题标记，表达积累和间隔复习。
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <DashboardLinkVisual variant="brand" className={dashboardPrimaryButtonClass}>开始练习</DashboardLinkVisual>
+              <DashboardLinkVisual variant="secondary" className={dashboardButtonClass}>进入题库</DashboardLinkVisual>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {metrics.map(metric => (
+              <div key={metric.label} className="rounded-2xl border border-line bg-surface/70" style={{ padding: '20px' }}>
+                <p className="text-xs text-ink-500 mb-3">{metric.label}</p>
+                <div className="flex items-end gap-2">
+                  <span className="font-serif text-3xl text-ink-900 leading-none">{metric.value}</span>
+                  <span className="text-xs text-ink-600 truncate pb-0.5">{metric.note}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+    </Link>
   )
 }
 
-function ProjectCard({ s, deleting, onOpen, onPrefetch, onDelete }: {
+function ProjectCard({ s, deleting, onPrefetch, onDelete }: {
   s: ProjectStats
   deleting: boolean
-  onOpen: (href: string) => void
   onPrefetch: (href: string) => void
   onDelete: () => void
 }) {
@@ -896,18 +941,18 @@ function ProjectCard({ s, deleting, onOpen, onPrefetch, onDelete }: {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mt-auto border-t border-line" style={{ paddingTop: 20 }}>
-        <Button size="sm" variant="brand" className={dashboardPrimaryButtonClass} onClick={() => onOpen(projectUrl)}>
+        <DashboardLink href={projectUrl} variant="brand" className={dashboardPrimaryButtonClass}>
           进入项目
-        </Button>
+        </DashboardLink>
         {!pptProject && (
-          <Button size="sm" variant="ghost" className={dashboardButtonClass} onClick={() => onOpen(glossaryHref)}>
+          <DashboardLink href={glossaryHref} variant="ghost" className={dashboardButtonClass}>
             术语库
-          </Button>
+          </DashboardLink>
         )}
         {!pptProject && docs.length > 0 && (
-          <Button size="sm" variant="ghost" className={dashboardButtonClass} onClick={() => onOpen(experimentHref)}>
+          <DashboardLink href={experimentHref} variant="ghost" className={dashboardButtonClass}>
             实验
-          </Button>
+          </DashboardLink>
         )}
         {s.myRole === 'manager' && (
           <Button size="sm" variant="danger" className={dashboardDangerButtonClass} onClick={onDelete} loading={deleting} disabled={deleting}>
