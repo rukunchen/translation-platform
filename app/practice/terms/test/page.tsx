@@ -746,9 +746,9 @@ function ChoiceButton({
       type="button"
       onClick={onClick}
       className={[
-        'flex w-full flex-col justify-center rounded-xl border px-5 py-4 text-left transition-colors',
+        'flex w-full flex-col items-center justify-center rounded-xl border px-5 py-3 text-center transition-colors',
         selected ? 'border-ink-900 bg-ink-900 text-white' : 'border-line bg-white text-ink-900 hover:border-ink-400',
-        compact ? 'min-h-20 items-center text-center' : 'min-h-[76px]',
+        compact ? 'min-h-16' : 'min-h-[64px]',
       ].filter(Boolean).join(' ')}
     >
       <span className={compact ? 'block font-mono text-lg' : 'block text-sm font-medium'}>{title}</span>
