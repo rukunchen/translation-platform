@@ -99,14 +99,6 @@ html, body {
   font-display: swap;
 }
 
-@font-face {
-  font-family: "YijingSlogan";
-  src: url("/fonts/yijing-slogan.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
 .brand-wordmark {
   font-family: "YijingWordmark", "字魂游龙篆书", "ZiHunYouLongZhuanShu", "YouLongZhuanShu", "Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif;
   font-weight: 400;
@@ -115,7 +107,8 @@ html, body {
 }
 
 .landing-slogan {
-  font-family: "YijingSlogan", "Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif;
+  font-family: "Source Han Serif SC", "Source Han Serif CN", "Noto Serif CJK SC", "思源宋体", "Songti SC", SimSun, serif;
+  font-weight: 700;
 }
 
 /* 链接默认样式 */

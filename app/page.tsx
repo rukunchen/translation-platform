@@ -97,6 +97,10 @@ export default function LoginPage() {
             <span
               style={{
                 color: 'var(--color-brand)',
+                display: 'inline-block',
+                fontSize: '1.5em',
+                lineHeight: 1,
+                verticalAlign: 'baseline',
               }}>
               MTI
             </span>{' '}
