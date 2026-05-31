@@ -92,9 +92,10 @@ html, body {
 }
 
 .brand-wordmark {
-  font-family: "字制区喜脉体", "ZiZhiQuXiMaiTi", "XiMaiTi", "Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif;
-  font-weight: 700;
+  font-family: "字魂游龙篆书", "ZiHunYouLongZhuanShu", "YouLongZhuanShu", "Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif;
+  font-weight: 400;
   letter-spacing: 0;
+  line-height: 1;
 }
 
 /* 链接默认样式 */

@@ -262,10 +262,7 @@ function SidebarContent({
           className="flex items-center gap-3 cursor-pointer group"
         >
           <Logo size={40} priority className="flex-shrink-0 group-hover:scale-105 transition-transform" />
-          <div className="flex flex-col leading-tight min-w-0">
-            <span className="brand-wordmark text-white text-[15px]">译境</span>
-            <span className="text-ink-400 text-[11px] mt-0.5 truncate">技大25级MTIer翻译平台</span>
-          </div>
+          <span className="brand-wordmark text-white text-[22px]">译境</span>
         </Link>
       </div>
 

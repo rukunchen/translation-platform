@@ -64,10 +64,7 @@ export default function LoginPage() {
         {/* 顶部 logo */}
         <div className="absolute top-10 left-10 sm:top-10 sm:left-12 lg:top-12 lg:left-16 flex items-center gap-3">
           <Logo size={40} priority className="flex-shrink-0" />
-          <div className="flex flex-col leading-tight min-w-0">
-            <span className="brand-wordmark text-ink-900 text-base">译境</span>
-            <span className="hidden sm:inline text-ink-500 text-[11px] mt-0.5 truncate">深圳技术大学2025级MTI翻译写作与研究平台</span>
-          </div>
+          <span className="brand-wordmark text-ink-900 text-[24px]">译境</span>
         </div>
 
         {/* 中部主内容 */}

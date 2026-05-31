@@ -145,10 +145,7 @@ export default function AcceptInvitePage() {
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8">
           <Logo size={40} priority />
-          <div className="flex flex-col leading-tight">
-            <span className="brand-wordmark text-ink-900 text-sm">译境</span>
-            <span className="text-ink-500 text-xs">技大25级MTIer翻译平台</span>
-          </div>
+          <span className="brand-wordmark text-ink-900 text-[20px]">译境</span>
         </div>
 
         <Eyebrow className="mb-3">You&apos;re invited</Eyebrow>
