@@ -902,8 +902,12 @@ function CategoryMindmap({
             className="rounded-2xl border border-line bg-white/90 p-5 shadow-sm xl:grid xl:grid-cols-[minmax(300px,340px)_88px_minmax(0,1fr)] xl:items-center xl:gap-0"
           >
             <div
-              className="relative rounded-2xl px-8 py-6 text-white shadow-sm"
-              style={{ backgroundColor: tone.solid, boxShadow: `0 18px 36px ${tone.shadow}` }}
+              className="relative rounded-2xl text-white shadow-sm"
+              style={{
+                backgroundColor: tone.solid,
+                boxShadow: `0 18px 36px ${tone.shadow}`,
+                padding: '30px 34px 26px',
+              }}
             >
               {isAdmin && (
                 <CategoryNodeMenu
@@ -915,7 +919,7 @@ function CategoryMindmap({
                 />
               )}
               <p className="mb-3 break-words pr-12 text-[10px] uppercase leading-relaxed tracking-[0.12em] text-white/70">Level 1</p>
-              <h3 className="break-words pr-3 font-serif leading-snug" style={{ fontSize: 'clamp(1.15rem, 1.35vw, 1.35rem)' }}>{group.parent.name}</h3>
+              <h3 className="break-words pr-3 font-serif leading-snug" style={{ fontSize: 'clamp(1.1rem, 1.3vw, 1.3rem)', overflowWrap: 'anywhere' }}>{group.parent.name}</h3>
               <p className="mt-3 line-clamp-2 min-h-[40px] pr-2 text-sm leading-relaxed text-white/78">
                 {group.parent.description || '公共词条一级分类'}
               </p>
@@ -937,7 +941,7 @@ function CategoryMindmap({
               </div>
             </div>
 
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))' }}>
+            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))' }}>
               {group.children.map(child => {
                 const childStats = stats[child.id] ?? { termCount: 0, savedCount: 0, latestUpdatedAt: null }
                 return (
@@ -952,8 +956,12 @@ function CategoryMindmap({
                         onOpen(child)
                       }
                     }}
-                    className="group relative min-h-[140px] cursor-pointer rounded-2xl border px-8 py-6 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-brand/10"
-                    style={{ backgroundColor: tone.softBg, borderColor: tone.softBorder }}
+                    className="group relative min-h-[152px] cursor-pointer rounded-2xl border text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-brand/10"
+                    style={{
+                      backgroundColor: tone.softBg,
+                      borderColor: tone.softBorder,
+                      padding: '28px 34px 24px',
+                    }}
                   >
                     {isAdmin && (
                       <CategoryNodeMenu
@@ -965,8 +973,8 @@ function CategoryMindmap({
                     )}
                     <div className="flex h-full flex-col justify-between gap-4">
                       <div>
-                        <p className="mb-2 break-words pr-12 text-[10px] uppercase leading-relaxed tracking-[0.1em]" style={{ color: tone.text }}>Level 2</p>
-                        <h4 className="break-words pr-2 font-serif leading-snug text-ink-900" style={{ fontSize: 'clamp(1rem, 1.05vw, 1.12rem)' }}>{child.name}</h4>
+                        <p className="mb-2 break-words pr-12 text-[10px] uppercase leading-relaxed tracking-[0.08em]" style={{ color: tone.text }}>Level 2</p>
+                        <h4 className="break-words pr-2 font-serif leading-snug text-ink-900" style={{ fontSize: 'clamp(0.95rem, 1vw, 1.08rem)', overflowWrap: 'anywhere' }}>{child.name}</h4>
                       </div>
                       <div className="grid grid-cols-3 gap-3 border-t pt-3" style={{ borderColor: tone.softBorder }}>
                         <MindmapMeta label="词条" value={String(childStats.termCount)} />
