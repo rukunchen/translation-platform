@@ -9,6 +9,7 @@ import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Eyebrow } from '@/components/ui/Eyebrow'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MainContent } from '@/components/ui/MainContent'
+import { apiJSON } from '@/lib/apiFetch'
 import { supabase } from '@/lib/supabase'
 
 const ADMIN_EMAIL = 'rukunchen@hotmail.com'
@@ -357,21 +358,20 @@ export default function TermLearningPage() {
       return
     }
     const stats = categoryStats[category.id] ?? { termCount: 0, savedCount: 0, latestUpdatedAt: null }
-    if (stats.termCount > 0) {
-      alert('该分类下仍有词条，不能直接删除。请先移动或删除词条。')
-      return
-    }
-    if (!confirm(`确定删除“${category.name}”分类吗？`)) {
+    const termWarning = stats.termCount > 0
+      ? `\n\n该分类下有 ${stats.termCount} 条公共词条，删除分类会同时删除这些公共词条。已加入个人词条本的记录会保留为个人副本。`
+      : ''
+    if (!confirm(`确定删除“${category.name}”分类吗？${termWarning}`)) {
       return
     }
     setDeletingCategoryId(category.id)
-    const { error } = await supabase
-      .from('term_categories')
-      .delete()
-      .eq('id', category.id)
+    const { error } = await apiJSON<{ deletedTerms: number }>(
+      `/api/terms/categories/${encodeURIComponent(category.id)}`,
+      { method: 'DELETE' }
+    )
     setDeletingCategoryId(null)
     if (error) {
-      alert('删除分类失败：' + error.message)
+      alert('删除分类失败：' + error)
       return
     }
     await load(userId)
@@ -1172,17 +1172,6 @@ function latestDate(current: string | null, next: string | null) {
   if (!current) return next
   if (!next) return current
   return new Date(next).getTime() > new Date(current).getTime() ? next : current
-}
-
-function formatDate(value: string | null) {
-  if (!value) return '暂无'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '暂无'
-  return date.toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
 }
 
 function createCategoryForm(): CategoryForm {
