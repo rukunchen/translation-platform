@@ -78,17 +78,31 @@ type CategoryEditForm = {
 }
 
 const CATEGORY_COLORS = [
-  { value: 'orange', label: 'orange，橙色' },
-  { value: 'purple', label: 'purple，紫色' },
-  { value: 'blue', label: 'blue，蓝色' },
-  { value: 'green', label: 'green，绿色' },
-  { value: 'cyan', label: 'cyan，青色' },
-  { value: 'rose', label: 'rose，玫瑰色' },
-  { value: 'slate', label: 'slate，灰蓝色' },
-  { value: 'gray', label: 'gray，灰色' },
-]
+  { value: 'morandi_terracotta', label: '陶土橙' },
+  { value: 'morandi_rose', label: '豆沙粉' },
+  { value: 'morandi_sage', label: '鼠尾草绿' },
+  { value: 'morandi_olive', label: '橄榄灰绿' },
+  { value: 'morandi_blue', label: '雾霾蓝' },
+  { value: 'morandi_teal', label: '灰青色' },
+  { value: 'morandi_lavender', label: '灰紫色' },
+  { value: 'morandi_taupe', label: '暖灰褐' },
+  { value: 'morandi_stone', label: '石灰色' },
+] as const
 
-type CategoryColorKey = 'orange' | 'purple' | 'blue' | 'green' | 'cyan' | 'rose' | 'slate' | 'gray'
+type CategoryColorKey = typeof CATEGORY_COLORS[number]['value']
+
+const DEFAULT_CATEGORY_COLOR: CategoryColorKey = 'morandi_stone'
+
+const LEGACY_CATEGORY_COLOR_MAP: Record<string, CategoryColorKey> = {
+  orange: 'morandi_terracotta',
+  purple: 'morandi_lavender',
+  blue: 'morandi_blue',
+  green: 'morandi_sage',
+  cyan: 'morandi_teal',
+  rose: 'morandi_rose',
+  slate: 'morandi_blue',
+  gray: 'morandi_stone',
+}
 
 const CATEGORY_TONES: Record<CategoryColorKey, {
   solid: string
@@ -98,69 +112,77 @@ const CATEGORY_TONES: Record<CategoryColorKey, {
   text: string
   shadow: string
 }> = {
-  orange: {
-    solid: 'rgb(194 99 55)',
-    softBg: 'rgb(255 247 237 / 0.72)',
-    softBorder: 'rgb(253 186 116)',
-    line: 'rgb(253 186 116)',
-    text: 'rgb(154 52 18)',
-    shadow: 'rgb(194 99 55 / 0.18)',
+  morandi_terracotta: {
+    solid: 'rgb(171 112 84)',
+    softBg: 'rgb(251 242 236 / 0.78)',
+    softBorder: 'rgb(219 171 145)',
+    line: 'rgb(219 171 145)',
+    text: 'rgb(137 80 56)',
+    shadow: 'rgb(171 112 84 / 0.16)',
   },
-  purple: {
-    solid: 'rgb(124 58 237)',
-    softBg: 'rgb(245 243 255 / 0.72)',
-    softBorder: 'rgb(196 181 253)',
-    line: 'rgb(196 181 253)',
-    text: 'rgb(91 33 182)',
-    shadow: 'rgb(124 58 237 / 0.18)',
+  morandi_rose: {
+    solid: 'rgb(172 119 126)',
+    softBg: 'rgb(247 238 238 / 0.78)',
+    softBorder: 'rgb(206 166 171)',
+    line: 'rgb(206 166 171)',
+    text: 'rgb(128 80 86)',
+    shadow: 'rgb(172 119 126 / 0.15)',
   },
-  blue: {
-    solid: 'rgb(37 99 235)',
-    softBg: 'rgb(239 246 255 / 0.72)',
-    softBorder: 'rgb(147 197 253)',
-    line: 'rgb(147 197 253)',
-    text: 'rgb(30 64 175)',
-    shadow: 'rgb(37 99 235 / 0.16)',
+  morandi_sage: {
+    solid: 'rgb(125 143 117)',
+    softBg: 'rgb(241 245 238 / 0.78)',
+    softBorder: 'rgb(176 194 168)',
+    line: 'rgb(176 194 168)',
+    text: 'rgb(83 105 75)',
+    shadow: 'rgb(125 143 117 / 0.15)',
   },
-  green: {
-    solid: 'rgb(22 128 82)',
-    softBg: 'rgb(240 253 244 / 0.72)',
-    softBorder: 'rgb(134 239 172)',
-    line: 'rgb(134 239 172)',
-    text: 'rgb(22 101 52)',
-    shadow: 'rgb(22 128 82 / 0.16)',
+  morandi_olive: {
+    solid: 'rgb(139 139 101)',
+    softBg: 'rgb(244 242 231 / 0.78)',
+    softBorder: 'rgb(190 187 143)',
+    line: 'rgb(190 187 143)',
+    text: 'rgb(105 103 70)',
+    shadow: 'rgb(139 139 101 / 0.14)',
   },
-  cyan: {
-    solid: 'rgb(14 116 144)',
-    softBg: 'rgb(236 254 255 / 0.72)',
-    softBorder: 'rgb(103 232 249)',
-    line: 'rgb(103 232 249)',
-    text: 'rgb(21 94 117)',
-    shadow: 'rgb(14 116 144 / 0.16)',
+  morandi_blue: {
+    solid: 'rgb(109 132 151)',
+    softBg: 'rgb(238 243 246 / 0.78)',
+    softBorder: 'rgb(164 184 199)',
+    line: 'rgb(164 184 199)',
+    text: 'rgb(73 94 112)',
+    shadow: 'rgb(109 132 151 / 0.15)',
   },
-  rose: {
-    solid: 'rgb(190 18 60)',
-    softBg: 'rgb(255 241 242 / 0.72)',
-    softBorder: 'rgb(253 164 175)',
-    line: 'rgb(253 164 175)',
-    text: 'rgb(159 18 57)',
-    shadow: 'rgb(190 18 60 / 0.15)',
+  morandi_teal: {
+    solid: 'rgb(103 139 135)',
+    softBg: 'rgb(237 244 242 / 0.78)',
+    softBorder: 'rgb(157 190 185)',
+    line: 'rgb(157 190 185)',
+    text: 'rgb(65 104 100)',
+    shadow: 'rgb(103 139 135 / 0.15)',
   },
-  slate: {
-    solid: 'rgb(71 85 105)',
-    softBg: 'rgb(248 250 252 / 0.82)',
-    softBorder: 'rgb(203 213 225)',
-    line: 'rgb(203 213 225)',
-    text: 'rgb(51 65 85)',
-    shadow: 'rgb(71 85 105 / 0.14)',
+  morandi_lavender: {
+    solid: 'rgb(142 128 155)',
+    softBg: 'rgb(243 240 245 / 0.78)',
+    softBorder: 'rgb(186 176 198)',
+    line: 'rgb(186 176 198)',
+    text: 'rgb(96 81 112)',
+    shadow: 'rgb(142 128 155 / 0.15)',
   },
-  gray: {
-    solid: 'rgb(87 83 78)',
-    softBg: 'rgb(250 250 249 / 0.82)',
-    softBorder: 'rgb(214 211 209)',
-    line: 'rgb(214 211 209)',
-    text: 'rgb(68 64 60)',
-    shadow: 'rgb(87 83 78 / 0.12)',
+  morandi_taupe: {
+    solid: 'rgb(139 126 111)',
+    softBg: 'rgb(244 240 235 / 0.78)',
+    softBorder: 'rgb(190 176 158)',
+    line: 'rgb(190 176 158)',
+    text: 'rgb(104 89 74)',
+    shadow: 'rgb(139 126 111 / 0.14)',
+  },
+  morandi_stone: {
+    solid: 'rgb(126 123 116)',
+    softBg: 'rgb(242 241 238 / 0.78)',
+    softBorder: 'rgb(183 180 170)',
+    line: 'rgb(183 180 170)',
+    text: 'rgb(88 86 80)',
+    shadow: 'rgb(126 123 116 / 0.13)',
   },
 }
 
@@ -419,7 +441,7 @@ export default function TermLearningPage() {
       .update({
         name,
         description: nullableText(editCategoryForm.description),
-        color: editCategoryForm.color || parentCategory?.color || 'gray',
+        color: normalizeCategoryColor(editCategoryForm.color || parentCategory?.color),
         parent_id: parentId,
         level: parentId ? 2 : 1,
         group_key: parentId ? parentCategory?.group_key || inferGroupKey(name) : inferGroupKey(name),
@@ -495,7 +517,7 @@ export default function TermLearningPage() {
     }
 
     const sortOrder = parseSortOrder(categoryForm.sort_order, categories, level === 1 ? null : parentId)
-    const color = categoryForm.color || parentCategory?.color || 'gray'
+    const color = normalizeCategoryColor(categoryForm.color || parentCategory?.color)
     const groupKey = level === 2 ? parentCategory?.group_key || inferGroupKey(name) : inferGroupKey(name)
     const { error } = await supabase.from('term_categories').insert({
       name,
@@ -718,7 +740,7 @@ function CategoryDialog({
 }) {
   const selectedParent = parentCategories.find(category => category.id === form.parent_id)
   const colorHint = form.level === '2' && !form.color && selectedParent?.color
-    ? `留空时继承父级颜色：${selectedParent.color}`
+    ? `留空时继承父级颜色：${categoryColorLabel(selectedParent.color)}`
     : undefined
 
   return (
@@ -732,7 +754,7 @@ function CategoryDialog({
           <Select
             label="分类层级"
             value={form.level}
-            onChange={event => onChange({ level: event.target.value as CategoryForm['level'], parent_id: '', color: event.target.value === '2' ? '' : form.color || 'gray' })}
+            onChange={event => onChange({ level: event.target.value as CategoryForm['level'], parent_id: '', color: event.target.value === '2' ? '' : form.color || DEFAULT_CATEGORY_COLOR })}
           >
             <option value="1">一级分类</option>
             <option value="2">二级分类</option>
@@ -1169,7 +1191,7 @@ function createCategoryForm(): CategoryForm {
     parent_id: '',
     name: '',
     description: '',
-    color: 'gray',
+    color: DEFAULT_CATEGORY_COLOR,
     sort_order: '',
   }
 }
@@ -1179,7 +1201,7 @@ function createCategoryEditForm(category: TermCategory | null): CategoryEditForm
     parent_id: category?.parent_id ?? '',
     name: category?.name ?? '',
     description: category?.description ?? '',
-    color: category?.color || 'gray',
+    color: normalizeCategoryColor(category?.color),
     sort_order: category?.sort_order === null || category?.sort_order === undefined ? '' : String(category.sort_order),
   }
 }
@@ -1243,6 +1265,16 @@ function sortCategories(a: TermCategory, b: TermCategory) {
 }
 
 function categoryColorKey(value: string | null): CategoryColorKey {
+  return normalizeCategoryColor(value)
+}
+
+function normalizeCategoryColor(value: string | null | undefined): CategoryColorKey {
   if (value && value in CATEGORY_TONES) return value as CategoryColorKey
-  return 'gray'
+  if (value && value in LEGACY_CATEGORY_COLOR_MAP) return LEGACY_CATEGORY_COLOR_MAP[value]
+  return DEFAULT_CATEGORY_COLOR
+}
+
+function categoryColorLabel(value: string | null | undefined): string {
+  const color = normalizeCategoryColor(value)
+  return CATEGORY_COLORS.find(option => option.value === color)?.label || '石灰色'
 }
