@@ -9,6 +9,7 @@ import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Eyebrow } from '@/components/ui/Eyebrow'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MainContent } from '@/components/ui/MainContent'
+import { apiJSON } from '@/lib/apiFetch'
 import { supabase } from '@/lib/supabase'
 
 const ADMIN_EMAIL = 'rukunchen@hotmail.com'
@@ -68,6 +69,7 @@ export default function TermCategoryPage() {
   const categoryId = String(params.categoryId ?? '')
   const [userId, setUserId] = useState('')
   const [userEmail, setUserEmail] = useState('')
+  const [isPlatformAdminUser, setIsPlatformAdminUser] = useState(false)
   const [category, setCategory] = useState<TermCategory | null>(null)
   const [categories, setCategories] = useState<TermCategory[]>([])
   const [terms, setTerms] = useState<PublicTerm[]>([])
@@ -79,7 +81,10 @@ export default function TermCategoryPage() {
   const [adminNotice, setAdminNotice] = useState('')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [termForm, setTermForm] = useState<TermForm>(() => createTermForm(''))
+  const [editingTerm, setEditingTerm] = useState<PublicTerm | null>(null)
+  const [editTermForm, setEditTermForm] = useState<TermForm>(() => createTermForm(''))
   const [savingAdminTerm, setSavingAdminTerm] = useState(false)
+  const [savingEditedTerm, setSavingEditedTerm] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importMode, setImportMode] = useState<ImportMode>('text')
   const [importParentCategoryId, setImportParentCategoryId] = useState('')
@@ -91,6 +96,7 @@ export default function TermCategoryPage() {
   const [importingTerms, setImportingTerms] = useState(false)
 
   const isAdmin = userEmail.toLowerCase() === ADMIN_EMAIL
+  const canEditPublicTerms = isAdmin || isPlatformAdminUser
 
   const load = useCallback(async () => {
     if (!categoryId) return
@@ -106,7 +112,8 @@ export default function TermCategoryPage() {
     const shouldOpenAdminImport = new URLSearchParams(window.location.search).get('adminImport') === '1'
     setUserEmail(currentEmail)
 
-    const [categoryRes, categoriesRes, termsRes, termbookRes] = await Promise.all([
+    const [adminStatusRes, categoryRes, categoriesRes, termsRes, termbookRes] = await Promise.all([
+      apiJSON<{ isAdmin: boolean }>('/api/admin/me'),
       supabase
         .from('term_categories')
         .select('id, name, description, parent_id, level')
@@ -127,6 +134,7 @@ export default function TermCategoryPage() {
         .select('public_term_id')
         .eq('user_id', userData.user.id),
     ])
+    setIsPlatformAdminUser(Boolean(adminStatusRes.data?.isAdmin))
 
     if (categoryRes.error || !categoryRes.data) {
       setCategory(null)
@@ -240,6 +248,12 @@ export default function TermCategoryPage() {
     setShowAddDialog(true)
   }
 
+  function openEditDialog(term: PublicTerm) {
+    setAdminNotice('')
+    setEditingTerm(term)
+    setEditTermForm(createTermFormFromTerm(term, categories))
+  }
+
   function openImportDialog() {
     setAdminNotice('')
     setImportMode('text')
@@ -307,6 +321,47 @@ export default function TermCategoryPage() {
     } else {
       router.push(`/practice/terms/category/${nextCategoryId}`)
     }
+  }
+
+  async function saveEditedTerm() {
+    if (!canEditPublicTerms || !editingTerm) return
+    const nextCategoryId = editTermForm.category_id
+    const sourceText = editTermForm.source_text.trim()
+    const targetText = editTermForm.target_text.trim()
+    if (!nextCategoryId || !sourceText || !targetText) {
+      alert('最终分类、中文和英文为必填项。')
+      return
+    }
+
+    setSavingEditedTerm(true)
+    const { data, error } = await apiJSON<{ term: PublicTerm; syncedTermbookItems: number }>(
+      `/api/terms/${encodeURIComponent(editingTerm.id)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          category_id: nextCategoryId,
+          source_text: sourceText,
+          target_text: targetText,
+          definition: nullableText(editTermForm.definition),
+          example_sentence: nullableText(editTermForm.example_sentence),
+          tags: parseTags(editTermForm.tags),
+          source: nullableText(editTermForm.source),
+          difficulty: nullableText(editTermForm.difficulty),
+        }),
+      }
+    )
+    setSavingEditedTerm(false)
+
+    if (error || !data?.term) {
+      alert('保存词条失败：' + (error || '未知错误'))
+      return
+    }
+
+    setEditingTerm(null)
+    await load()
+    const movedText = data.term.category_id === categoryId ? '' : '，该词条已移至新分类'
+    const syncText = data.syncedTermbookItems > 0 ? `，并同步更新 ${data.syncedTermbookItems} 条已加入词条本的记录` : ''
+    setAdminNotice(`已更新词条「${data.term.source_text}」${movedText}${syncText}。`)
   }
 
   async function parseImportText() {
@@ -500,8 +555,10 @@ export default function TermCategoryPage() {
                     term={term}
                     isAdded={addedTermIds.has(term.id)}
                     saving={savingTermId === term.id}
+                    isAdmin={canEditPublicTerms}
                     onAdd={() => addToTermbook(term)}
                     onStudy={openStudy}
+                    onEdit={() => openEditDialog(term)}
                   />
                 ))}
               </div>
@@ -509,12 +566,27 @@ export default function TermCategoryPage() {
 
             {showAddDialog && isAdmin && (
               <AdminTermDialog
+                title="添加词条"
+                submitLabel="保存词条"
                 categories={categories}
                 form={termForm}
                 saving={savingAdminTerm}
                 onChange={patch => setTermForm(prev => ({ ...prev, ...patch }))}
                 onClose={() => setShowAddDialog(false)}
                 onSave={saveAdminTerm}
+              />
+            )}
+
+            {editingTerm && canEditPublicTerms && (
+              <AdminTermDialog
+                title="编辑词条"
+                submitLabel="保存修改"
+                categories={categories}
+                form={editTermForm}
+                saving={savingEditedTerm}
+                onChange={patch => setEditTermForm(prev => ({ ...prev, ...patch }))}
+                onClose={() => setEditingTerm(null)}
+                onSave={saveEditedTerm}
               />
             )}
 
@@ -562,6 +634,8 @@ export default function TermCategoryPage() {
 }
 
 function AdminTermDialog({
+  title,
+  submitLabel,
   categories,
   form,
   saving,
@@ -569,6 +643,8 @@ function AdminTermDialog({
   onClose,
   onSave,
 }: {
+  title: string
+  submitLabel: string
   categories: TermCategory[]
   form: TermForm
   saving: boolean
@@ -577,7 +653,7 @@ function AdminTermDialog({
   onSave: () => Promise<void>
 }) {
   return (
-    <AdminModal title="添加词条" onClose={onClose}>
+    <AdminModal title={title} onClose={onClose}>
       <form className="space-y-5" onSubmit={event => { event.preventDefault(); void onSave() }}>
         <CategoryHierarchySelect
           categories={categories}
@@ -602,7 +678,7 @@ function AdminTermDialog({
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button variant="secondary" onClick={onClose}>取消</Button>
-          <Button variant="primary" type="submit" loading={saving}>保存词条</Button>
+          <Button variant="primary" type="submit" loading={saving}>{submitLabel}</Button>
         </div>
       </form>
     </AdminModal>
@@ -862,14 +938,18 @@ function TermCard({
   term,
   isAdded,
   saving,
+  isAdmin,
   onAdd,
   onStudy,
+  onEdit,
 }: {
   term: PublicTerm
   isAdded: boolean
   saving: boolean
+  isAdmin: boolean
   onAdd: () => void
   onStudy: () => void
+  onEdit: () => void
 }) {
   return (
     <Card padding="md" className="border-line/80">
@@ -907,6 +987,7 @@ function TermCard({
               {isAdded ? '已加入词条本' : '加入我的词条本'}
             </Button>
             <Button variant="ghost" onClick={onStudy}>卡片学习</Button>
+            {isAdmin && <Button variant="ghost" onClick={onEdit}>编辑词条</Button>}
           </div>
         </div>
       </div>
@@ -944,6 +1025,21 @@ function createTermForm(categoryId: string, categories: TermCategory[] = []): Te
     tags: '',
     source: '',
     difficulty: '',
+  }
+}
+
+function createTermFormFromTerm(term: PublicTerm, categories: TermCategory[]): TermForm {
+  const selection = createCategorySelection(term.category_id ?? '', categories)
+  return {
+    parent_category_id: selection.parent_category_id,
+    category_id: selection.category_id,
+    source_text: term.source_text,
+    target_text: term.target_text,
+    definition: term.definition ?? '',
+    example_sentence: term.example_sentence ?? '',
+    tags: (term.tags ?? []).join(', '),
+    source: term.source ?? '',
+    difficulty: term.difficulty ?? '',
   }
 }
 
