@@ -396,7 +396,10 @@ export default function ReadingRoomPage() {
   const loadNewsHotspots = async () => {
     setNewsLoading(true)
     setNewsError('')
-    const { data, error } = await apiJSON<NewsHotspotsPayload>('/api/reading/news-hotspots')
+    const { data, error } = await apiJSON<NewsHotspotsPayload>(
+      `/api/reading/news-hotspots?t=${Date.now()}`,
+      { cache: 'no-store' }
+    )
     if (error || !data) {
       setNewsHotspots(null)
       setNewsError(error || '新闻热点暂时无法加载')

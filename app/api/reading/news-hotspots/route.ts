@@ -32,6 +32,8 @@ const INTERNATIONAL_FEEDS: FeedSource[] = [
   { name: 'NPR', url: 'https://feeds.npr.org/1004/rss.xml' },
 ]
 
+const NO_CACHE_HEADERS = { 'Cache-Control': 'no-store, max-age=0' }
+
 let dailyCache: NewsHotspotsPayload | null = null
 
 function shanghaiDateKey(date = new Date()): string {
@@ -151,7 +153,7 @@ export async function GET() {
 
   if (dailyCache?.date === today) {
     return NextResponse.json(dailyCache, {
-      headers: { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=86400' },
+      headers: NO_CACHE_HEADERS,
     })
   }
 
@@ -177,10 +179,6 @@ export async function GET() {
   }
 
   return NextResponse.json(payload, {
-    headers: {
-      'Cache-Control': isComplete
-        ? 'public, max-age=300, stale-while-revalidate=86400'
-        : 'public, max-age=60',
-    },
+    headers: NO_CACHE_HEADERS,
   })
 }
