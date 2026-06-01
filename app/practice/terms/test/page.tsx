@@ -513,8 +513,8 @@ function SettingsView({
           {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-ink-500">本轮优先使用 AI 生成干扰项；AI 失败时回退到本地规则，不保存测试历史。</p>
-            <Button type="submit" variant="primary" loading={checking} disabled={loading || checking}>
+            <p className="text-xs text-ink-500">本轮优先使用 AI 生成干扰项；AI 失败时回退到本地规则，完成后保存测试记录。</p>
+            <Button className="w-full sm:w-auto" type="submit" variant="primary" loading={checking} disabled={loading || checking}>
               {checking ? '正在生成测试题' : '开始测试'}
             </Button>
           </div>
@@ -564,12 +564,12 @@ function QuizView({
             <Eyebrow tone="muted" className="mb-2">{directionLabel(question.direction)}</Eyebrow>
             <h2 className="font-serif text-2xl text-ink-900">第 {questionIndex + 1} / {totalQuestions} 题</h2>
           </div>
-          <Button variant="ghost" onClick={onExit}>退出测试</Button>
+          <Button className="w-full sm:w-auto" variant="ghost" onClick={onExit}>退出测试</Button>
         </div>
 
         <div className="mb-7 rounded-2xl border border-line bg-surface/70 px-7 py-6 text-center sm:px-8 sm:py-7">
           <p className="mb-3 text-xs text-ink-500">题干</p>
-          <p className="break-words font-serif text-2xl leading-snug text-ink-900 sm:text-3xl">{question.prompt}</p>
+          <p className="break-words font-serif text-[clamp(1.75rem,9vw,2.25rem)] leading-snug text-ink-900 sm:text-3xl">{question.prompt}</p>
         </div>
 
         <div className="space-y-4">
@@ -598,8 +598,8 @@ function QuizView({
           </div>
         )}
 
-        <div className="mt-8 flex justify-end">
-          <Button variant="primary" onClick={() => void onNext()} loading={savingReport} disabled={!answer || savingReport}>
+        <div className="sticky bottom-[92px] z-10 mt-8 flex rounded-2xl border border-line bg-white/95 p-2 shadow-[0_-12px_30px_rgba(31,30,29,0.08)] backdrop-blur sm:static sm:justify-end sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+          <Button className="w-full sm:w-auto" variant="primary" onClick={() => void onNext()} loading={savingReport} disabled={!answer || savingReport}>
             {savingReport ? '正在保存记录' : questionIndex >= totalQuestions - 1 ? '查看报告' : '下一题'}
           </Button>
         </div>
@@ -654,16 +654,16 @@ function ResultView({
               </p>
             )}
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <ReportStat label="总题数" value={String(questions.length)} />
             <ReportStat label="正确数" value={String(correctCount)} />
             <ReportStat label="正确率" value={`${accuracy}%`} />
           </div>
         </div>
         <div className="mt-8 flex flex-col gap-2 sm:flex-row">
-          <Button variant="primary" onClick={onRetest}>再测一次</Button>
-          <Button variant="secondary" onClick={onReturn}>返回词条学习</Button>
-          <Button variant="ghost" onClick={onOpenTermbook}>进入我的词条本</Button>
+          <Button className="w-full sm:w-auto" variant="primary" onClick={onRetest}>再测一次</Button>
+          <Button className="w-full sm:w-auto" variant="secondary" onClick={onReturn}>返回词条学习</Button>
+          <Button className="w-full sm:w-auto" variant="ghost" onClick={onOpenTermbook}>进入我的词条本</Button>
         </div>
       </Card>
 
@@ -780,7 +780,7 @@ function OptionButton({
       disabled={disabled}
       onClick={onClick}
       className={[
-        'flex w-full items-center gap-5 rounded-xl border px-6 py-4 text-left transition-colors sm:px-7',
+        'flex min-h-[44px] w-full items-center gap-4 rounded-xl border px-4 py-4 text-left transition-colors sm:gap-5 sm:px-7',
         correct && 'border-emerald-300 bg-emerald-50 text-emerald-900',
         wrong && 'border-red-300 bg-red-50 text-red-800',
         !correct && !wrong && selected && 'border-ink-900 bg-canvas text-ink-900',

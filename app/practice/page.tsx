@@ -208,11 +208,11 @@ export default function TranslationPracticeHomePage() {
               title="译训库"
               description="翻译备考练习与篇章复盘。保存练习材料，完成原文、我的译文与参考译文对照，再把问题和表达带入复习。"
               actions={
-                <div className="flex flex-wrap justify-end gap-2">
-                  <Button variant="primary" onClick={() => setCreateMode('practice')}>新建练习</Button>
-                  <Button variant="secondary" onClick={() => setCreateMode('import')}>导入材料</Button>
-                  <Button variant="secondary" onClick={() => router.push('/practice/review')}>今日复习</Button>
-                  <Button variant="ghost" onClick={() => router.push('/practice/cards')}>表达卡片</Button>
+                <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap md:justify-end">
+                  <Button className="w-full md:w-auto" variant="primary" onClick={() => setCreateMode('practice')}>新建练习</Button>
+                  <Button className="w-full md:w-auto" variant="secondary" onClick={() => setCreateMode('import')}>导入材料</Button>
+                  <Button className="w-full md:w-auto" variant="secondary" onClick={() => router.push('/practice/review')}>今日复习</Button>
+                  <Button className="w-full md:w-auto" variant="ghost" onClick={() => router.push('/practice/cards')}>表达卡片</Button>
                 </div>
               }
             />

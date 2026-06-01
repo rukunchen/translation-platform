@@ -46,10 +46,10 @@ export function PageHeader({
       )}
 
       {/* 主标题 + 描述 + actions */}
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex min-w-0 flex-col items-stretch gap-5 md:flex-row md:items-start md:justify-between md:gap-6">
         <div className="min-w-0 flex-1">
           {eyebrow && <Eyebrow tone="muted" className="mb-2">{eyebrow}</Eyebrow>}
-          <h1 className="font-serif text-3xl sm:text-4xl text-ink-900 tracking-tight leading-tight">
+          <h1 className="break-words font-serif text-3xl sm:text-4xl text-ink-900 tracking-tight leading-tight">
             {title}
           </h1>
           {description && (
@@ -58,7 +58,7 @@ export function PageHeader({
             </p>
           )}
         </div>
-        {actions && <div className="flex items-center gap-2 flex-shrink-0 pt-1">{actions}</div>}
+        {actions && <div className="flex min-w-0 items-center gap-2 pt-1 md:flex-shrink-0">{actions}</div>}
       </div>
     </header>
   )

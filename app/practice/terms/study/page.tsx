@@ -370,15 +370,15 @@ export default function TermStudyPage() {
                 showCategoryButton={!!categoryId}
               />
             ) : currentCard ? (
-              <section className="mx-auto max-w-3xl">
-                <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <section className="mx-auto flex min-h-[calc(100dvh-190px)] max-w-3xl flex-col justify-center md:min-h-0">
+                <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
                   <ProgressPill label="进度" value={`第 ${currentIndex + 1} / ${deck.length} 张`} />
                   <ProgressPill label="已掌握" value={`${knownCount}`} />
                   <ProgressPill label="学习中" value={`${unsureCount}`} />
                 </div>
                 <StudyCardView card={currentCard} isFlipped={isFlipped} />
-                <div className="mt-5 flex flex-wrap justify-center gap-2">
-                  <Button variant="secondary" onClick={() => setIsFlipped(flipped => !flipped)}>翻面</Button>
+                <div className="sticky bottom-[92px] z-10 mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-line bg-white/95 p-2 shadow-[0_-12px_30px_rgba(31,30,29,0.08)] backdrop-blur md:static md:flex md:flex-wrap md:justify-center md:border-0 md:bg-transparent md:p-0 md:shadow-none">
+                  <Button className="col-span-2 md:col-span-1" variant="secondary" onClick={() => setIsFlipped(flipped => !flipped)}>翻面</Button>
                   <Button variant="primary" onClick={() => markCurrent('mastered')} loading={reviewing}>认识</Button>
                   <Button variant="secondary" onClick={() => markCurrent('learning')} disabled={reviewing}>不熟</Button>
                   <Button variant="ghost" onClick={advanceCard} disabled={reviewing}>下一张</Button>
@@ -404,14 +404,14 @@ function StudyCardView({ card, isFlipped }: { card: StudyCard; isFlipped: boolea
   const backPrimary = card.direction === 'zh-en' ? card.term.target_text : card.term.source_text
 
   return (
-    <Card padding="lg" className="min-h-[360px] border-line/80">
-      <div className="flex min-h-[280px] flex-col justify-center">
+    <Card padding="lg" className="min-h-[320px] border-line/80 sm:min-h-[360px]">
+      <div className="flex min-h-[240px] flex-col justify-center sm:min-h-[280px]">
         <Eyebrow tone="muted" className="mb-5">{isFlipped ? 'Back' : 'Front'}</Eyebrow>
         {!isFlipped ? (
-          <h2 className="break-words text-center font-serif text-4xl leading-tight text-ink-900">{front}</h2>
+          <h2 className="break-words text-center font-serif text-[clamp(2.25rem,10vw,3.4rem)] leading-tight text-ink-900">{front}</h2>
         ) : (
           <div className="space-y-6">
-            <h2 className="break-words text-center font-serif text-3xl leading-tight text-ink-900">{backPrimary}</h2>
+            <h2 className="break-words text-center font-serif text-[clamp(2rem,8vw,3rem)] leading-tight text-ink-900">{backPrimary}</h2>
             <div className="space-y-4 border-t border-line pt-5">
               <StudyDetail label="解释" value={card.term.definition || '暂无解释'} />
               <StudyDetail label="例句" value={card.term.example_sentence || '暂无例句'} />

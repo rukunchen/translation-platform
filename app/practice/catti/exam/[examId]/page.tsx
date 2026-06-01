@@ -1013,6 +1013,10 @@ export default function CattiExamPage() {
     const phaseTitle = timeExpired && !allSegmentsCompleted ? '考试时间已到' : allSegmentsCompleted ? '考试录音已完成' : erkouPhaseTitle(erkouPhase)
     const phaseDescription = timeExpired && !allSegmentsCompleted ? '请尽快完成当前录音流程并提交考试录音。' : erkouPhaseDescription(erkouPhase, activeSegmentIndex, segments.length)
     const startFlowLabel = audioReady ? '开始考试' : '等待生成考试音频'
+    const mobilePhaseLabel = mobileErkouPhaseLabel(erkouPhase, allSegmentsCompleted)
+    const mobileStageTimer = phaseRemainingSeconds != null && phaseRemainingSeconds > 0
+      ? formatCountdown(phaseRemainingSeconds)
+      : recordingStatus(currentRecording)
 
     return (
       <div className="min-h-screen overflow-x-hidden bg-canvas text-ink-900">
@@ -1039,7 +1043,7 @@ export default function CattiExamPage() {
           </div>
         </header>
 
-        <main className="mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-[1680px] flex-col justify-start px-4 py-5 sm:px-[clamp(20px,3vw,56px)] sm:py-8 lg:justify-center">
+        <main className="mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-[1680px] flex-col justify-start px-4 pb-28 pt-5 sm:px-[clamp(20px,3vw,56px)] sm:py-8 lg:justify-center">
           {timeExpired && (
             <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">
               时间已到，请尽快提交考试。
@@ -1047,8 +1051,34 @@ export default function CattiExamPage() {
           )}
 
           <section className="overflow-hidden rounded-2xl border border-line bg-surface-2 shadow-[var(--shadow-card)] sm:rounded-[24px]">
-            <div className="grid min-h-[620px] min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
-              <div className="flex min-h-[520px] min-w-0 flex-col px-5 py-6 sm:px-[clamp(28px,4vw,72px)] sm:py-[clamp(28px,4vw,64px)]">
+            <div className="grid min-h-[calc(100dvh-220px)] min-w-0 grid-cols-1 sm:min-h-[620px] lg:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
+              <div className="flex min-h-[calc(100dvh-260px)] min-w-0 flex-col px-5 py-6 sm:min-h-[520px] sm:px-[clamp(28px,4vw,72px)] sm:py-[clamp(28px,4vw,64px)]">
+                <div className="mb-5 grid grid-cols-2 gap-3 sm:hidden">
+                  <div className="rounded-2xl bg-ink-900 px-4 py-4 text-white">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-white/55">当前段落</p>
+                    <p className="mt-2 font-mono text-4xl leading-none">{activeSegmentIndex + 1} / {segments.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-line bg-canvas-2 px-4 py-4">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-ink-500">当前部分</p>
+                    <p className="mt-2 break-words font-serif text-xl leading-tight text-ink-900">{activePartTitle}</p>
+                  </div>
+                  <div className="col-span-2 rounded-2xl border border-line bg-white px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-ink-500">当前阶段</p>
+                        <p className="mt-2 font-serif text-2xl leading-tight text-ink-900">{mobilePhaseLabel}</p>
+                      </div>
+                      <div className={cn(
+                        'rounded-2xl border px-4 py-3 text-center',
+                        recording ? 'border-brand-200 bg-brand-50 text-brand-700' : flowBusy ? 'border-ink-200 bg-canvas text-ink-900' : 'border-line bg-canvas-2 text-ink-700'
+                      )}>
+                        <p className="text-[11px] text-ink-500">倒计时</p>
+                        <p className="mt-1 font-mono text-3xl leading-none">{mobileStageTimer}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex flex-col gap-5 border-b border-line pb-6 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0 max-w-3xl">
                     <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500">考试状态</p>
@@ -1081,7 +1111,7 @@ export default function CattiExamPage() {
                     <StatusLine label="音频类型" value={activeAudioType} />
                     <StatusLine
                       label="阶段计时"
-                      value={phaseRemainingSeconds != null && phaseRemainingSeconds > 0 ? formatCountdown(phaseRemainingSeconds) : recordingStatus(currentRecording)}
+                      value={mobileStageTimer}
                     />
                   </div>
                 </div>
@@ -1158,6 +1188,7 @@ export default function CattiExamPage() {
                       variant="primary"
                       size="lg"
                       fullWidth
+                      className="hidden sm:inline-flex"
                       loading={flowBusy}
                       disabled={!canStartFlow}
                       onClick={() => { void startCandidateErkouFlow() }}
@@ -1170,6 +1201,7 @@ export default function CattiExamPage() {
                       variant="primary"
                       size="lg"
                       fullWidth
+                      className="hidden sm:inline-flex"
                       loading={submitting}
                       disabled={uploadingSegmentCount > 0}
                       onClick={() => { void submitErkouExam() }}
@@ -1182,6 +1214,44 @@ export default function CattiExamPage() {
             </div>
           </section>
         </main>
+
+        {(showStartFlowButton || allSegmentsCompleted || currentRecording?.error) && (
+          <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+12px)] shadow-[0_-12px_30px_rgba(31,30,29,0.12)] backdrop-blur sm:hidden">
+            {currentRecording?.error ? (
+              <Button
+                variant="secondary"
+                size="lg"
+                fullWidth
+                loading={currentRecording.uploading}
+                onClick={() => { void retrySegmentUpload(activeSegment) }}
+              >
+                重试上传录音
+              </Button>
+            ) : showStartFlowButton ? (
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                loading={flowBusy}
+                disabled={!canStartFlow}
+                onClick={() => { void startCandidateErkouFlow() }}
+              >
+                {startFlowLabel}
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                loading={submitting}
+                disabled={uploadingSegmentCount > 0}
+                onClick={() => { void submitErkouExam() }}
+              >
+                提交考试录音
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     )
   }
@@ -1222,6 +1292,12 @@ export default function CattiExamPage() {
         </div>
       </header>
 
+      <div className="mx-auto max-w-[1600px] px-4 pt-4 md:hidden">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-7 text-amber-900">
+          二笔实务建议在电脑端完成，以获得更好的输入和审校体验。你仍可在手机端查看题目和报告，也可以继续作答。
+        </div>
+      </div>
+
       <main className="mx-auto grid max-w-[1600px] grid-cols-1 gap-4 py-5 sm:gap-5 lg:grid-cols-2" style={pageGutter}>
         {timeExpired && (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 lg:col-span-2">
@@ -1261,7 +1337,7 @@ export default function CattiExamPage() {
           </div>
         </section>
 
-        <section className="flex min-h-[calc(100vh-300px)] min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-white">
+        <section className="flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-white sm:min-h-[calc(100vh-300px)]">
           <div className="flex items-center justify-between gap-3 border-b border-line" style={panelHeaderPadding}>
             <div className="min-w-0">
               <h2 className="font-serif text-lg">{passageLabel(activePassage)} · 原文阅读区</h2>
@@ -1274,7 +1350,7 @@ export default function CattiExamPage() {
           </div>
         </section>
 
-        <section className="flex min-h-[calc(100vh-300px)] min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-white">
+        <section className="flex min-h-[420px] min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-white sm:min-h-[calc(100vh-300px)]">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line" style={panelHeaderPadding}>
             <div className="min-w-0">
               <h2 className="font-serif text-lg">{passageLabel(activePassage)} · 译文输入区</h2>
@@ -1285,7 +1361,7 @@ export default function CattiExamPage() {
           <textarea
             value={activeAnswer}
             onChange={e => updateActiveAnswer(e.target.value)}
-            className="min-h-[560px] flex-1 resize-none border-0 bg-white text-base leading-8 text-ink-900 outline-none placeholder:text-ink-300"
+            className="min-h-[420px] flex-1 resize-none border-0 bg-white text-base leading-8 text-ink-900 outline-none placeholder:text-ink-300 sm:min-h-[560px]"
             style={panelBodyPadding}
             placeholder={`在此输入${passageLabel(activePassage)}译文...`}
           />
@@ -1436,6 +1512,15 @@ function erkouPhaseTitle(phase: ErkouPhase) {
   if (phase === '过渡中') return '请等待下一段'
   if (phase === '上传失败') return '录音上传失败'
   return '考试录音已完成'
+}
+
+function mobileErkouPhaseLabel(phase: ErkouPhase, completed: boolean) {
+  if (completed || phase === '考试完成') return '已完成'
+  if (phase === '正在播放原文' || phase === '考试说明') return '播放中'
+  if (phase === '录音即将开始' || phase === '请开始口译' || phase === '录音中') return '自动录音中'
+  if (phase === '过渡中' || phase === '录音上传中') return '准备下一段'
+  if (phase === '上传失败') return '上传失败'
+  return '准备开始'
 }
 
 function erkouPhaseDescription(phase: ErkouPhase, index: number, total: number) {

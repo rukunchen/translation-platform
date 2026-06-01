@@ -98,6 +98,7 @@ const workspaceNavItems: WorkspaceNavItem[] = [
 const workspaceHrefs = Array.from(
   new Set(workspaceNavItems.flatMap(item => [item.href, ...(item.prefetchHrefs ?? [])]))
 )
+const mobilePrimaryHrefs = ['/dashboard', '/projects', '/practice', '/reading']
 
 let workspacePrefetched = false
 let cachedUser: User | null | undefined
@@ -171,56 +172,130 @@ export default function Sidebar() {
     }
   }, [router])
 
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
+
   const logout = async () => {
     await supabase.auth.signOut()
     router.push('/')
   }
 
   const visibleWorkspaceItems = workspaceNavItems.filter(item => !item.adminOnly || isAdmin)
+  const mobilePrimaryItems = mobilePrimaryHrefs
+    .map(href => visibleWorkspaceItems.find(item => item.href === href))
+    .filter((item): item is WorkspaceNavItem => Boolean(item))
+  const mobileMoreItems = visibleWorkspaceItems.filter(item => !mobilePrimaryHrefs.includes(item.href))
+  const activeMobileItem = visibleWorkspaceItems.find(item => item.activeMatcher(pathname))
+  const moreActive = mobileMoreItems.some(item => item.activeMatcher(pathname)) || pathname.startsWith('/account')
   const userName = user?.user_metadata?.name || (user?.email ? user.email.split('@')[0] : '用户')
   const initial = (userName[0] || '?').toUpperCase()
   const closeMobile = () => setMobileOpen(false)
 
   return (
     <>
-      <button
-        type="button"
-        aria-label="打开导航"
-        onClick={() => setMobileOpen(true)}
-        className="fixed left-3 top-3 z-40 flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-white text-ink-900 shadow-sm md:hidden"
-      >
-        <MenuIcon />
-      </button>
+      <span className="yijing-mobile-nav-shell" aria-hidden="true" />
+
+      <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-line bg-surface-2/95 px-4 shadow-sm backdrop-blur md:hidden">
+        <Link href="/dashboard" className="flex items-center gap-1.5" onClick={closeMobile}>
+          <Logo size={30} priority className="flex-shrink-0" />
+          <span className="brand-wordmark text-[28px] leading-none text-ink-900">译境</span>
+        </Link>
+        <span className="max-w-[38vw] truncate text-sm text-ink-500">
+          {activeMobileItem?.label ?? '工作台'}
+        </span>
+        <button
+          type="button"
+          aria-label="打开更多菜单"
+          onClick={() => setMobileOpen(true)}
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-white text-ink-800 shadow-sm"
+        >
+          <MenuIcon />
+        </button>
+      </header>
 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <button
             type="button"
-            aria-label="关闭导航"
-            className="absolute inset-0 bg-ink-900/45"
+            aria-label="关闭更多菜单"
+            className="absolute inset-0 bg-ink-900/40"
             onClick={closeMobile}
           />
-          <aside className="relative flex h-full w-72 max-w-[86vw] flex-col bg-ink-900 border-r border-black/20 shadow-2xl">
-            <button
-              type="button"
-              aria-label="关闭导航"
-              onClick={closeMobile}
-              className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 hover:text-white"
-            >
-              <CloseIcon />
-            </button>
-            <SidebarContent
-              visibleWorkspaceItems={visibleWorkspaceItems}
-              pathname={pathname}
-              userName={userName}
-              userEmail={user?.email}
-              initial={initial}
-              onLogout={logout}
-              onNavigate={closeMobile}
-            />
-          </aside>
+          <section className="absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+84px)] rounded-card-lg border border-line bg-surface-2 p-4 shadow-modal">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.24em] text-ink-400">More</p>
+                <h2 className="mt-1 font-serif text-2xl text-ink-900">更多入口</h2>
+              </div>
+              <button
+                type="button"
+                aria-label="关闭更多菜单"
+                onClick={closeMobile}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-white text-ink-600"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+
+            <div className="grid gap-2">
+              {mobileMoreItems.map(item => (
+                <MobileMoreLink
+                  key={item.href}
+                  item={item}
+                  active={item.activeMatcher(pathname)}
+                  onNavigate={closeMobile}
+                />
+              ))}
+              <Link
+                href="/account/password"
+                onClick={closeMobile}
+                className={cn(
+                  'flex min-h-12 items-center gap-3 rounded-xl border px-3 text-sm transition-colors',
+                  pathname.startsWith('/account')
+                    ? 'border-brand/30 bg-brand-50 text-ink-900'
+                    : 'border-line bg-white text-ink-700 hover:border-brand/30 hover:bg-brand-50'
+                )}
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-canvas text-ink-500">
+                  <AccountIcon />
+                </span>
+                <span className="font-medium">账户密码</span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  closeMobile()
+                  void logout()
+                }}
+                className="flex min-h-12 items-center gap-3 rounded-xl border border-line bg-white px-3 text-left text-sm text-ink-700 transition-colors hover:border-brand/30 hover:bg-brand-50"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-canvas text-ink-500">
+                  <LogoutIcon />
+                </span>
+                <span className="font-medium">退出登录</span>
+              </button>
+            </div>
+          </section>
         </div>
       )}
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-surface-2/95 px-2 pb-[calc(env(safe-area-inset-bottom)+6px)] pt-1.5 shadow-[0_-10px_30px_rgba(31,30,29,0.08)] backdrop-blur md:hidden">
+        {mobilePrimaryItems.map(item => (
+          <MobileBottomItem
+            key={item.href}
+            item={item}
+            active={item.activeMatcher(pathname)}
+            onNavigate={closeMobile}
+          />
+        ))}
+        <MobileBottomButton
+          active={moreActive || mobileOpen}
+          icon={<MoreIcon />}
+          label="更多"
+          onClick={() => setMobileOpen(open => !open)}
+        />
+      </nav>
 
       <aside className="hidden w-64 bg-ink-900 md:flex flex-col h-full flex-shrink-0 border-r border-black/20">
         <SidebarContent
@@ -233,6 +308,87 @@ export default function Sidebar() {
         />
       </aside>
     </>
+  )
+}
+
+function MobileBottomItem({
+  item, active, onNavigate,
+}: {
+  item: WorkspaceNavItem
+  active: boolean
+  onNavigate: () => void
+}) {
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[11px] font-medium transition-colors',
+        active ? 'bg-brand-50 text-brand-700' : 'text-ink-500 hover:bg-canvas hover:text-ink-900'
+      )}
+    >
+      <span className={cn('flex h-6 w-6 items-center justify-center', active ? 'text-brand' : 'text-ink-400')}>
+        {item.icon}
+      </span>
+      <span className="truncate">{item.label === '我的项目' ? '项目' : item.label}</span>
+    </Link>
+  )
+}
+
+function MobileBottomButton({
+  active, icon, label, onClick,
+}: {
+  active: boolean
+  icon: React.ReactNode
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        'flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[11px] font-medium transition-colors',
+        active ? 'bg-brand-50 text-brand-700' : 'text-ink-500 hover:bg-canvas hover:text-ink-900'
+      )}
+    >
+      <span className={cn('flex h-6 w-6 items-center justify-center', active ? 'text-brand' : 'text-ink-400')}>
+        {icon}
+      </span>
+      <span>{label}</span>
+    </button>
+  )
+}
+
+function MobileMoreLink({
+  item, active, onNavigate,
+}: {
+  item: WorkspaceNavItem
+  active: boolean
+  onNavigate: () => void
+}) {
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'flex min-h-12 items-center gap-3 rounded-xl border px-3 text-sm transition-colors',
+        active
+          ? 'border-brand/30 bg-brand-50 text-ink-900'
+          : 'border-line bg-white text-ink-700 hover:border-brand/30 hover:bg-brand-50'
+      )}
+    >
+      <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg bg-canvas', active ? 'text-brand' : 'text-ink-500')}>
+        {item.icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium">{item.label}</span>
+        <span className="mt-0.5 block truncate text-[11px] text-ink-400">{item.detail}</span>
+      </span>
+    </Link>
   )
 }
 
@@ -405,6 +561,32 @@ function CloseIcon() {
   return (
     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  )
+}
+
+function MoreIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5.5 12h.01M12 12h.01M18.5 12h.01" />
+    </svg>
+  )
+}
+
+function AccountIcon() {
+  return (
+    <svg className="h-[17px] w-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
+        d="M12 12.25a3.75 3.75 0 100-7.5 3.75 3.75 0 000 7.5zM5.25 19.5a6.75 6.75 0 0113.5 0" />
+    </svg>
+  )
+}
+
+function LogoutIcon() {
+  return (
+    <svg className="h-[17px] w-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
+        d="M15.75 8.25V6.75A2.25 2.25 0 0013.5 4.5h-6A2.25 2.25 0 005.25 6.75v10.5A2.25 2.25 0 007.5 19.5h6a2.25 2.25 0 002.25-2.25v-1.5M12 12h7.5m0 0l-2.75-2.75M19.5 12l-2.75 2.75" />
     </svg>
   )
 }
