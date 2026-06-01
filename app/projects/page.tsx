@@ -249,32 +249,32 @@ export default function ProjectsPage() {
                   return (
                     <article
                       key={project.id}
-                      className="group flex h-full min-h-[300px] flex-col rounded-2xl border border-line bg-white transition-all hover:border-brand/40 hover:shadow-[var(--shadow-card-hover)]"
-                      style={{ padding: 32 }}
+                      className="group flex h-full min-h-[220px] flex-col rounded-2xl border border-line bg-white transition-all hover:border-brand/40 hover:shadow-[var(--shadow-card-hover)]"
+                      style={{ padding: '24px 28px' }}
                     >
-                      <div className="mb-3 flex items-start justify-between gap-3">
-                        <h2 className="min-w-0 flex-1 font-serif text-xl leading-tight tracking-tight text-ink-900 line-clamp-1">{project.name}</h2>
-                        <div className="flex flex-col items-end gap-1">
+                      <div className="mb-4 text-center">
+                        <h2 className="mx-auto max-w-[92%] font-serif text-2xl leading-tight tracking-tight text-ink-900 line-clamp-2">{project.name}</h2>
+                        <p className="mx-auto mt-2 min-h-[32px] max-w-xl text-sm leading-relaxed text-ink-600 line-clamp-2">{displayDescription(project)}</p>
+                        <div className="mt-3 flex flex-wrap justify-center gap-2">
                           {isPptProject(project) && (
                             <span className="rounded-md border border-brand-200 bg-brand-50 px-2 py-1 text-[10px] font-medium text-brand whitespace-nowrap">PPT 分页翻译</span>
                           )}
                           <span className="rounded-md border border-line bg-canvas px-2 py-1 text-[10px] text-ink-600 whitespace-nowrap">{langPair}</span>
                         </div>
                       </div>
-                      <p className="mb-5 min-h-[36px] text-xs leading-relaxed text-ink-600 line-clamp-2">{displayDescription(project)}</p>
-                      <div className="mb-5 space-y-3">
+                      <div className="mb-4 space-y-2.5">
                         <ProjectProgress label="翻译" value={translated} total={total} pct={percent(translated, total)} color="bg-amber-200" />
                         <ProjectProgress label="审校" value={reviewed} total={total} pct={percent(reviewed, total)} color="bg-blue-200" />
                         <ProjectProgress label="锁定" value={locked} total={total} pct={percent(locked, total)} color="bg-emerald-200" />
                       </div>
-                      <div className="mb-5 flex flex-wrap items-center gap-3 text-[11px] text-ink-600">
+                      <div className="mb-4 flex flex-wrap items-center justify-center gap-3 text-[11px] text-ink-600">
                         <span>{docs.length} 个文档</span>
                         <span className="text-ink-300">·</span>
                         <span>{memberCount} 位成员</span>
                         <span className="text-ink-300">·</span>
                         <span>{latest ? new Date(latest).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) : '暂无更新'}</span>
                       </div>
-                      <div className="mt-auto flex flex-wrap gap-2 border-t border-line pt-5">
+                      <div className="mt-auto flex flex-wrap justify-center gap-2 border-t border-line pt-4">
                         <Button size="sm" variant="brand" onClick={() => router.push(projectHref(project))}>进入项目</Button>
                         {!isPptProject(project) && <Button size="sm" variant="ghost" onClick={() => router.push(`/projects/${project.id}/glossary`)}>术语库</Button>}
                         {!isPptProject(project) && firstDoc && <Button size="sm" variant="ghost" onClick={() => router.push(`/documents/${firstDoc.id}/parallel`)}>实验</Button>}
