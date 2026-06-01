@@ -23,28 +23,45 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const DOMESTIC_FEEDS: FeedSource[] = [
-  { name: '中国新闻网', url: 'https://www.chinanews.com.cn/rss/china.xml' },
+  { name: '中国新闻网·时政', url: 'https://www.chinanews.com.cn/rss/china.xml' },
+  { name: '中国新闻网·财经', url: 'https://www.chinanews.com.cn/rss/finance.xml' },
+  { name: '中国新闻网·社会', url: 'https://www.chinanews.com.cn/rss/society.xml' },
+  { name: '中国新闻网·生活', url: 'https://www.chinanews.com.cn/rss/life.xml' },
 ]
 
 const INTERNATIONAL_FEEDS: FeedSource[] = [
-  { name: 'BBC News', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
-  { name: 'The Guardian', url: 'https://www.theguardian.com/world/rss' },
-  { name: 'NPR', url: 'https://feeds.npr.org/1004/rss.xml' },
+  { name: 'BBC News·US', url: 'https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml' },
+  { name: 'The Guardian·US', url: 'https://www.theguardian.com/us-news/rss' },
+  { name: 'UN News', url: 'https://news.un.org/feed/subscribe/en/news/all/rss.xml' },
 ]
 
 const NO_CACHE_HEADERS = { 'Cache-Control': 'no-store, max-age=0' }
 
-let dailyCache: NewsHotspotsPayload | null = null
+let twelveHourCache: { key: string; payload: NewsHotspotsPayload } | null = null
 
-function shanghaiDateKey(date = new Date()): string {
+function shanghaiTimeParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Shanghai',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
+    hour: '2-digit',
+    hour12: false,
+    hourCycle: 'h23',
   }).formatToParts(date)
-  const values = Object.fromEntries(parts.map(part => [part.type, part.value]))
+  return Object.fromEntries(parts.map(part => [part.type, part.value]))
+}
+
+function shanghaiDateKey(date = new Date()): string {
+  const values = shanghaiTimeParts(date)
   return `${values.year}-${values.month}-${values.day}`
+}
+
+function shanghaiTwelveHourKey(date = new Date()): string {
+  const values = shanghaiTimeParts(date)
+  const parsedHour = Number(values.hour || '0')
+  const hour = parsedHour === 24 ? 0 : parsedHour
+  return `${values.year}-${values.month}-${values.day}-${hour < 12 ? '00' : '12'}`
 }
 
 function stripTags(value: string): string {
@@ -133,16 +150,30 @@ async function fetchFeed(source: FeedSource): Promise<NewsHotspotItem[]> {
 }
 
 async function collectFeeds(sources: FeedSource[]): Promise<NewsHotspotItem[]> {
-  const batches = await Promise.all(sources.map(fetchFeed))
+  const batches = await Promise.all(sources.map(async source => ({
+    source,
+    items: await fetchFeed(source),
+  })))
   const seen = new Set<string>()
   const merged: NewsHotspotItem[] = []
 
-  for (const item of batches.flat()) {
-    const key = item.title.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    merged.push(item)
-    if (merged.length >= 10) break
+  for (let index = 0; merged.length < 10; index += 1) {
+    let added = false
+
+    for (const batch of batches) {
+      const item = batch.items[index]
+      if (!item) continue
+
+      const key = item.title.toLowerCase()
+      if (seen.has(key)) continue
+
+      seen.add(key)
+      merged.push(item)
+      added = true
+      if (merged.length >= 10) break
+    }
+
+    if (!added) break
   }
 
   return merged
@@ -150,9 +181,10 @@ async function collectFeeds(sources: FeedSource[]): Promise<NewsHotspotItem[]> {
 
 export async function GET() {
   const today = shanghaiDateKey()
+  const cacheKey = shanghaiTwelveHourKey()
 
-  if (dailyCache?.date === today) {
-    return NextResponse.json(dailyCache, {
+  if (twelveHourCache?.key === cacheKey) {
+    return NextResponse.json(twelveHourCache.payload, {
       headers: NO_CACHE_HEADERS,
     })
   }
@@ -175,7 +207,7 @@ export async function GET() {
   const isComplete = domestic.length > 0 && international.length > 0
 
   if (isComplete) {
-    dailyCache = payload
+    twelveHourCache = { key: cacheKey, payload }
   }
 
   return NextResponse.json(payload, {
