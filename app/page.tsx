@@ -58,9 +58,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
+    <div className="min-h-screen flex flex-col bg-canvas text-ink-900 lg:flex-row" style={{ backgroundColor: 'var(--color-canvas)', colorScheme: 'light' }}>
       {/* 左侧：暖米色 — 品牌叙述 */}
-      <section className="lg:w-1/2 bg-canvas relative flex items-center justify-center px-10 sm:px-12 lg:px-16 py-24 min-h-screen">
+      <section className="lg:w-1/2 bg-canvas relative flex items-center justify-center px-10 sm:px-12 lg:px-16 py-24 min-h-screen" style={{ backgroundColor: 'var(--color-canvas)' }}>
         {/* 顶部 logo */}
         <div className="absolute top-10 left-10 sm:top-10 sm:left-12 lg:top-12 lg:left-16 flex items-center gap-[9px]">
           <Logo size={60} priority className="flex-shrink-0" />
@@ -77,7 +77,7 @@ export default function LoginPage() {
               width={1536}
               height={1024}
               priority
-              className="w-full h-auto rounded-2xl mix-blend-multiply select-none pointer-events-none"
+              className="w-full h-auto rounded-2xl bg-surface-2 shadow-[var(--shadow-card)] select-none pointer-events-none"
               style={{
                 maskImage: 'radial-gradient(ellipse at center, #000 60%, transparent 100%)',
                 WebkitMaskImage: 'radial-gradient(ellipse at center, #000 60%, transparent 100%)',

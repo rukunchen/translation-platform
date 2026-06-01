@@ -64,11 +64,16 @@
 /* ============================================================
  * Global resets
  * ============================================================ */
+:root {
+  color-scheme: light;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
   background: var(--color-canvas);
   color: var(--color-ink-900);
+  color-scheme: light;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
