@@ -41,6 +41,12 @@ function resultKey(result: ParallelResult) {
   return parallelResultKey(result.segment_id, parallelRunKey(result))
 }
 
+function modelCellTone(idx: number): 'warm' | 'cool' | undefined {
+  if (idx === 0) return 'warm'
+  if (idx === 1) return 'cool'
+  return undefined
+}
+
 export default function ParallelWorkbenchPage() {
   const params = useParams()
   const router = useRouter()
@@ -578,12 +584,13 @@ export default function ParallelWorkbenchPage() {
                       <div className={cn('grid', gridCols)}
                         style={{ gap: 20, padding: 24 }}>
                         {enabledConfigs.map(cfg => {
+                          const cfgIndex = configs.indexOf(cfg)
                           const key = makeKey(seg.id, cfg)
                           const result = results.get(key) || null
                           return (
                             <div key={cfg.id} className="flex flex-col" style={{ gap: 10 }}>
                               <div className="flex items-center gap-2">
-                                <Eyebrow tone="muted">{windowLabel(configs.indexOf(cfg))}</Eyebrow>
+                                <Eyebrow tone="muted">{windowLabel(cfgIndex)}</Eyebrow>
                                 <span className="font-mono text-ink-500" style={{ fontSize: 10 }}>{cfg.model}</span>
                               </div>
                               <ParallelTranslationCell
@@ -592,6 +599,7 @@ export default function ParallelWorkbenchPage() {
                                 onRetry={() => handleRetry(seg, cfg)}
                                 onAdopt={() => result && handleAdopt(result.id, seg.id, result.translated_text)}
                                 adopting={result ? adoptingIds.has(result.id) : false}
+                                tone={modelCellTone(cfgIndex)}
                               />
                             </div>
                           )

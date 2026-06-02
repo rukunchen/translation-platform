@@ -22,13 +22,28 @@ type Props = {
   onRetry: () => void
   onAdopt: () => void
   adopting?: boolean
+  tone?: 'warm' | 'cool'
 }
 
-export default function ParallelTranslationCell({ result, segmentTarget, onRetry, onAdopt, adopting }: Props) {
+const cellTones = {
+  warm: {
+    background: 'rgba(217, 119, 87, 0.09)',
+    border: 'rgba(217, 119, 87, 0.24)',
+    footer: 'rgba(255, 247, 244, 0.9)',
+  },
+  cool: {
+    background: 'rgba(84, 112, 214, 0.08)',
+    border: 'rgba(84, 112, 214, 0.22)',
+    footer: 'rgba(238, 244, 255, 0.9)',
+  },
+} satisfies Record<string, { background: string; border: string; footer: string }>
+
+export default function ParallelTranslationCell({ result, segmentTarget, onRetry, onAdopt, adopting, tone }: Props) {
   const status: CellStatus = result?.status || 'idle'
   const text = result?.translated_text || ''
   const error = result?.error_message
   const isAdopted = !!(segmentTarget && text && segmentTarget.trim() === text.trim())
+  const toneStyle = tone ? cellTones[tone] : null
 
   const copy = async () => {
     if (!text) return
@@ -48,12 +63,38 @@ export default function ParallelTranslationCell({ result, segmentTarget, onRetry
   return (
     <div className={cn(
       'rounded-xl border transition-colors',
-      isAdopted ? 'border-green-400 bg-green-50/50'
-      : status === 'failed' ? 'border-red-200 bg-red-50/50'
-      : status === 'running' ? 'border-brand/40 bg-brand-50/40'
-      : 'border-line bg-white'
+      isAdopted ? 'border-green-400'
+      : status === 'failed' ? 'border-red-200'
+      : status === 'running' ? 'border-brand/40'
+      : 'border-line',
+      !toneStyle && (
+        isAdopted ? 'bg-green-50/50'
+        : status === 'failed' ? 'bg-red-50/50'
+        : status === 'running' ? 'bg-brand-50/40'
+        : 'bg-white'
+      )
     )}
-    style={{ display: 'flex', flexDirection: 'column', minHeight: 140 }}>
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: 140,
+      ...(toneStyle ? {
+        background: isAdopted
+          ? `linear-gradient(rgba(22, 163, 74, 0.08), rgba(22, 163, 74, 0.08)), ${toneStyle.background}`
+          : status === 'failed'
+            ? `linear-gradient(rgba(220, 38, 38, 0.07), rgba(220, 38, 38, 0.07)), ${toneStyle.background}`
+            : status === 'running'
+              ? `linear-gradient(rgba(217, 119, 87, 0.07), rgba(217, 119, 87, 0.07)), ${toneStyle.background}`
+              : toneStyle.background,
+        borderColor: isAdopted
+          ? 'rgba(22, 163, 74, 0.55)'
+          : status === 'failed'
+            ? 'rgba(220, 38, 38, 0.28)'
+            : status === 'running'
+              ? 'rgba(217, 119, 87, 0.36)'
+              : toneStyle.border,
+      } : {}),
+    }}>
 
       {/* 状态行 */}
       <div className="flex items-center flex-wrap"
@@ -100,7 +141,16 @@ export default function ParallelTranslationCell({ result, segmentTarget, onRetry
       {/* 底部操作栏（普通 flex 项，不再 absolute） */}
       {(status === 'failed' || status === 'success') && (
         <div className="flex items-center border-t border-line bg-white/85"
-          style={{ gap: 8, paddingLeft: 12, paddingRight: 12, paddingTop: 8, paddingBottom: 8, borderBottomLeftRadius: 12, borderBottomRightRadius: 12 }}>
+          style={{
+            gap: 8,
+            paddingLeft: 12,
+            paddingRight: 12,
+            paddingTop: 8,
+            paddingBottom: 8,
+            borderBottomLeftRadius: 12,
+            borderBottomRightRadius: 12,
+            ...(toneStyle ? { backgroundColor: toneStyle.footer } : {}),
+          }}>
           {status === 'failed' && (
             <button onClick={onRetry}
               className="bg-red-600 hover:bg-red-700 text-white font-medium transition-colors"
