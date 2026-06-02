@@ -1091,9 +1091,9 @@ export default function CattiExamPage() {
                     </div>
                     <p className="mt-4 max-w-2xl text-base leading-8 text-ink-600">{phaseDescription}</p>
                   </div>
-                  <div className="w-full min-w-0 rounded-2xl border border-line bg-canvas-2 px-4 py-4 sm:w-auto sm:min-w-[160px] sm:px-5">
+                  <div className="flex min-h-[104px] w-full min-w-0 flex-col items-center justify-center rounded-2xl border border-line bg-canvas-2 px-7 py-5 text-center sm:w-auto sm:min-w-[180px]">
                     <p className="text-[11px] text-ink-500">完成进度</p>
-                    <p className="mt-1 break-words font-mono text-2xl text-ink-900 sm:text-3xl">{completedSegmentCount} / {segments.length}</p>
+                    <p className="mt-1 whitespace-nowrap font-mono text-2xl leading-none text-ink-900 sm:text-3xl">{completedSegmentCount} / {segments.length}</p>
                   </div>
                 </div>
 
