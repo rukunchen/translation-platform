@@ -18,6 +18,7 @@ type SelectionState = {
 
 type ReadingArticle = {
   id: string
+  user_id: string
   title: string | null
   source: string | null
   genre: string | null
@@ -73,7 +74,7 @@ type NewsHotspotsPayload = {
 const GENRE_OPTIONS = ['经济', '政治', '中国', '心理学', '文学', '历史', '文化', '科技', '商务', '法律', '其他']
 const GENRE_FILTERS = ['全部', ...GENRE_OPTIONS]
 
-const ARTICLE_SELECT = 'id,title,source,genre,source_type,clean_text,structured_blocks,created_at,updated_at'
+const ARTICLE_SELECT = 'id,user_id,title,source,genre,source_type,clean_text,structured_blocks,created_at,updated_at'
 
 const READING_FONT_OPTIONS: { value: ReadingFont; label: string }[] = [
   { value: 'serif', label: '报刊衬线' },
@@ -326,8 +327,10 @@ export default function ReadingRoomPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [savingArticle, setSavingArticle] = useState(false)
   const [editArticleOpen, setEditArticleOpen] = useState(false)
+  const [editArticleTarget, setEditArticleTarget] = useState<ReadingArticle | null>(null)
   const [savingArticleEdit, setSavingArticleEdit] = useState(false)
   const [editArticleTitle, setEditArticleTitle] = useState('')
+  const [editArticleSource, setEditArticleSource] = useState('')
   const [editArticleGenre, setEditArticleGenre] = useState('其他')
   const [editArticleText, setEditArticleText] = useState('')
   const [draftText, setDraftText] = useState('')
@@ -511,20 +514,31 @@ export default function ReadingRoomPage() {
     setMode('reader')
   }
 
-  const openArticleEditor = () => {
-    if (!article) return
-    setEditArticleTitle(article.title || titleFromText(cleanText))
-    setEditArticleGenre(articleGenre(article))
-    setEditArticleText(cleanText)
+  const openArticleEditor = (target?: ReadingArticle) => {
+    const targetArticle = target || article
+    if (!targetArticle || targetArticle.user_id !== userId) return
+    const sourceText = article?.id === targetArticle.id ? cleanText : targetArticle.clean_text || ''
+    setEditArticleTarget(targetArticle)
+    setEditArticleTitle(targetArticle.title || titleFromText(sourceText))
+    setEditArticleSource(targetArticle.source || '')
+    setEditArticleGenre(articleGenre(targetArticle))
+    setEditArticleText(sourceText)
     setEditArticleOpen(true)
     setSelection(null)
     window.getSelection()?.removeAllRanges()
   }
 
+  const closeArticleEditor = () => {
+    setEditArticleOpen(false)
+    setEditArticleTarget(null)
+  }
+
   const saveArticleEdit = async () => {
-    if (!article || !userId) return
+    const targetArticle = editArticleTarget || article
+    if (!targetArticle || !userId || targetArticle.user_id !== userId) return
     const cleaned = cleanSourceText(editArticleText)
     const title = editArticleTitle.trim() || titleFromText(cleaned)
+    const source = editArticleSource.trim() || '手动粘贴'
     const genre = editArticleGenre || '其他'
     if (!cleaned || !title) return
 
@@ -534,11 +548,12 @@ export default function ReadingRoomPage() {
       .from('reading_articles')
       .update({
         title,
+        source,
         genre,
         clean_text: cleaned,
         structured_blocks: null,
       })
-      .eq('id', article.id)
+      .eq('id', targetArticle.id)
       .eq('user_id', userId)
       .select(ARTICLE_SELECT)
       .single()
@@ -550,10 +565,12 @@ export default function ReadingRoomPage() {
     }
 
     const updatedArticle = data as ReadingArticle
-    setArticle(updatedArticle)
-    setCleanText(updatedArticle.clean_text || '')
+    if (article?.id === updatedArticle.id) {
+      setArticle(updatedArticle)
+      setCleanText(updatedArticle.clean_text || '')
+    }
     setArticles(current => [updatedArticle, ...current.filter(item => item.id !== updatedArticle.id)])
-    setEditArticleOpen(false)
+    closeArticleEditor()
     setAiNotice('原文已更新。')
   }
 
@@ -718,6 +735,7 @@ export default function ReadingRoomPage() {
   }
 
   const removeArticle = async (target: ReadingArticle) => {
+    if (!userId || target.user_id !== userId) return
     const confirmed = window.confirm('删除后该文章和相关笔记都会被删除，是否继续？')
     if (!confirmed) return
 
@@ -735,6 +753,7 @@ export default function ReadingRoomPage() {
       .from('reading_articles')
       .delete()
       .eq('id', target.id)
+      .eq('user_id', userId)
 
     if (error) {
       setArticles(previousArticles)
@@ -750,6 +769,9 @@ export default function ReadingRoomPage() {
       setSelection(null)
       setAiNotice('')
       setMode('library')
+    }
+    if (editArticleTarget?.id === target.id) {
+      closeArticleEditor()
     }
   }
 
@@ -909,6 +931,7 @@ export default function ReadingRoomPage() {
                           <span>最近阅读：{formatReadingDate(item.updated_at)}</span>
                         </div>
                         <div className="mt-5 flex flex-wrap justify-end gap-2">
+                          <Button size="sm" variant="secondary" onClick={() => openArticleEditor(item)}>编辑文章</Button>
                           <Button size="sm" variant="ghost" onClick={() => { void removeArticle(item) }}>删除文章</Button>
                           <Button size="sm" variant="primary" onClick={() => { void openArticle(item) }}>继续阅读</Button>
                         </div>
@@ -953,7 +976,10 @@ export default function ReadingRoomPage() {
                   <h2 className="mt-1 font-serif text-xl text-ink-900">原文阅读区</h2>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  <Button size="sm" variant="ghost" onClick={openArticleEditor}>编辑原文</Button>
+                  <Button size="sm" variant="ghost" onClick={() => openArticleEditor()}>编辑原文</Button>
+                  {article && (
+                    <Button size="sm" variant="ghost" onClick={() => { void removeArticle(article) }}>删除文章</Button>
+                  )}
                   <label className="flex items-center gap-2 text-xs text-ink-500">
                     字体
                     <select
@@ -1227,7 +1253,7 @@ export default function ReadingRoomPage() {
                 <h2 className="mt-1 font-serif text-2xl text-ink-900">编辑阅读原文</h2>
               </div>
               <button
-                onClick={() => setEditArticleOpen(false)}
+                onClick={closeArticleEditor}
                 className="rounded-lg px-3 py-2 text-sm text-ink-500 transition-colors hover:bg-white hover:text-ink-900"
               >
                 关闭
@@ -1240,6 +1266,16 @@ export default function ReadingRoomPage() {
                   value={editArticleTitle}
                   onChange={event => setEditArticleTitle(event.target.value)}
                   placeholder="输入文章标题"
+                  className="w-full rounded-xl border-2 border-line bg-white text-base text-ink-900 placeholder-ink-300 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
+                  style={{ padding: '12px 14px' }}
+                />
+              </label>
+              <label className="mt-4 block">
+                <span className="mb-2 block text-sm font-medium text-ink-700">文章来源</span>
+                <input
+                  value={editArticleSource}
+                  onChange={event => setEditArticleSource(event.target.value)}
+                  placeholder="例如：手动粘贴、The Economist、原文网址"
                   className="w-full rounded-xl border-2 border-line bg-white text-base text-ink-900 placeholder-ink-300 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
                   style={{ padding: '12px 14px' }}
                 />
@@ -1272,7 +1308,7 @@ export default function ReadingRoomPage() {
                   {editArticleText.trim() ? `${wordCount(editArticleText)} words` : '保存后会更新阅读区 clean version'}
                 </span>
                 <div className="flex items-center gap-3">
-                  <Button variant="ghost" onClick={() => setEditArticleOpen(false)}>取消</Button>
+                  <Button variant="ghost" onClick={closeArticleEditor}>取消</Button>
                   <Button
                     variant="primary"
                     disabled={!editArticleText.trim() || savingArticleEdit}
