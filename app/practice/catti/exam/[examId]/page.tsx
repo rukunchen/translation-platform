@@ -23,6 +23,8 @@ const ERKOU_CUE_TEXT = {
   ceSecondPassage: '第一篇中文讲话结束。准备一下，我们马上进入第二篇中文讲话。',
   examComplete: '本次口译考试已经完成。辛苦啦，请等待系统保存你的录音和结果。',
 }
+const RECORDING_MIME_CANDIDATES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'video/webm;codecs=opus', 'video/webm']
+const UPLOAD_RETRY_DELAYS = [0, 1200, 3000]
 
 type ErkouPhase = '准备中' | '考试说明' | '正在播放原文' | '请开始口译' | '录音即将开始' | '录音中' | '录音上传中' | '过渡中' | '上传失败' | '考试完成'
 
@@ -789,7 +791,8 @@ export default function CattiExamPage() {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream)
+      const mimeType = supportedRecordingMimeType()
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
       recordingStreamRef.current = stream
       recorderRef.current = recorder
       recordingChunksRef.current = []
@@ -837,24 +840,42 @@ export default function CattiExamPage() {
 
   async function uploadSegmentRecording(segment: CattiMockSegment, blob: Blob, localUrl: string) {
     if (!attempt) return
-    const form = new FormData()
-    form.set('attemptId', attempt.id)
-    form.set('segmentId', segment.id)
-    form.set('file', blob, `${segment.id}.webm`)
+    let data: UploadRecordingResponse | null = null
+    let error: string | null = null
+    let retried = false
 
-    const { data, error } = await apiJSON<UploadRecordingResponse>('/api/catti/erkou/upload-recording', {
-      method: 'POST',
-      body: form,
-    })
+    for (let attemptIndex = 0; attemptIndex < UPLOAD_RETRY_DELAYS.length; attemptIndex += 1) {
+      const delayMs = UPLOAD_RETRY_DELAYS[attemptIndex]
+      if (delayMs > 0) {
+        retried = true
+        await wait(delayMs)
+      }
+
+      const form = new FormData()
+      form.set('attemptId', attempt.id)
+      form.set('segmentId', segment.id)
+      form.set('file', blob, recordingFileName(segment.id, blob.type))
+
+      const response = await apiJSON<UploadRecordingResponse>('/api/catti/erkou/upload-recording', {
+        method: 'POST',
+        body: form,
+      })
+      data = response.data
+      error = response.error
+
+      if (!error && data?.attemptSegment?.user_audio_url) break
+      if (!shouldRetryRecordingUpload(error)) break
+    }
 
     if (error || !data?.attemptSegment?.user_audio_url) {
+      const message = uploadErrorMessage(error, retried)
       setRecordingsBySegment(prev => ({
         ...prev,
-        [segment.id]: { url: localUrl, size: blob.size, blob, uploaded: false, uploading: false, error: error || '上传失败' },
+        [segment.id]: { url: localUrl, size: blob.size, blob, uploaded: false, uploading: false, error: message },
       }))
       autoFlowRef.current = false
       setErkouPhase('上传失败')
-      alert('录音上传失败：' + (error || '未知错误'))
+      alert('录音上传失败：' + message)
       return
     }
 
@@ -1564,6 +1585,37 @@ function recordingStatus(recording?: SegmentRecording) {
 function recordingBlobType(type: string) {
   const baseType = type.split(';')[0]?.trim().toLowerCase()
   return baseType || 'audio/webm'
+}
+
+function supportedRecordingMimeType() {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') return ''
+  return RECORDING_MIME_CANDIDATES.find(type => MediaRecorder.isTypeSupported(type)) || ''
+}
+
+function recordingFileName(segmentId: string, type: string) {
+  const contentType = recordingBlobType(type)
+  if (contentType.includes('mp4')) return `${segmentId}.mp4`
+  if (contentType.includes('mpeg')) return `${segmentId}.mp3`
+  if (contentType.includes('ogg')) return `${segmentId}.ogg`
+  if (contentType.includes('wav')) return `${segmentId}.wav`
+  return `${segmentId}.webm`
+}
+
+function shouldRetryRecordingUpload(error: string | null) {
+  if (!error) return true
+  if (/HTTP 4\d\d/.test(error)) return false
+  return !/unauthorized|没有权限|考试已提交|缺少|为空|不能超过|不存在|不属于/.test(error)
+}
+
+function uploadErrorMessage(error: string | null, retried: boolean) {
+  const prefix = error || '未知错误'
+  return retried
+    ? `${prefix}。系统已自动重试，请点击“重试上传录音”再试一次。`
+    : `${prefix}。请点击“重试上传录音”再试一次。`
+}
+
+function wait(ms: number) {
+  return new Promise(resolve => window.setTimeout(resolve, ms))
 }
 
 function StatusLine({ label, value }: { label: string; value: string }) {

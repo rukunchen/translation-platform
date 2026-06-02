@@ -66,25 +66,52 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '段落不属于当前考试。' }, { status: 400 })
   }
 
-  const path = `${attemptId}/${segmentId}.webm`
+  const contentType = recordingContentType(file.type)
+  const path = `${attemptId}/${segmentId}.${recordingExtension(contentType)}`
   const buffer = Buffer.from(await file.arrayBuffer())
-  try {
-    await ensureStorageBucket(admin, BUCKET, {
-      public: true,
-      fileSizeLimit: MAX_RECORDING_SIZE,
-      allowedMimeTypes: RECORDING_MIME_TYPES,
-    })
-  } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
-  }
 
-  const { error: uploadError } = await admin.storage
+  let uploadResult = await admin.storage
     .from(BUCKET)
     .upload(path, buffer, {
-      contentType: recordingContentType(file.type),
+      contentType,
       upsert: true,
     })
-  if (uploadError) return NextResponse.json({ error: '录音上传失败：' + uploadError.message }, { status: 500 })
+
+  if (uploadResult.error && isRecoverableBucketError(uploadResult.error.message)) {
+    try {
+      await ensureStorageBucket(admin, BUCKET, {
+        public: true,
+        fileSizeLimit: MAX_RECORDING_SIZE,
+        allowedMimeTypes: RECORDING_MIME_TYPES,
+      })
+      uploadResult = await admin.storage
+        .from(BUCKET)
+        .upload(path, buffer, {
+          contentType,
+          upsert: true,
+        })
+    } catch (error) {
+      console.error('[catti/erkou/upload-recording] bucket setup failed', {
+        attemptId,
+        segmentId,
+        contentType,
+        size: file.size,
+        error: errorMessage(error),
+      })
+      return NextResponse.json({ error: errorMessage(error) }, { status: 500 })
+    }
+  }
+
+  if (uploadResult.error) {
+    console.error('[catti/erkou/upload-recording] storage upload failed', {
+      attemptId,
+      segmentId,
+      contentType,
+      size: file.size,
+      error: uploadResult.error.message,
+    })
+    return NextResponse.json({ error: '录音上传失败：' + uploadResult.error.message }, { status: 500 })
+  }
 
   const { data: publicUrlData } = admin.storage.from(BUCKET).getPublicUrl(path)
   const userAudioUrl = publicUrlData.publicUrl
@@ -123,4 +150,16 @@ function recordingContentType(type: string) {
   const baseType = type.split(';')[0]?.trim().toLowerCase()
   if (baseType && RECORDING_MIME_TYPES.includes(baseType)) return baseType
   return 'audio/webm'
+}
+
+function recordingExtension(contentType: string) {
+  if (contentType === 'audio/mp4') return 'mp4'
+  if (contentType === 'audio/mpeg') return 'mp3'
+  if (contentType === 'audio/ogg') return 'ogg'
+  if (contentType === 'audio/wav') return 'wav'
+  return 'webm'
+}
+
+function isRecoverableBucketError(message: string) {
+  return /bucket|not found|mime|mimetype|type|unsupported/i.test(message)
 }
