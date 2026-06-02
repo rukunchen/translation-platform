@@ -290,17 +290,35 @@ const ceAccentProfiles: Record<string, string> = {
 }
 
 const ecSpeedRates: Record<string, number> = {
+  slow_070: 0.7,
+  slow_075: 0.75,
+  slow_080: 0.8,
   slow_training: 0.85,
+  slow_090: 0.9,
+  slow_095: 0.95,
   standard_exam: 1,
   fast_challenge: 1.1,
   pressure_training: 1.2,
 }
 
 const ceSpeedRates: Record<string, number> = {
+  slow_070: 0.7,
+  slow_075: 0.75,
+  slow_080: 0.8,
   slow_training: 0.85,
+  slow_090: 0.9,
+  slow_095: 0.95,
   standard_exam: 1,
   fast_challenge: 1.08,
   pressure_training: 1.15,
+}
+
+function naturalSpeedInstruction(speed: number, language: 'zh' | 'en') {
+  if (speed >= 0.98) return ''
+  if (language === 'zh') {
+    return '按所选倍率自然放慢语速，通过真人朗读式的节奏、停顿和清晰吐字来变慢，不要产生机械拉伸、颤动、失真或不自然拖腔。'
+  }
+  return 'Use the selected slower pace as a natural human speaking cadence, with deliberate phrasing and pauses. Do not sound mechanically time-stretched, distorted, robotic, or unnaturally dragged.'
 }
 
 function getCattiTtsConfigForSegment(exam: ExamRow, segment: SegmentRow): TtsDirectionConfig {
@@ -308,28 +326,30 @@ function getCattiTtsConfigForSegment(exam: ExamRow, segment: SegmentRow): TtsDir
     const voiceProfile = normalizeKey(ceVoiceProfiles, exam.ce_voice_profile, 'chinese_diplomat_male')
     const accentProfile = normalizeKey(ceAccentProfiles, exam.ce_accent_profile, 'mandarin_standard')
     const speedProfile = normalizeKey(ceSpeedRates, exam.ce_speed_profile, 'standard_exam')
+    const speed = clampSpeechSpeed(exam.ce_speech_rate_value ?? ceSpeedRates[speedProfile])
     const voiceConfig = ceVoiceProfiles[voiceProfile]
     return {
       voice: voiceConfig.voice,
       voiceProfile,
       accentProfile,
       speedProfile,
-      speed: clampSpeechSpeed(exam.ce_speech_rate_value ?? ceSpeedRates[speedProfile]),
-      styleInstruction: `${voiceConfig.style}。${ceAccentProfiles[accentProfile]}。请像真人考场原文录音一样朗读，语流自然，有真实停顿和重音，不要有机械合成感。只朗读中文原文，不要翻译，不要解释，不要使用英伦、印度或美式英语口音。`,
+      speed,
+      styleInstruction: `${voiceConfig.style}。${ceAccentProfiles[accentProfile]}。${naturalSpeedInstruction(speed, 'zh')}请像真人考场原文录音一样朗读，语流自然，有真实停顿和重音，不要有机械合成感。只朗读中文原文，不要翻译，不要解释，不要使用英伦、印度或美式英语口音。`,
     }
   }
 
   const voiceProfile = normalizeKey(ecVoiceProfiles, exam.ec_voice_profile, 'formal_diplomat_male')
   const accentProfile = normalizeKey(ecAccentProfiles, exam.ec_accent_profile, 'neutral')
   const speedProfile = normalizeKey(ecSpeedRates, exam.ec_speed_profile, 'standard_exam')
+  const speed = clampSpeechSpeed(exam.ec_speech_rate_value ?? ecSpeedRates[speedProfile])
   const voiceConfig = ecVoiceProfiles[voiceProfile]
   return {
     voice: voiceConfig.voice,
     voiceProfile,
     accentProfile,
     speedProfile,
-    speed: clampSpeechSpeed(exam.ec_speech_rate_value ?? ecSpeedRates[speedProfile]),
-    styleInstruction: `${voiceConfig.style}. ${ecAccentProfiles[accentProfile]}. Read like a real human CATTI oral exam source recording with natural phrasing, pauses, and emphasis. Avoid a robotic or synthetic TTS sound. Play the English source text only; do not translate or explain it; do not use a Mandarin voice style.`,
+    speed,
+    styleInstruction: `${voiceConfig.style}. ${ecAccentProfiles[accentProfile]}. ${naturalSpeedInstruction(speed, 'en')} Read like a real human CATTI oral exam source recording with natural phrasing, pauses, and emphasis. Avoid a robotic or synthetic TTS sound. Play the English source text only; do not translate or explain it; do not use a Mandarin voice style.`,
   }
 }
 
@@ -340,7 +360,7 @@ function normalizeKey<T>(record: Record<string, T>, value: string | null, fallba
 function clampSpeechSpeed(value: unknown) {
   const numericValue = Number(value)
   if (!Number.isFinite(numericValue) || numericValue <= 0) return 1
-  return Math.max(0.75, Math.min(1.25, numericValue))
+  return Math.max(0.7, Math.min(1.25, numericValue))
 }
 
 function errorMessage(error: unknown) {

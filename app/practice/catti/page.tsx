@@ -26,7 +26,7 @@ type EcVoiceProfile = 'formal_diplomat_male' | 'formal_diplomat_female' | 'briti
 type EcAccentProfile = 'neutral' | 'british' | 'american' | 'indian_light' | 'indian_heavy' | 'non_native_light' | 'non_native_heavy'
 type CeVoiceProfile = 'chinese_diplomat_male' | 'chinese_diplomat_female' | 'chinese_news_male' | 'chinese_news_female' | 'chinese_public_speech_male' | 'chinese_public_speech_female' | 'chinese_conference_male' | 'chinese_conference_female' | 'mandarin_standard_male' | 'mandarin_standard_female'
 type CeAccentProfile = 'mandarin_standard' | 'mandarin_news' | 'mandarin_diplomatic' | 'mandarin_public_speech' | 'mandarin_conference'
-type TtsSpeedProfile = 'slow_training' | 'standard_exam' | 'fast_challenge' | 'pressure_training'
+type TtsSpeedProfile = 'slow_070' | 'slow_075' | 'slow_080' | 'slow_training' | 'slow_090' | 'slow_095' | 'standard_exam' | 'fast_challenge' | 'pressure_training'
 
 type ExamType = {
   id: ExamTypeId
@@ -244,8 +244,13 @@ const ceAccentOptions: Array<{ value: CeAccentProfile; label: string }> = [
 ]
 
 const speedOptions: Array<{ value: TtsSpeedProfile; label: string; ecRate: number; ceRate: number }> = [
-  { value: 'slow_training', label: '慢速训练', ecRate: 0.85, ceRate: 0.85 },
   { value: 'standard_exam', label: '标准考试', ecRate: 1, ceRate: 1 },
+  { value: 'slow_095', label: '轻慢训练', ecRate: 0.95, ceRate: 0.95 },
+  { value: 'slow_090', label: '稍慢训练', ecRate: 0.9, ceRate: 0.9 },
+  { value: 'slow_training', label: '慢速训练', ecRate: 0.85, ceRate: 0.85 },
+  { value: 'slow_080', label: '低速训练', ecRate: 0.8, ceRate: 0.8 },
+  { value: 'slow_075', label: '深慢训练', ecRate: 0.75, ceRate: 0.75 },
+  { value: 'slow_070', label: '超慢训练', ecRate: 0.7, ceRate: 0.7 },
   { value: 'fast_challenge', label: '偏快挑战', ecRate: 1.1, ceRate: 1.08 },
   { value: 'pressure_training', label: '高压训练', ecRate: 1.2, ceRate: 1.15 },
 ]
