@@ -69,6 +69,14 @@ const workspaceNavItems: WorkspaceNavItem[] = [
     adminOnly: false,
   },
   {
+    href: '/mindmaps',
+    label: '思维导图',
+    detail: '结构整理与知识图谱',
+    icon: <MindmapIcon />,
+    activeMatcher: pathname => pathname.startsWith('/mindmaps'),
+    adminOnly: false,
+  },
+  {
     href: '/ai-experiments',
     label: '最近 AI 翻译实验',
     detail: '多模型实验记录',
@@ -637,6 +645,19 @@ function FrontierIcon() {
         d="M5.25 5.25h9.75a3.75 3.75 0 013.75 3.75v9.75H8.25a3 3 0 01-3-3V5.25z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7}
         d="M8.25 8.25h7.5M8.25 11.25h5.25M8.25 14.25h6.75M18.75 9v9.75" />
+    </svg>
+  )
+}
+
+function MindmapIcon() {
+  return (
+    <svg className="w-[17px] h-[17px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="2.25" strokeWidth={1.7} />
+      <circle cx="6" cy="6.5" r="2" strokeWidth={1.7} />
+      <circle cx="18" cy="6.5" r="2" strokeWidth={1.7} />
+      <circle cx="6" cy="17.5" r="2" strokeWidth={1.7} />
+      <circle cx="18" cy="17.5" r="2" strokeWidth={1.7} />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M10.25 10.7L7.4 8.1M13.75 10.7l2.85-2.6M10.25 13.3L7.4 15.9M13.75 13.3l2.85 2.6" />
     </svg>
   )
 }
