@@ -297,6 +297,56 @@ function formatNodeLevel(depth: number) {
   return `${depth} 级节点`
 }
 
+function sanitizeMindmapFilename(value: string) {
+  const sanitized = value
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[\/\\:*?"<>|]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return sanitized || 'mindmap'
+}
+
+function normalizeMarkdownText(value: string, fallback: string) {
+  const normalized = value.replace(/\r?\n+/g, ' ').trim()
+  return normalized || fallback
+}
+
+function buildMarkdownLines(node: MindmapNode, depth = 0): string[] {
+  const label = normalizeMarkdownText(node.label, depth === 0 ? '中心主题' : '未命名节点')
+
+  if (depth === 0) {
+    const childLines = node.children.flatMap(child => buildMarkdownLines(child, 1))
+    return childLines.length > 0 ? [`# ${label}`, '', ...childLines] : [`# ${label}`]
+  }
+
+  const lines = [`${'  '.repeat(depth - 1)}- ${label}`]
+
+  for (const child of node.children) {
+    lines.push(...buildMarkdownLines(child, depth + 1))
+  }
+
+  return lines
+}
+
+function buildMindmapMarkdown(tree: MindmapNode) {
+  return `${buildMarkdownLines(tree).join('\n')}\n`
+}
+
+function downloadFile(filename: string, content: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
 type TreeNodeCardProps = {
   depth: number
   node: MindmapNode
@@ -478,6 +528,7 @@ export default function MindmapDetailPage() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
   const [loadingError, setLoadingError] = useState('')
   const [saveError, setSaveError] = useState('')
+  const [exportError, setExportError] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -548,6 +599,8 @@ export default function MindmapDetailPage() {
         ? '不可访问'
         : screenState === 'error'
           ? '加载失败'
+          : exportError
+            ? exportError
           : saveError
             ? saveError
             : saving
@@ -556,7 +609,7 @@ export default function MindmapDetailPage() {
                 ? '未保存'
                 : '已保存'
 
-  const statusClassName = screenState === 'error' || !!saveError
+  const statusClassName = screenState === 'error' || !!saveError || !!exportError
     ? 'text-red-600'
     : screenState === 'missing'
       ? 'text-ink-500'
@@ -568,6 +621,7 @@ export default function MindmapDetailPage() {
 
   function markEdited() {
     if (saveError) setSaveError('')
+    if (exportError) setExportError('')
   }
 
   function handleSelectNode(nodeId: string) {
@@ -674,6 +728,32 @@ export default function MindmapDetailPage() {
     setSavedSnapshot(JSON.stringify({ title: nextTitle, tree }))
   }
 
+  function handleExportMarkdown() {
+    if (screenState !== 'ready') return
+
+    try {
+      setExportError('')
+      const filename = `${sanitizeMindmapFilename(title)}.md`
+      const content = buildMindmapMarkdown(tree)
+      downloadFile(filename, content, 'text/markdown;charset=utf-8')
+    } catch {
+      setExportError('导出失败，请稍后重试。')
+    }
+  }
+
+  function handleExportJson() {
+    if (screenState !== 'ready') return
+
+    try {
+      setExportError('')
+      const filename = `${sanitizeMindmapFilename(title)}.json`
+      const content = JSON.stringify(tree, null, 2)
+      downloadFile(filename, content, 'application/json;charset=utf-8')
+    } catch {
+      setExportError('导出失败，请稍后重试。')
+    }
+  }
+
   return (
     <div className="flex h-screen bg-canvas">
       <Sidebar />
@@ -704,14 +784,32 @@ export default function MindmapDetailPage() {
                     <p className={cn('font-medium', statusClassName)}>{statusText}</p>
                     <p className="text-xs text-ink-500">最近保存时间：{formatDateTime(lastSavedAt)}</p>
                   </div>
-                  <Button
-                    variant="brand"
-                    onClick={handleSave}
-                    loading={saving}
-                    disabled={screenState !== 'ready' || !isDirty}
-                  >
-                    保存
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleExportMarkdown}
+                      disabled={screenState !== 'ready'}
+                    >
+                      导出 Markdown
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleExportJson}
+                      disabled={screenState !== 'ready'}
+                    >
+                      导出 JSON
+                    </Button>
+                    <Button
+                      variant="brand"
+                      onClick={handleSave}
+                      loading={saving}
+                      disabled={screenState !== 'ready' || !isDirty}
+                    >
+                      保存
+                    </Button>
+                  </div>
                 </div>
               </div>
             </Card>
