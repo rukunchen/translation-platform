@@ -813,13 +813,18 @@ export default function MindmapDetailPage() {
 
                   <div className="min-w-0 flex-1">
                     <p className="mb-3 text-xs uppercase tracking-[0.22em] text-ink-400">Mindmap Editor</p>
-                    <input
-                      value={title}
-                      onChange={event => handleTitleChange(event.target.value)}
-                      placeholder="请输入导图标题"
-                      disabled={screenState !== 'ready'}
-                      className="min-h-[72px] w-full rounded-[28px] border border-line/80 bg-white/90 px-7 py-[18px] font-serif text-[1.48rem] leading-[1.25] text-ink-900 outline-none transition-colors placeholder:text-ink-400 focus:border-brand focus:bg-white sm:px-8 sm:text-[1.58rem]"
-                    />
+                    <div
+                      className="rounded-[28px] border border-line/80 bg-white/90 transition-colors focus-within:border-brand focus-within:bg-white"
+                      style={{ padding: '14px 28px' }}
+                    >
+                      <input
+                        value={title}
+                        onChange={event => handleTitleChange(event.target.value)}
+                        placeholder="请输入导图标题"
+                        disabled={screenState !== 'ready'}
+                        className="w-full border-0 bg-transparent font-serif text-[1.46rem] leading-[1.28] text-ink-900 outline-none placeholder:text-ink-400 sm:text-[1.56rem]"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -909,8 +914,9 @@ export default function MindmapDetailPage() {
                   </div>
 
                   <div
-                    className="rounded-[34px] border border-line/70 px-6 py-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] sm:px-9 sm:py-9"
+                    className="rounded-[34px] border border-line/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
                     style={{
+                      padding: '32px 36px',
                       backgroundImage: 'linear-gradient(rgba(123,115,103,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(123,115,103,0.05) 1px, transparent 1px), radial-gradient(circle at top left, rgba(217,119,87,0.10), transparent 28%), radial-gradient(circle at bottom right, rgba(59,130,246,0.08), transparent 24%), linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,244,236,0.95))',
                       backgroundSize: '24px 24px, 24px 24px, auto, auto, auto',
                     }}
@@ -938,7 +944,10 @@ export default function MindmapDetailPage() {
                   </div>
 
                   <div className="space-y-5">
-                    <div className="rounded-[28px] border border-line/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,241,233,0.92))] px-7 py-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:px-8">
+                    <div
+                      className="rounded-[28px] border border-line/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,241,233,0.92))] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                      style={{ padding: '30px 32px' }}
+                    >
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div className="min-w-0">
                           <p className="text-xs uppercase tracking-[0.18em] text-ink-400">{formatNodeLevel(selectedNodeDepth)}</p>
@@ -956,27 +965,41 @@ export default function MindmapDetailPage() {
                         </span>
                       </div>
 
-                      <div className="mt-6 rounded-[22px] border border-line/70 bg-white/85 px-6 py-5">
+                      <div
+                        className="mt-6 rounded-[22px] border border-line/70 bg-white/85"
+                        style={{ padding: '18px 24px' }}
+                      >
                         <p className="text-xs uppercase tracking-[0.16em] text-ink-400">Node ID</p>
                         <p className="mt-2 break-all text-sm leading-6 text-ink-700">{selectedNode.id}</p>
                       </div>
                     </div>
 
-                    <div className="rounded-[24px] border border-line/75 bg-white/88 px-7 py-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:px-8">
+                    <div
+                      className="rounded-[24px] border border-line/75 bg-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                      style={{ padding: '28px 32px' }}
+                    >
                       <p className="text-xs uppercase tracking-[0.18em] text-ink-400">节点文本</p>
                       <label htmlFor="mindmap-node-label" className="mt-3 block text-sm text-ink-700">
                         节点名称
                       </label>
-                      <input
-                        id="mindmap-node-label"
-                        value={selectedNode.label}
-                        onChange={event => handleNodeLabelChange(event.target.value)}
-                        className="mt-3 min-h-[56px] w-full rounded-[20px] border border-line/80 bg-canvas-2/55 px-6 py-3.5 text-sm leading-6 text-ink-900 outline-none transition-colors placeholder:text-ink-400 focus:border-brand focus:bg-white"
-                        placeholder="请输入节点文本"
-                      />
+                      <div
+                        className="mt-3 rounded-[20px] border border-line/80 bg-canvas-2/55 transition-colors focus-within:border-brand focus-within:bg-white"
+                        style={{ padding: '14px 20px' }}
+                      >
+                        <input
+                          id="mindmap-node-label"
+                          value={selectedNode.label}
+                          onChange={event => handleNodeLabelChange(event.target.value)}
+                          className="w-full border-0 bg-transparent text-sm leading-6 text-ink-900 outline-none placeholder:text-ink-400"
+                          placeholder="请输入节点文本"
+                        />
+                      </div>
                     </div>
 
-                    <div className="rounded-[24px] border border-line/75 bg-white/88 px-7 py-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:px-8">
+                    <div
+                      className="rounded-[24px] border border-line/75 bg-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                      style={{ padding: '28px 32px' }}
+                    >
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-xs uppercase tracking-[0.18em] text-ink-400">节点颜色</p>
@@ -1008,9 +1031,15 @@ export default function MindmapDetailPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-[24px] border border-line/75 bg-white/88 px-7 py-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:px-8">
+                    <div
+                      className="rounded-[24px] border border-line/75 bg-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                      style={{ padding: '28px 32px' }}
+                    >
                       <p className="text-xs uppercase tracking-[0.18em] text-ink-400">层级信息</p>
-                      <div className="mt-5 space-y-3 rounded-[20px] border border-line/70 bg-canvas-2/55 px-6 py-5 text-sm text-ink-600">
+                      <div
+                        className="mt-5 space-y-3 rounded-[20px] border border-line/70 bg-canvas-2/55 text-sm text-ink-600"
+                        style={{ padding: '18px 24px' }}
+                      >
                         <div className="flex items-center justify-between gap-3">
                           <span>层级</span>
                           <span className="font-medium text-ink-900">{formatNodeLevel(selectedNodeDepth)}</span>
@@ -1023,7 +1052,10 @@ export default function MindmapDetailPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-[24px] border border-line/75 bg-white/88 px-7 py-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:px-8">
+                    <div
+                      className="rounded-[24px] border border-line/75 bg-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                      style={{ padding: '28px 32px' }}
+                    >
                       <p className="text-xs uppercase tracking-[0.18em] text-ink-400">操作区</p>
                       <div className="mt-6 flex flex-wrap gap-4">
                         <Button
@@ -1051,7 +1083,10 @@ export default function MindmapDetailPage() {
                       </div>
 
                       {selectedNode.id === 'root' && (
-                        <p className="mt-5 rounded-[18px] border border-line/70 bg-canvas-2/55 px-6 py-4 text-xs leading-6 text-ink-500">
+                        <p
+                          className="mt-5 rounded-[18px] border border-line/70 bg-canvas-2/55 text-xs leading-6 text-ink-500"
+                          style={{ padding: '14px 20px' }}
+                        >
                           中心主题作为整张导图的起点会被保留，因此这里不提供删除操作。
                         </p>
                       )}
