@@ -1199,7 +1199,11 @@ function DesktopPrimaryColumn({
   )
 }
 
-function DesktopMindmapCanvas({ tree, ...props }: { tree: MindmapNode } & MindmapRendererProps) {
+function DesktopMindmapCanvas({
+  tree,
+  fullscreen = false,
+  ...props
+}: { tree: MindmapNode; fullscreen?: boolean } & MindmapRendererProps) {
   const tone = colorMeta[tree.color]
   const fontClass = getMindmapFontClass(props.styleMeta.fontFamily)
   const lineClasses = getBranchLineClasses(props.styleMeta.branchLine)
@@ -1212,7 +1216,7 @@ function DesktopMindmapCanvas({ tree, ...props }: { tree: MindmapNode } & Mindma
   const searchHighlightClass = getNodeSearchHighlightClass(true, isSearchMatch, isActiveSearchMatch)
 
   return (
-    <div className="hidden min-w-max lg:block">
+    <div className={cn('hidden min-w-max', fullscreen ? 'md:block' : 'lg:block')}>
       <div className={cn('flex min-h-[720px] items-center', props.styleMeta.compact ? 'gap-10 px-10 py-10' : 'gap-16 px-16 py-14')}>
         <div className="relative scroll-m-[140px] shrink-0" data-node-id={tree.id}>
           <div className="pointer-events-none absolute inset-[-16px] rounded-[42px] border border-white/35 bg-[radial-gradient(circle,rgba(255,255,255,0.10),transparent_72%)]" />
@@ -2315,7 +2319,10 @@ export default function MindmapDetailPage() {
               </Button>
             </div>
           </div>
-          <div className="mb-4 hidden rounded-[20px] border border-dashed border-[#E3DBCF] bg-[rgba(252,250,245,0.72)] px-4 py-3 text-xs leading-6 text-ink-500 lg:block">
+          <div className={cn(
+            'mb-4 hidden rounded-[20px] border border-dashed border-[#E3DBCF] bg-[rgba(252,250,245,0.72)] px-4 py-3 text-xs leading-6 text-ink-500',
+            fullscreen ? 'md:block' : 'lg:block'
+          )}>
             快捷键：Tab 添加子节点 · Enter 添加同级节点 · Delete 删除 · Cmd/Ctrl+S 保存
           </div>
           <div
@@ -2332,6 +2339,7 @@ export default function MindmapDetailPage() {
             >
               <DesktopMindmapCanvas
                 tree={tree}
+                fullscreen={fullscreen}
                 styleMeta={canvasMeta}
                 selectedNodeId={selectedNodeId}
                 onAddChild={handleAddChild}
@@ -2348,7 +2356,7 @@ export default function MindmapDetailPage() {
                 editingNodeLabel={editingNodeLabel}
                 matchedNodeIds={matchedNodeIds}
               />
-              <div className="lg:hidden">
+              <div className={fullscreen ? 'md:hidden' : 'lg:hidden'}>
                 <TreeNodeCard
                   depth={0}
                   node={tree}
@@ -2816,7 +2824,7 @@ export default function MindmapDetailPage() {
     return (
       <div className={cn(
         'grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]',
-        fullscreen && 'h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_460px]'
+        fullscreen && 'h-full min-h-0 gap-4 md:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_460px]'
       )}>
         {renderCanvasPanel(fullscreen)}
         {renderInspectorPanel(fullscreen)}
