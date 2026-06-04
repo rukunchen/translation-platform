@@ -508,6 +508,545 @@ function nodeActionClassName(level: 'root' | 'primary' | 'secondary', emphasis: 
   return 'border border-line/90 bg-[#FCFBF8] text-ink-700 hover:border-ink-300 hover:bg-white hover:text-ink-900'
 }
 
+type MindmapRendererProps = Omit<TreeNodeCardProps, 'depth' | 'node'>
+
+function getNodeSearchHighlightClass(
+  isRoot: boolean,
+  isSearchMatch: boolean,
+  isActiveSearchMatch: boolean
+) {
+  if (isActiveSearchMatch) {
+    return isRoot
+      ? 'shadow-[0_0_0_3px_rgba(255,255,255,0.22),0_28px_62px_rgba(31,41,55,0.2)]'
+      : 'border-[#CDBCA3] shadow-[0_0_0_3px_rgba(216,204,185,0.88),0_22px_46px_rgba(148,163,184,0.24)]'
+  }
+
+  if (isSearchMatch) {
+    return isRoot
+      ? 'shadow-[0_0_0_2px_rgba(255,255,255,0.16),0_26px_56px_rgba(31,41,55,0.18)]'
+      : 'border-[#D9CEBF] shadow-[0_0_0_2px_rgba(228,220,206,0.82),0_18px_38px_rgba(148,163,184,0.18)]'
+  }
+
+  return null
+}
+
+function DesktopNodeActions({
+  depth,
+  hasChildren,
+  isCollapsed,
+  isSelected,
+  node,
+  onAddChild,
+  onAddSibling,
+  onDelete,
+  onInlineEditStart,
+  onToggleCollapse,
+}: {
+  depth: number
+  hasChildren: boolean
+  isCollapsed: boolean
+  isSelected: boolean
+  node: MindmapNode
+  onAddChild: (nodeId: string) => void
+  onAddSibling: (nodeId: string) => void
+  onDelete: (nodeId: string) => void
+  onInlineEditStart: (nodeId: string) => void
+  onToggleCollapse: (nodeId: string) => void
+}) {
+  if (!isSelected) return null
+
+  const level = depth === 0 ? 'root' : depth === 1 ? 'primary' : 'secondary'
+
+  return (
+    <div className={cn('mt-3 flex flex-wrap gap-2', depth === 0 && 'justify-center')}>
+      <Button
+        size="sm"
+        variant="ghost"
+        className={cn('min-h-8 rounded-full px-3 text-[11px]', nodeActionClassName(level))}
+        onClick={() => onAddChild(node.id)}
+      >
+        + 子节点
+      </Button>
+      {depth > 0 && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className={cn('min-h-8 rounded-full px-3 text-[11px]', nodeActionClassName(level))}
+          onClick={() => onAddSibling(node.id)}
+        >
+          + 同级
+        </Button>
+      )}
+      <Button
+        size="sm"
+        variant="ghost"
+        className={cn('min-h-8 rounded-full px-3 text-[11px]', nodeActionClassName(level, 'muted'))}
+        onClick={() => onInlineEditStart(node.id)}
+      >
+        编辑
+      </Button>
+      {hasChildren && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className={cn('min-h-8 rounded-full px-3 text-[11px]', nodeActionClassName(level, 'muted'))}
+          onClick={() => onToggleCollapse(node.id)}
+        >
+          {isCollapsed ? '展开' : '收起'}
+        </Button>
+      )}
+      {depth > 0 && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className={cn('min-h-8 rounded-full px-3 text-[11px]', nodeActionClassName(level, 'danger'))}
+          onClick={() => onDelete(node.id)}
+        >
+          删除
+        </Button>
+      )}
+    </div>
+  )
+}
+
+function DesktopBranchNode({
+  depth,
+  node,
+  selectedNodeId,
+  onAddChild,
+  onAddSibling,
+  onDelete,
+  onInlineEditCancel,
+  onInlineEditChange,
+  onInlineEditCommit,
+  onInlineEditStart,
+  onSelect,
+  onToggleCollapse,
+  activeSearchNodeId,
+  editingNodeId,
+  editingNodeLabel,
+  matchedNodeIds,
+}: { depth: number; node: MindmapNode } & MindmapRendererProps) {
+  const tone = colorMeta[node.color]
+  const isSelected = node.id === selectedNodeId
+  const isInlineEditing = editingNodeId === node.id
+  const hasChildren = node.children.length > 0
+  const isCollapsed = Boolean(node.collapsed) && hasChildren
+  const isSearchMatch = matchedNodeIds.has(node.id)
+  const isActiveSearchMatch = activeSearchNodeId === node.id
+  const searchHighlightClass = getNodeSearchHighlightClass(false, isSearchMatch, isActiveSearchMatch)
+  const isSecondary = depth === 2
+
+  return (
+    <div className="relative scroll-m-[140px]" data-node-id={node.id}>
+      <div className={cn('pointer-events-none absolute -left-6 top-[18px] h-px w-6 opacity-65', tone.line)} />
+      <div className="flex items-start gap-6">
+        <div className={cn('relative min-w-[180px] max-w-[224px]', isSecondary ? 'pt-0' : 'pt-0.5')}>
+          <div
+            className={cn(
+              'relative overflow-hidden rounded-[18px] border px-4 py-3 transition-all duration-200',
+              isSecondary
+                ? 'bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(249,246,240,0.92))]'
+                : 'bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,245,239,0.92))]',
+              tone.secondaryCard,
+              isSelected
+                ? 'border-[#CFC5B6] shadow-[0_16px_30px_rgba(148,163,184,0.16)] ring-2 ring-offset-2 ring-offset-[#F7F3EC]'
+                : 'hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(148,163,184,0.12)]',
+              searchHighlightClass
+            )}
+            onClick={() => onSelect(node.id)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onSelect(node.id)
+              }
+            }}
+          >
+            <div className={cn('pointer-events-none absolute inset-y-4 left-0 w-[3px] rounded-r-full opacity-80', tone.line)} />
+            <div className="relative">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] uppercase tracking-[0.18em] text-ink-400">{formatNodeLevel(depth)}</span>
+                {isSelected && (
+                  <span className="rounded-full border border-[#E3DBCF] bg-white px-2.5 py-1 text-[10px] text-ink-500">
+                    当前选中
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 min-w-0">
+                {isInlineEditing ? (
+                  <input
+                    autoFocus
+                    value={editingNodeLabel}
+                    onChange={event => onInlineEditChange(event.target.value)}
+                    onBlur={onInlineEditCommit}
+                    onClick={event => event.stopPropagation()}
+                    onDoubleClick={event => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      event.stopPropagation()
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        onInlineEditCommit()
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault()
+                        onInlineEditCancel()
+                      }
+                    }}
+                    className="w-full rounded-[12px] border border-[#DDD5C8] bg-transparent px-2.5 py-1.5 text-sm text-ink-900 outline-none placeholder:text-ink-400"
+                    placeholder="输入节点名称"
+                  />
+                ) : (
+                  <p
+                    className={cn(
+                      'break-words text-ink-900',
+                      isSecondary ? 'text-[0.97rem] font-medium leading-6' : 'text-[0.92rem] leading-6'
+                    )}
+                    onDoubleClick={(event) => {
+                      event.stopPropagation()
+                      onInlineEditStart(node.id)
+                    }}
+                  >
+                    {node.label || '未命名节点'}
+                  </p>
+                )}
+                <p className="mt-1 text-[12px] leading-5 text-ink-500">
+                  {hasChildren
+                    ? isCollapsed
+                      ? `已收起 ${node.children.length} 个子节点`
+                      : `${node.children.length} 个子节点`
+                    : '知识点'}
+                </p>
+              </div>
+              <DesktopNodeActions
+                depth={depth}
+                hasChildren={hasChildren}
+                isCollapsed={isCollapsed}
+                isSelected={isSelected}
+                node={node}
+                onAddChild={onAddChild}
+                onAddSibling={onAddSibling}
+                onDelete={onDelete}
+                onInlineEditStart={onInlineEditStart}
+                onToggleCollapse={onToggleCollapse}
+              />
+            </div>
+          </div>
+        </div>
+
+        {hasChildren && !isCollapsed && (
+          <div className="relative min-w-[180px] pl-6">
+            <div className={cn('pointer-events-none absolute left-0 top-4 bottom-4 w-px opacity-60', tone.line)} />
+            <div className="space-y-4">
+              {node.children.map(child => (
+                <DesktopBranchNode
+                  key={child.id}
+                  depth={depth + 1}
+                  node={child}
+                  selectedNodeId={selectedNodeId}
+                  onAddChild={onAddChild}
+                  onAddSibling={onAddSibling}
+                  onDelete={onDelete}
+                  onInlineEditCancel={onInlineEditCancel}
+                  onInlineEditChange={onInlineEditChange}
+                  onInlineEditCommit={onInlineEditCommit}
+                  onInlineEditStart={onInlineEditStart}
+                  onSelect={onSelect}
+                  onToggleCollapse={onToggleCollapse}
+                  activeSearchNodeId={activeSearchNodeId}
+                  editingNodeId={editingNodeId}
+                  editingNodeLabel={editingNodeLabel}
+                  matchedNodeIds={matchedNodeIds}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DesktopPrimaryColumn({
+  index,
+  node,
+  ...props
+}: { index: number; node: MindmapNode } & MindmapRendererProps) {
+  const tone = colorMeta[node.color]
+  const isSelected = node.id === props.selectedNodeId
+  const isInlineEditing = props.editingNodeId === node.id
+  const hasChildren = node.children.length > 0
+  const isCollapsed = Boolean(node.collapsed) && hasChildren
+  const isSearchMatch = props.matchedNodeIds.has(node.id)
+  const isActiveSearchMatch = props.activeSearchNodeId === node.id
+  const searchHighlightClass = getNodeSearchHighlightClass(false, isSearchMatch, isActiveSearchMatch)
+  const branchUp = index % 2 === 0
+
+  return (
+    <div className="relative flex w-[288px] shrink-0 flex-col justify-center">
+      <div className="flex min-h-[220px] flex-col justify-end">
+        {branchUp && hasChildren && !isCollapsed ? (
+          <div className="relative pb-8">
+            <div className={cn('pointer-events-none absolute bottom-0 left-1/2 h-8 w-px -translate-x-1/2 opacity-65', tone.line)} />
+            <div className="relative flex flex-col items-start gap-4">
+              {node.children.map(child => (
+                <DesktopBranchNode key={child.id} depth={2} node={child} {...props} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="relative flex items-center justify-center py-6">
+        {hasChildren && (
+          <div
+            className={cn(
+              'pointer-events-none absolute left-1/2 w-px -translate-x-1/2 opacity-65',
+              branchUp ? 'top-0 h-6' : 'bottom-0 h-6',
+              tone.line
+            )}
+          />
+        )}
+        <div className="relative scroll-m-[140px]" data-node-id={node.id}>
+          <div
+            className={cn(
+              'relative min-h-[118px] w-[248px] overflow-hidden rounded-[28px] border px-6 py-5 transition-all duration-200',
+              tone.primaryCard,
+              isSelected
+                ? 'border-[#CFC5B6] shadow-[0_22px_44px_rgba(148,163,184,0.18)] ring-2 ring-offset-2 ring-offset-[#F7F3EC]'
+                : 'hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(148,163,184,0.14)]',
+              searchHighlightClass
+            )}
+            onClick={() => props.onSelect(node.id)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                props.onSelect(node.id)
+              }
+            }}
+          >
+            <div className={cn('pointer-events-none absolute inset-x-0 top-0 h-1.5 rounded-t-[28px]', tone.line)} />
+            <div className={cn('pointer-events-none absolute inset-y-6 left-0 w-1.5 rounded-r-full opacity-80', tone.line)} />
+            <div className="relative">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="text-[10px] uppercase tracking-[0.18em] text-ink-400">主主题</span>
+                <span className={cn('rounded-full border px-2.5 py-1 text-[10px] leading-none', tone.chip)}>
+                  {tone.label}
+                </span>
+                {isSelected && (
+                  <span className="rounded-full border border-white/90 bg-white px-2.5 py-1 text-[10px] leading-none text-ink-600 shadow-sm">
+                    当前选中
+                  </span>
+                )}
+              </div>
+              <div className="mt-3 min-w-0">
+                {isInlineEditing ? (
+                  <input
+                    autoFocus
+                    value={props.editingNodeLabel}
+                    onChange={event => props.onInlineEditChange(event.target.value)}
+                    onBlur={props.onInlineEditCommit}
+                    onClick={event => event.stopPropagation()}
+                    onDoubleClick={event => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      event.stopPropagation()
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        props.onInlineEditCommit()
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault()
+                        props.onInlineEditCancel()
+                      }
+                    }}
+                    className="w-full rounded-[14px] border border-[#DDD5C8] bg-transparent px-3 py-1.5 text-[1.04rem] leading-6 text-ink-900 outline-none placeholder:text-ink-400"
+                    placeholder="输入节点名称"
+                  />
+                ) : (
+                  <h3
+                    className="break-words font-serif text-[1.14rem] leading-[1.36] text-ink-900"
+                    onDoubleClick={(event) => {
+                      event.stopPropagation()
+                      props.onInlineEditStart(node.id)
+                    }}
+                  >
+                    {node.label || '未命名节点'}
+                  </h3>
+                )}
+                <p className="mt-2 text-sm leading-6 text-ink-600">
+                  {hasChildren
+                    ? isCollapsed
+                      ? `已收起 ${node.children.length} 个分支`
+                      : `${node.children.length} 个分支`
+                    : '暂无子节点'}
+                </p>
+              </div>
+              <DesktopNodeActions
+                depth={1}
+                hasChildren={hasChildren}
+                isCollapsed={isCollapsed}
+                isSelected={isSelected}
+                node={node}
+                onAddChild={props.onAddChild}
+                onAddSibling={props.onAddSibling}
+                onDelete={props.onDelete}
+                onInlineEditStart={props.onInlineEditStart}
+                onToggleCollapse={props.onToggleCollapse}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex min-h-[220px] flex-col">
+        {!branchUp && hasChildren && !isCollapsed ? (
+          <div className="relative pt-8">
+            <div className={cn('pointer-events-none absolute left-1/2 top-0 h-8 w-px -translate-x-1/2 opacity-65', tone.line)} />
+            <div className="relative flex flex-col items-start gap-4">
+              {node.children.map(child => (
+                <DesktopBranchNode key={child.id} depth={2} node={child} {...props} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function DesktopMindmapCanvas({ tree, ...props }: { tree: MindmapNode } & MindmapRendererProps) {
+  const tone = colorMeta[tree.color]
+  const isSelected = tree.id === props.selectedNodeId
+  const isInlineEditing = props.editingNodeId === tree.id
+  const hasChildren = tree.children.length > 0
+  const isCollapsed = Boolean(tree.collapsed) && hasChildren
+  const isSearchMatch = props.matchedNodeIds.has(tree.id)
+  const isActiveSearchMatch = props.activeSearchNodeId === tree.id
+  const searchHighlightClass = getNodeSearchHighlightClass(true, isSearchMatch, isActiveSearchMatch)
+
+  return (
+    <div className="hidden lg:block min-w-max">
+      <div className="flex items-center gap-16 px-4 py-12">
+        <div className="relative scroll-m-[140px] shrink-0" data-node-id={tree.id}>
+          <div
+            className={cn(
+              'relative min-h-[220px] w-[338px] overflow-hidden rounded-[38px] border px-9 py-8 transition-all duration-200',
+              tone.rootCard,
+              isSelected
+                ? 'border-white/26 shadow-[0_28px_62px_rgba(31,41,55,0.2)] ring-1 ring-white/18'
+                : 'hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(31,41,55,0.16)]',
+              searchHighlightClass
+            )}
+            onClick={() => props.onSelect(tree.id)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                props.onSelect(tree.id)
+              }
+            }}
+          >
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.24),transparent_42%),radial-gradient(circle_at_bottom_right,rgba(63,85,96,0.18),transparent_34%)]" />
+            <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-white/22" />
+            <div className="relative flex h-full flex-col items-center justify-between text-center">
+              <div className="flex flex-wrap items-center justify-center gap-2.5">
+                <span className="text-[11px] uppercase tracking-[0.24em] text-white/72">中心主题</span>
+                <span className={cn('rounded-full border px-3 py-1 text-[10px] leading-none', tone.rootBadge)}>
+                  {tone.label}
+                </span>
+                {isSelected && (
+                  <span className="rounded-full border border-white/20 bg-white/14 px-3 py-1 text-[10px] text-white">
+                    当前选中
+                  </span>
+                )}
+              </div>
+              <div className="mt-6 min-w-0">
+                {isInlineEditing ? (
+                  <input
+                    autoFocus
+                    value={props.editingNodeLabel}
+                    onChange={event => props.onInlineEditChange(event.target.value)}
+                    onBlur={props.onInlineEditCommit}
+                    onClick={event => event.stopPropagation()}
+                    onDoubleClick={event => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      event.stopPropagation()
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        props.onInlineEditCommit()
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault()
+                        props.onInlineEditCancel()
+                      }
+                    }}
+                    className="w-full rounded-[18px] border border-white/20 bg-transparent px-3 py-2 text-center font-serif text-[1.92rem] leading-[1.2] text-white outline-none placeholder:text-white/56"
+                    placeholder="输入节点名称"
+                  />
+                ) : (
+                  <h3
+                    className="break-words font-serif text-[2rem] leading-[1.2] text-white"
+                    onDoubleClick={(event) => {
+                      event.stopPropagation()
+                      props.onInlineEditStart(tree.id)
+                    }}
+                  >
+                    {tree.label || '中心主题'}
+                  </h3>
+                )}
+                <p className="mt-3 text-sm leading-6 text-white/76">
+                  {hasChildren
+                    ? isCollapsed
+                      ? `主轴已收起，共 ${tree.children.length} 个一级主题`
+                      : `${tree.children.length} 个一级主题`
+                    : '暂无一级主题'}
+                </p>
+              </div>
+              <DesktopNodeActions
+                depth={0}
+                hasChildren={hasChildren}
+                isCollapsed={isCollapsed}
+                isSelected={isSelected}
+                node={tree}
+                onAddChild={props.onAddChild}
+                onAddSibling={props.onAddSibling}
+                onDelete={props.onDelete}
+                onInlineEditStart={props.onInlineEditStart}
+                onToggleCollapse={props.onToggleCollapse}
+              />
+            </div>
+          </div>
+        </div>
+
+        {hasChildren && !isCollapsed ? (
+          <div className="relative flex gap-12 pl-8">
+            <div className={cn('pointer-events-none absolute -left-8 top-1/2 h-px w-8 -translate-y-1/2 opacity-60', tone.line)} />
+            <div className={cn('pointer-events-none absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 opacity-55', tone.line)} />
+            {tree.children.map((child, index) => (
+              <DesktopPrimaryColumn
+                key={child.id}
+                index={index}
+                node={child}
+                {...props}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-[28px] border border-dashed border-[#E1D9CC] bg-[rgba(252,250,245,0.84)] px-8 py-6 text-sm leading-7 text-ink-500">
+            {hasChildren
+              ? '当前中心主题的主轴已收起，可通过节点按钮或右侧面板重新展开。'
+              : '先添加一级主题，画布会沿主轴横向展开。'}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function TreeNodeCard({
   depth,
   node,
@@ -1500,9 +2039,8 @@ export default function MindmapDetailPage() {
                         className="min-h-full min-w-max"
                         style={{ padding: '36px 40px 44px 40px' }}
                       >
-                        <TreeNodeCard
-                          depth={0}
-                          node={tree}
+                        <DesktopMindmapCanvas
+                          tree={tree}
                           selectedNodeId={selectedNodeId}
                           onAddChild={handleAddChild}
                           onAddSibling={handleAddSibling}
@@ -1518,6 +2056,26 @@ export default function MindmapDetailPage() {
                           editingNodeLabel={editingNodeLabel}
                           matchedNodeIds={matchedNodeIds}
                         />
+                        <div className="lg:hidden">
+                          <TreeNodeCard
+                            depth={0}
+                            node={tree}
+                            selectedNodeId={selectedNodeId}
+                            onAddChild={handleAddChild}
+                            onAddSibling={handleAddSibling}
+                            onDelete={handleDeleteNode}
+                            onInlineEditCancel={handleInlineEditCancel}
+                            onInlineEditChange={setEditingNodeLabel}
+                            onInlineEditCommit={handleInlineEditCommit}
+                            onInlineEditStart={handleInlineEditStart}
+                            onSelect={handleSelectNode}
+                            onToggleCollapse={handleToggleCollapse}
+                            activeSearchNodeId={activeSearchNodeId}
+                            editingNodeId={editingNodeId}
+                            editingNodeLabel={editingNodeLabel}
+                            matchedNodeIds={matchedNodeIds}
+                          />
+                        </div>
                       </div>
                     </div>
                     <div className="mt-4 rounded-[22px] border border-dashed border-[#E1D9CC] bg-[rgba(252,250,245,0.84)] px-4 py-3 text-sm leading-6 text-ink-500">
