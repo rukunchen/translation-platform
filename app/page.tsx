@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { hasSupabaseBrowserEnv, supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Eyebrow } from '@/components/ui/Eyebrow'
@@ -152,6 +152,14 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit}
             style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {!hasSupabaseBrowserEnv && (
+              <div
+                className="rounded-xl border border-amber-200 bg-amber-50 text-amber-900"
+                style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 12, paddingBottom: 12, fontSize: 13 }}
+              >
+                当前本地环境缺少 Supabase 配置，页面已恢复可访问，但暂时不能登录。
+              </div>
+            )}
             <Input
               label="邮箱"
               type="email"
@@ -179,7 +187,14 @@ export default function LoginPage() {
             )}
             {/* 按钮上方留出明显空隙，与密码框分开 */}
             <div style={{ marginTop: 14 }}>
-              <Button variant="primary" type="submit" loading={loading} fullWidth className="h-11 py-0">
+              <Button
+                variant="primary"
+                type="submit"
+                loading={loading}
+                fullWidth
+                className="h-11 py-0"
+                disabled={!hasSupabaseBrowserEnv}
+              >
                 {loading ? '处理中' : '登录'}
               </Button>
             </div>

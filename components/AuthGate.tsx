@@ -10,13 +10,15 @@
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { isPublic } from '@/lib/publicPaths'
-import { supabase } from '@/lib/supabase'
+import { hasSupabaseBrowserEnv, supabase } from '@/lib/supabase'
 
 export default function AuthGate() {
   const router = useRouter()
   const pathname = usePathname()
 
   useEffect(() => {
+    if (!hasSupabaseBrowserEnv) return
+
     // 1) 监听 supabase 内部状态：登出 / token 失效都会触发 SIGNED_OUT
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {

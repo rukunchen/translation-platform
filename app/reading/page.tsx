@@ -14,6 +14,8 @@ type SelectionState = {
   context: string
   top: number
   left: number
+  startOffset: number | null
+  endOffset: number | null
 }
 
 type ReadingArticle = {
@@ -30,10 +32,13 @@ type ReadingArticle = {
 }
 
 type ReadingMode = 'library' | 'reader'
-type ReaderTab = 'source' | 'notes' | 'ai'
+type ReaderTab = 'source' | 'notes' | 'annotations'
 type ReadingFont = 'serif' | 'sans' | 'mono'
 type ReadingFontSize = 'sm' | 'md' | 'lg'
 type ReadingLineHeight = 'compact' | 'comfortable' | 'open'
+type AnnotationType = 'highlight' | 'underline'
+type AnnotationColor = 'yellow' | 'green' | 'blue' | 'purple' | 'red' | 'gray'
+type SidePanelTab = 'notes' | 'annotations'
 
 type ReadingNoteRow = {
   id: string
@@ -57,6 +62,53 @@ type ReadingNote = {
   createdAt: string
 }
 
+type ReadingAnnotationRow = {
+  id: string
+  article_id: string
+  user_id: string
+  quote: string
+  start_offset: number
+  end_offset: number
+  annotation_type: AnnotationType
+  color: AnnotationColor | null
+  note: string | null
+  created_at: string
+  updated_at: string
+}
+
+type ReadingAnnotation = {
+  id: string
+  quote: string
+  startOffset: number
+  endOffset: number
+  annotationType: AnnotationType
+  color: AnnotationColor
+  note: string
+  createdAt: string
+  updatedAt: string
+}
+
+type ReadingParagraph = {
+  text: string
+  startOffset: number
+  endOffset: number
+}
+
+type ReadingLayout = {
+  title: string
+  deck: string
+  body: ReadingParagraph[]
+}
+
+type AnnotationNoticeTone = 'success' | 'error' | 'info'
+
+type AnnotationMenuState = {
+  annotationId: string
+  top: number
+  left: number
+  mobile: boolean
+}
+
 type NewsHotspotItem = {
   title: string
   source: string
@@ -75,6 +127,15 @@ const GENRE_OPTIONS = ['经济', '政治', '中国', '心理学', '文学', '历
 const GENRE_FILTERS = ['全部', ...GENRE_OPTIONS]
 
 const ARTICLE_SELECT = 'id,user_id,title,source,genre,source_type,clean_text,structured_blocks,created_at,updated_at'
+const ANNOTATION_SELECT = 'id,article_id,user_id,quote,start_offset,end_offset,annotation_type,color,note,created_at,updated_at'
+const ANNOTATION_COLORS: { value: AnnotationColor; label: string; fill: string }[] = [
+  { value: 'yellow', label: '黄色', fill: '#FFF3B0' },
+  { value: 'green', label: '绿色', fill: '#DDF7E3' },
+  { value: 'blue', label: '蓝色', fill: '#DCEBFF' },
+  { value: 'purple', label: '紫色', fill: '#EEE2FF' },
+  { value: 'red', label: '红色', fill: '#FFE1E1' },
+  { value: 'gray', label: '灰色', fill: '#EDEDED' },
+]
 
 const READING_FONT_OPTIONS: { value: ReadingFont; label: string }[] = [
   { value: 'serif', label: '报刊衬线' },
@@ -146,22 +207,51 @@ function articleGenre(article: ReadingArticle): string {
   return article.genre || '其他'
 }
 
-function splitReadingParagraphs(text: string): string[] {
-  return text
-    .split(/\n{2,}/)
-    .map(paragraph => paragraph.trim())
-    .filter(Boolean)
+function splitReadingParagraphs(text: string): ReadingParagraph[] {
+  const paragraphs: ReadingParagraph[] = []
+  let cursor = 0
+
+  while (cursor < text.length) {
+    while (cursor < text.length && text[cursor] === '\n') cursor += 1
+    if (cursor >= text.length) break
+
+    const startOffset = cursor
+    let endOffset = cursor
+
+    while (endOffset < text.length) {
+      if (text[endOffset] === '\n') {
+        let lookahead = endOffset
+        while (lookahead < text.length && text[lookahead] === '\n') lookahead += 1
+        if (lookahead - endOffset >= 2) break
+      }
+      endOffset += 1
+    }
+
+    const paragraph = text.slice(startOffset, endOffset).trim()
+    if (paragraph) {
+      paragraphs.push({
+        text: paragraph,
+        startOffset,
+        endOffset: startOffset + paragraph.length,
+      })
+    }
+
+    cursor = endOffset
+    while (cursor < text.length && text[cursor] === '\n') cursor += 1
+  }
+
+  return paragraphs
 }
 
 function normalizeHeading(text: string): string {
   return text.replace(/\s+/g, ' ').trim().toLowerCase()
 }
 
-function buildReadingLayout(text: string, savedTitle?: string | null) {
+function buildReadingLayout(text: string, savedTitle?: string | null): ReadingLayout {
   const paragraphs = splitReadingParagraphs(text)
-  const title = savedTitle?.trim() || paragraphs[0] || '未命名文章'
+  const title = savedTitle?.trim() || paragraphs[0]?.text || '未命名文章'
   const body = [...paragraphs]
-  const first = body[0] || ''
+  const first = body[0]?.text || ''
   const normalizedTitle = normalizeHeading(title)
   const normalizedFirst = normalizeHeading(first)
 
@@ -169,8 +259,101 @@ function buildReadingLayout(text: string, savedTitle?: string | null) {
     body.shift()
   }
 
-  const deck = body.length > 1 && body[0].length <= 260 ? body.shift() || '' : ''
+  const deck = body.length > 1 && body[0].text.length <= 260 ? body.shift()?.text || '' : ''
   return { title, deck, body }
+}
+
+function annotationFromRow(row: ReadingAnnotationRow): ReadingAnnotation {
+  return {
+    id: row.id,
+    quote: row.quote,
+    startOffset: row.start_offset,
+    endOffset: row.end_offset,
+    annotationType: row.annotation_type,
+    color: row.color || 'yellow',
+    note: row.note || '',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function sortAnnotations(items: ReadingAnnotation[]): ReadingAnnotation[] {
+  return [...items].sort((left, right) => {
+    if (left.startOffset !== right.startOffset) return left.startOffset - right.startOffset
+    if (left.endOffset !== right.endOffset) return left.endOffset - right.endOffset
+    return left.createdAt.localeCompare(right.createdAt)
+  })
+}
+
+function annotationStyle(annotation: ReadingAnnotation) {
+  if (annotation.annotationType === 'underline') {
+    return {
+      textDecorationLine: 'underline',
+      textDecorationColor: '#9CA3AF',
+      textDecorationThickness: '2px',
+      textUnderlineOffset: '0.16em',
+    }
+  }
+
+  const fill = ANNOTATION_COLORS.find(option => option.value === annotation.color)?.fill || '#FFF3B0'
+  return {
+    backgroundColor: fill,
+    borderRadius: 4,
+    boxDecorationBreak: 'clone' as const,
+    WebkitBoxDecorationBreak: 'clone' as const,
+  }
+}
+
+function annotationTypeLabel(annotationType: AnnotationType): string {
+  return annotationType === 'underline' ? 'underline' : 'highlight'
+}
+
+function annotationColorLabel(color: AnnotationColor): string {
+  return ANNOTATION_COLORS.find(option => option.value === color)?.label || color
+}
+
+function buildParagraphSegments(paragraph: ReadingParagraph, annotations: ReadingAnnotation[]) {
+  const segments: Array<{ key: string; text: string; annotation: ReadingAnnotation | null }> = []
+  const relevant = annotations.filter(annotation =>
+    annotation.startOffset < paragraph.endOffset && annotation.endOffset > paragraph.startOffset
+  )
+  let cursor = paragraph.startOffset
+
+  for (const annotation of relevant) {
+    const segmentStart = Math.max(cursor, paragraph.startOffset, annotation.startOffset)
+    const segmentEnd = Math.min(paragraph.endOffset, annotation.endOffset)
+    if (segmentEnd <= segmentStart) continue
+
+    if (segmentStart > cursor) {
+      segments.push({
+        key: `plain-${cursor}-${segmentStart}`,
+        text: paragraph.text.slice(cursor - paragraph.startOffset, segmentStart - paragraph.startOffset),
+        annotation: null,
+      })
+    }
+
+    segments.push({
+      key: `${annotation.id}-${segmentStart}-${segmentEnd}`,
+      text: paragraph.text.slice(segmentStart - paragraph.startOffset, segmentEnd - paragraph.startOffset),
+      annotation,
+    })
+    cursor = segmentEnd
+  }
+
+  if (cursor < paragraph.endOffset) {
+    segments.push({
+      key: `plain-${cursor}-${paragraph.endOffset}`,
+      text: paragraph.text.slice(cursor - paragraph.startOffset),
+      annotation: null,
+    })
+  }
+
+  return segments
+}
+
+function findSelectionOffsetInCleanText(sourceText: string, selectedText: string): number {
+  // MVP fallback: duplicated text in the same article may resolve to the first occurrence.
+  return sourceText.indexOf(selectedText)
 }
 
 function articleMatchesSearch(article: ReadingArticle, query: string): boolean {
@@ -314,10 +497,12 @@ export default function ReadingRoomPage() {
   const readerRef = useRef<HTMLDivElement | null>(null)
   const noteTextareas = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const noteSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const annotationNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
   const [mode, setMode] = useState<ReadingMode>('library')
   const [readerTab, setReaderTab] = useState<ReaderTab>('source')
+  const [sidePanelTab, setSidePanelTab] = useState<SidePanelTab>('notes')
   const [readerFont, setReaderFont] = useState<ReadingFont>('serif')
   const [readerFontSize, setReaderFontSize] = useState<ReadingFontSize>('md')
   const [readerLineHeight, setReaderLineHeight] = useState<ReadingLineHeight>('comfortable')
@@ -338,15 +523,22 @@ export default function ReadingRoomPage() {
   const [cleanText, setCleanText] = useState('')
   const [selection, setSelection] = useState<SelectionState | null>(null)
   const [notes, setNotes] = useState<ReadingNote[]>([])
+  const [annotations, setAnnotations] = useState<ReadingAnnotation[]>([])
   const [genreFilter, setGenreFilter] = useState('全部')
   const [searchQuery, setSearchQuery] = useState('')
   const [aiNotice, setAiNotice] = useState('')
+  const [annotationPaletteOpen, setAnnotationPaletteOpen] = useState(false)
+  const [annotationMenu, setAnnotationMenu] = useState<AnnotationMenuState | null>(null)
+  const [annotationMenuPaletteOpen, setAnnotationMenuPaletteOpen] = useState(false)
+  const [annotationListPaletteId, setAnnotationListPaletteId] = useState<string | null>(null)
+  const [annotationNotice, setAnnotationNotice] = useState<{ message: string; tone: AnnotationNoticeTone } | null>(null)
   const [explainingNoteId, setExplainingNoteId] = useState<string | null>(null)
   const [explainingSelection, setExplainingSelection] = useState(false)
   const [storageError, setStorageError] = useState('')
   const [newsHotspots, setNewsHotspots] = useState<NewsHotspotsPayload | null>(null)
   const [newsLoading, setNewsLoading] = useState(false)
   const [newsError, setNewsError] = useState('')
+  const [flashedAnnotationId, setFlashedAnnotationId] = useState<string | null>(null)
   const readingLayout = buildReadingLayout(cleanText, article?.title)
   const cleanWordCount = wordCount(cleanText)
   const readerTextStyle = {
@@ -360,6 +552,22 @@ export default function ReadingRoomPage() {
   const editArticleGenreOptions = GENRE_OPTIONS.includes(editArticleGenre)
     ? GENRE_OPTIONS
     : [editArticleGenre, ...GENRE_OPTIONS]
+  const activeAnnotation = annotationMenu
+    ? annotations.find(annotation => annotation.id === annotationMenu.annotationId) || null
+    : null
+  const activeSidePanelTab = readerTab === 'annotations' ? 'annotations' : sidePanelTab
+
+  const showAnnotationNotice = (message: string, tone: AnnotationNoticeTone = 'success') => {
+    setAnnotationNotice({ message, tone })
+    if (annotationNoticeTimer.current) clearTimeout(annotationNoticeTimer.current)
+    annotationNoticeTimer.current = setTimeout(() => setAnnotationNotice(null), 2200)
+  }
+
+  const closeAnnotationMenu = () => {
+    setAnnotationMenu(null)
+    setAnnotationMenuPaletteOpen(false)
+    setAnnotationListPaletteId(null)
+  }
 
   const loadArticleLibrary = async (currentUserId: string): Promise<ReadingArticle[]> => {
     const { data: articleRows, error: articleError } = await supabase
@@ -430,6 +638,25 @@ export default function ReadingRoomPage() {
     setNoteCounts(current => ({ ...current, [articleId]: nextNotes.length }))
   }
 
+  const loadAnnotationsForArticle = async (articleId: string, currentUserId: string) => {
+    const { data: loadedAnnotations, error: annotationError } = await supabase
+      .from('reading_annotations')
+      .select(ANNOTATION_SELECT)
+      .eq('article_id', articleId)
+      .eq('user_id', currentUserId)
+      .order('start_offset', { ascending: true })
+      .order('created_at', { ascending: true })
+
+    if (annotationError) {
+      setStorageError(annotationError.message)
+      setAnnotations([])
+      return
+    }
+
+    const nextAnnotations = sortAnnotations(((loadedAnnotations || []) as ReadingAnnotationRow[]).map(annotationFromRow))
+    setAnnotations(nextAnnotations)
+  }
+
   const openArticle = async (nextArticle: ReadingArticle) => {
     Object.values(noteSaveTimers.current).forEach(clearTimeout)
     noteSaveTimers.current = {}
@@ -437,11 +664,19 @@ export default function ReadingRoomPage() {
     setCleanText(nextArticle.clean_text || '')
     setDraftText('')
     setSelection(null)
+    setAnnotationPaletteOpen(false)
+    closeAnnotationMenu()
     setAiNotice('')
     setStorageError('')
     setReaderTab('source')
+    setSidePanelTab('notes')
     setMode('reader')
-    await loadNotesForArticle(nextArticle.id)
+    setAnnotations([])
+    if (!userId) return
+    await Promise.all([
+      loadNotesForArticle(nextArticle.id),
+      loadAnnotationsForArticle(nextArticle.id, userId),
+    ])
   }
 
   useEffect(() => {
@@ -471,6 +706,7 @@ export default function ReadingRoomPage() {
   useEffect(() => {
     return () => {
       Object.values(noteSaveTimers.current).forEach(clearTimeout)
+      if (annotationNoticeTimer.current) clearTimeout(annotationNoticeTimer.current)
     }
   }, [])
 
@@ -509,8 +745,12 @@ export default function ReadingRoomPage() {
     setNoteCounts(current => ({ ...current, [createdArticle.id]: 0 }))
     setImportOpen(false)
     setSelection(null)
+    setAnnotationPaletteOpen(false)
+    closeAnnotationMenu()
     setAiNotice('')
+    setAnnotations([])
     setReaderTab('source')
+    setSidePanelTab('notes')
     setMode('reader')
   }
 
@@ -525,6 +765,8 @@ export default function ReadingRoomPage() {
     setEditArticleText(sourceText)
     setEditArticleOpen(true)
     setSelection(null)
+    setAnnotationPaletteOpen(false)
+    closeAnnotationMenu()
     window.getSelection()?.removeAllRanges()
   }
 
@@ -578,6 +820,8 @@ export default function ReadingRoomPage() {
     const selected = window.getSelection()
     if (!selected || selected.rangeCount === 0) {
       setSelection(null)
+      setAnnotationPaletteOpen(false)
+      closeAnnotationMenu()
       return
     }
 
@@ -585,18 +829,56 @@ export default function ReadingRoomPage() {
     const anchor = selected.anchorNode
     if (!text || !anchor || !readerRef.current?.contains(anchor)) {
       setSelection(null)
+      setAnnotationPaletteOpen(false)
+      closeAnnotationMenu()
       return
     }
 
-    const rect = selected.getRangeAt(0).getBoundingClientRect()
+    const range = selected.getRangeAt(0)
+    const rect = range.getBoundingClientRect()
     const container = anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : anchor instanceof Element ? anchor : null
-    const context = container?.closest('[data-reading-paragraph]')?.textContent?.trim() || text
+    const startContainer = range.startContainer.nodeType === Node.TEXT_NODE
+      ? range.startContainer.parentElement
+      : range.startContainer instanceof Element ? range.startContainer : null
+    const endContainer = range.endContainer.nodeType === Node.TEXT_NODE
+      ? range.endContainer.parentElement
+      : range.endContainer instanceof Element ? range.endContainer : null
+    const startParagraph = startContainer?.closest('[data-reading-paragraph]') || null
+    const endParagraph = endContainer?.closest('[data-reading-paragraph]') || null
+    const context = startParagraph?.textContent?.trim() || text
+    let startOffset: number | null = null
+    let endOffset: number | null = null
+
+    if (startParagraph && endParagraph && startParagraph === endParagraph) {
+      const paragraphStart = Number(startParagraph.getAttribute('data-reading-offset-start') || '')
+      if (Number.isFinite(paragraphStart)) {
+        const prefixRange = document.createRange()
+        prefixRange.selectNodeContents(startParagraph)
+        prefixRange.setEnd(range.startContainer, range.startOffset)
+        const relativeStart = prefixRange.toString().length
+        startOffset = paragraphStart + relativeStart
+        endOffset = startOffset + text.length
+      }
+    }
+
+    if (startOffset === null || endOffset === null) {
+      const fallbackStart = findSelectionOffsetInCleanText(cleanText, text)
+      if (fallbackStart >= 0) {
+        startOffset = fallbackStart
+        endOffset = fallbackStart + text.length
+      }
+    }
+
     setSelection({
       text,
       context,
       top: Math.max(16, rect.top - 48),
       left: Math.min(window.innerWidth - 260, Math.max(16, rect.left + rect.width / 2 - 120)),
+      startOffset,
+      endOffset,
     })
+    setAnnotationPaletteOpen(false)
+    closeAnnotationMenu()
   }
 
   const ensureNoteForSelection = async (activeSelection: SelectionState): Promise<ReadingNote | null> => {
@@ -639,7 +921,141 @@ export default function ReadingRoomPage() {
     if (!note) return
 
     setSelection(null)
+    setAnnotationPaletteOpen(false)
     window.getSelection()?.removeAllRanges()
+  }
+
+  const openAnnotationMenu = (annotation: ReadingAnnotation, element: HTMLElement) => {
+    const selectedText = window.getSelection()?.toString().trim() || ''
+    if (selectedText) return
+
+    const rect = element.getBoundingClientRect()
+    const mobile = window.innerWidth < 768
+    setSelection(null)
+    setAnnotationPaletteOpen(false)
+    setAnnotationMenuPaletteOpen(false)
+    setAnnotationMenu({
+      annotationId: annotation.id,
+      top: Math.max(16, rect.top - 56),
+      left: Math.min(window.innerWidth - 300, Math.max(16, rect.left + rect.width / 2 - 140)),
+      mobile,
+    })
+  }
+
+  const saveSelectionAnnotation = async (annotationType: AnnotationType, color: AnnotationColor) => {
+    if (!selection?.text || !article || !userId) return
+
+    if (selection.startOffset === null || selection.endOffset === null) {
+      showAnnotationNotice('标注保存失败，请稍后重试。', 'error')
+      return
+    }
+
+    const duplicated = annotations.some(annotation =>
+      annotation.startOffset === selection.startOffset && annotation.endOffset === selection.endOffset
+    )
+    if (duplicated) {
+      showAnnotationNotice('该文本已经标注过。', 'info')
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('reading_annotations')
+      .insert({
+        article_id: article.id,
+        user_id: userId,
+        quote: selection.text,
+        start_offset: selection.startOffset,
+        end_offset: selection.endOffset,
+        annotation_type: annotationType,
+        color,
+      })
+      .select(ANNOTATION_SELECT)
+      .single()
+
+    if (error || !data) {
+      showAnnotationNotice('标注保存失败，请稍后重试。', 'error')
+      return
+    }
+
+    const nextAnnotation = annotationFromRow(data as ReadingAnnotationRow)
+    setAnnotations(current => sortAnnotations([...current, nextAnnotation]))
+    showAnnotationNotice('已添加标注。', 'success')
+    setSelection(null)
+    setAnnotationPaletteOpen(false)
+    window.getSelection()?.removeAllRanges()
+  }
+
+  const updateAnnotationStyle = async (
+    annotationId: string,
+    annotationType: AnnotationType,
+    color: AnnotationColor,
+    options?: { successMessage?: string }
+  ) => {
+    if (!userId) return
+
+    const { data, error } = await supabase
+      .from('reading_annotations')
+      .update({
+        annotation_type: annotationType,
+        color,
+      })
+      .eq('id', annotationId)
+      .eq('user_id', userId)
+      .select(ANNOTATION_SELECT)
+      .single()
+
+    if (error || !data) {
+      showAnnotationNotice('标注更新失败，请稍后重试。', 'error')
+      return
+    }
+
+    const nextAnnotation = annotationFromRow(data as ReadingAnnotationRow)
+    setAnnotations(current => sortAnnotations(current.map(annotation =>
+      annotation.id === annotationId ? nextAnnotation : annotation
+    )))
+    showAnnotationNotice(options?.successMessage || '标注已更新。', 'success')
+    setAnnotationListPaletteId(current => current === annotationId ? null : current)
+    closeAnnotationMenu()
+  }
+
+  const removeAnnotation = async (annotationId: string) => {
+    if (!userId) return
+    const confirmed = window.confirm('确定删除这条标注吗？')
+    if (!confirmed) return
+
+    const previous = annotations
+    setAnnotations(current => current.filter(annotation => annotation.id !== annotationId))
+    setAnnotationListPaletteId(current => current === annotationId ? null : current)
+    closeAnnotationMenu()
+
+    const { error } = await supabase
+      .from('reading_annotations')
+      .delete()
+      .eq('id', annotationId)
+      .eq('user_id', userId)
+
+    if (error) {
+      setAnnotations(previous)
+      showAnnotationNotice('删除标注失败，请稍后重试。', 'error')
+      return
+    }
+
+    showAnnotationNotice('已删除标注。', 'success')
+  }
+
+  const jumpToAnnotation = (annotationId: string) => {
+    const target = readerRef.current?.querySelector<HTMLElement>(`[data-reading-annotation-id="${annotationId}"]`)
+    if (!target) {
+      showAnnotationNotice('未找到对应原文位置。', 'info')
+      return
+    }
+
+    setReaderTab('source')
+    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+    setFlashedAnnotationId(annotationId)
+    window.setTimeout(() => {
+      setFlashedAnnotationId(current => current === annotationId ? null : current)
+    }, 1400)
   }
 
   const mergeNoteFromRow = (row: ReadingNoteRow) => {
@@ -703,6 +1119,7 @@ export default function ReadingRoomPage() {
     }
 
     setSelection(null)
+    setAnnotationPaletteOpen(false)
     window.getSelection()?.removeAllRanges()
     await explainNote(note)
   }
@@ -768,6 +1185,7 @@ export default function ReadingRoomPage() {
       setNotes([])
       setSelection(null)
       setAiNotice('')
+      closeAnnotationMenu()
       setMode('library')
     }
     if (editArticleTarget?.id === target.id) {
@@ -811,6 +1229,8 @@ export default function ReadingRoomPage() {
               <Button variant="ghost" onClick={() => {
                 setMode('library')
                 setSelection(null)
+                setAnnotationPaletteOpen(false)
+                closeAnnotationMenu()
                 window.getSelection()?.removeAllRanges()
               }}>
                 ← 返回文章库
@@ -949,12 +1369,15 @@ export default function ReadingRoomPage() {
             {([
               ['source', '原文'],
               ['notes', '笔记'],
-              ['ai', 'AI译文'],
+              ['annotations', '标注'],
             ] as const).map(([key, label]) => (
               <button
                 key={key}
                 type="button"
-                onClick={() => setReaderTab(key)}
+                onClick={() => {
+                  setReaderTab(key)
+                  if (key !== 'source') setSidePanelTab(key)
+                }}
                 className={[
                   'rounded-lg px-3 py-2 text-sm transition-colors',
                   readerTab === key ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500',
@@ -1034,14 +1457,12 @@ export default function ReadingRoomPage() {
                     <header className="mb-9 border-b border-line pb-7">
                       <Eyebrow tone="muted">{article?.source || 'Manual Paste'}</Eyebrow>
                       <h1
-                        data-reading-paragraph
                         className="mt-3 max-w-4xl font-serif text-[42px] leading-[1.05] text-ink-950"
                       >
                         {readingLayout.title}
                       </h1>
                       {readingLayout.deck && (
                         <p
-                          data-reading-paragraph
                           className="mt-5 max-w-3xl font-serif text-xl leading-8 text-ink-600"
                         >
                           {readingLayout.deck}
@@ -1057,15 +1478,41 @@ export default function ReadingRoomPage() {
                     <div className="max-w-none xl:columns-2 xl:gap-12">
                       {readingLayout.body.map((paragraph, index) => (
                         <p
-                          key={index}
+                          key={`${paragraph.startOffset}-${paragraph.endOffset}`}
                           data-reading-paragraph
+                          data-reading-offset-start={paragraph.startOffset}
                           className={[
                             'break-inside-avoid whitespace-pre-wrap text-ink-900',
                             index === 0 ? 'first-letter:float-left first-letter:mr-3 first-letter:font-serif first-letter:text-6xl first-letter:leading-[0.85] first-letter:text-ink-950' : '',
                           ].join(' ')}
                           style={{ ...readerTextStyle, marginBottom: '1.6em' }}
                         >
-                          {paragraph}
+                          {buildParagraphSegments(paragraph, annotations).map(segment => (
+                            segment.annotation ? (
+                              <span
+                                key={segment.key}
+                                style={{
+                                  ...annotationStyle(segment.annotation),
+                                  ...(flashedAnnotationId === segment.annotation.id
+                                    ? {
+                                      boxShadow: '0 0 0 2px rgba(59,130,246,0.45)',
+                                      transition: 'box-shadow 0.2s ease',
+                                    }
+                                    : {}),
+                                }}
+                                data-reading-annotation-id={segment.annotation.id}
+                                className="cursor-pointer"
+                                onClick={event => {
+                                  event.stopPropagation()
+                                  openAnnotationMenu(segment.annotation!, event.currentTarget)
+                                }}
+                              >
+                                {segment.text}
+                              </span>
+                            ) : (
+                              <span key={segment.key}>{segment.text}</span>
+                            )
+                          ))}
                         </p>
                       ))}
                     </div>
@@ -1082,13 +1529,36 @@ export default function ReadingRoomPage() {
             </Card>
           </section>
 
-          <aside className={`${readerTab === 'notes' || readerTab === 'ai' ? 'block' : 'hidden'} min-h-0 xl:block`}>
+          <aside className={`${readerTab === 'notes' || readerTab === 'annotations' ? 'block' : 'hidden'} min-h-0 xl:block`}>
             <Card padding="none" className="h-full overflow-hidden">
               <div className="border-b border-line bg-surface" style={{ padding: '18px 22px' }}>
                 <Eyebrow tone="muted">Notes</Eyebrow>
                 <div className="mt-1 flex items-end justify-between gap-3">
-                  <h2 className="font-serif text-xl text-ink-900">笔记区</h2>
-                  <span className="text-sm text-ink-500">{notes.length} 条</span>
+                  <h2 className="font-serif text-xl text-ink-900">{activeSidePanelTab === 'annotations' ? '标注区' : '笔记区'}</h2>
+                  <span className="text-sm text-ink-500">{activeSidePanelTab === 'annotations' ? `${annotations.length} 条` : `${notes.length} 条`}</span>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  {([
+                    ['notes', '笔记'],
+                    ['annotations', '标注'],
+                  ] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        setSidePanelTab(key)
+                        if (window.innerWidth < 1280) setReaderTab(key)
+                      }}
+                      className={[
+                        'rounded-full border px-3 py-1.5 text-xs transition-colors',
+                        activeSidePanelTab === key
+                          ? 'border-ink-900 bg-ink-900 text-white'
+                          : 'border-line bg-white text-ink-500 hover:border-ink-300 hover:text-ink-800',
+                      ].join(' ')}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -1099,7 +1569,89 @@ export default function ReadingRoomPage() {
               )}
 
               <div className="h-[calc(100%-76px)] overflow-y-auto" style={{ padding: 18 }}>
-                {notes.length === 0 ? (
+                {activeSidePanelTab === 'annotations' ? (
+                  annotations.length === 0 ? (
+                    <div className="flex h-full items-center justify-center text-center">
+                      <p className="text-sm leading-relaxed text-ink-500">当前文章还没有标注。</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {annotations.map(annotation => (
+                        <article key={annotation.id} className="rounded-xl border border-line bg-white overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => { jumpToAnnotation(annotation.id) }}
+                            className="block w-full text-left"
+                            style={{ padding: 16 }}
+                          >
+                            <p className="text-sm leading-relaxed text-ink-800 whitespace-pre-wrap">{annotation.quote}</p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <span className="rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] text-ink-600">
+                                {annotationTypeLabel(annotation.annotationType)}
+                              </span>
+                              <span
+                                className="rounded-full border border-line px-2.5 py-1 text-[11px] text-ink-600"
+                                style={{ backgroundColor: ANNOTATION_COLORS.find(option => option.value === annotation.color)?.fill || '#FFF3B0' }}
+                              >
+                                {annotationColorLabel(annotation.color)}
+                              </span>
+                            </div>
+                            <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-400">
+                              {formatReadingDate(annotation.createdAt)}
+                            </p>
+                          </button>
+                          <div className="flex flex-wrap justify-end gap-2 border-t border-line bg-white/80" style={{ padding: '8px 12px' }}>
+                            <Button size="sm" variant="ghost" onClick={() => { jumpToAnnotation(annotation.id) }}>
+                              跳转到原文
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setAnnotationListPaletteId(current => current === annotation.id ? null : annotation.id)
+                              }}
+                            >
+                              修改颜色
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                void updateAnnotationStyle(
+                                  annotation.id,
+                                  annotation.annotationType === 'highlight' ? 'underline' : 'highlight',
+                                  annotation.annotationType === 'highlight' ? 'gray' : 'yellow'
+                                )
+                              }}
+                            >
+                              {annotation.annotationType === 'highlight' ? '改为下划线' : '改为高亮'}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => { void removeAnnotation(annotation.id) }}>
+                              删除
+                            </Button>
+                          </div>
+                          {annotationListPaletteId === annotation.id && (
+                            <div className="flex flex-wrap gap-2 border-t border-line bg-surface/70" style={{ padding: '10px 12px' }}>
+                              {ANNOTATION_COLORS.map(option => (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={() => {
+                                    void updateAnnotationStyle(annotation.id, 'highlight', option.value, { successMessage: '颜色已更新。' })
+                                  }}
+                                  className="inline-flex min-h-9 items-center justify-center rounded-full border border-line px-3 py-1.5 text-xs text-ink-700 transition-colors hover:border-ink-300"
+                                  style={{ backgroundColor: option.fill }}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  )
+                ) : notes.length === 0 ? (
                   <div className="flex h-full items-center justify-center text-center">
                     <p className="text-sm leading-relaxed text-ink-500">选中左侧文本后，可加入笔记。</p>
                   </div>
@@ -1174,19 +1726,140 @@ export default function ReadingRoomPage() {
 
       {mode === 'reader' && selection && (
         <div
-          className="fixed z-50 flex items-center gap-2 rounded-xl border border-line bg-white shadow-[var(--shadow-card)]"
+          className="fixed z-50 flex flex-col gap-2 rounded-xl border border-line bg-white shadow-[var(--shadow-card)]"
           style={{ top: selection.top, left: selection.left, padding: 8 }}
         >
-          <Button size="sm" variant="primary" onClick={() => { void addSelectionNote() }}>加入笔记</Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            loading={explainingSelection}
-            disabled={explainingSelection || !!explainingNoteId}
-            onClick={() => { void explainSelection() }}
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="primary" onClick={() => { void addSelectionNote() }}>加入笔记</Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={explainingSelection}
+              disabled={explainingSelection || !!explainingNoteId}
+              onClick={() => { void explainSelection() }}
+            >
+              {explainingSelection ? '翻译中...' : 'AI 翻译'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { void saveSelectionAnnotation('underline', 'gray') }}>
+              下划线
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setAnnotationPaletteOpen(current => !current)}
+            >
+              标注
+            </Button>
+          </div>
+          {annotationPaletteOpen && (
+            <div className="flex flex-wrap items-center gap-2">
+              {ANNOTATION_COLORS.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => { void saveSelectionAnnotation('highlight', option.value) }}
+                  className="inline-flex min-h-9 items-center justify-center rounded-full border border-line px-3 py-1.5 text-xs text-ink-700 transition-colors hover:border-ink-300"
+                  style={{ backgroundColor: option.fill }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {mode === 'reader' && annotationMenu && activeAnnotation && (
+        annotationMenu.mobile ? (
+          <div className="fixed inset-x-4 bottom-4 z-50 rounded-2xl border border-line bg-white p-4 shadow-[var(--shadow-card)]">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-400">Annotation</p>
+                <p className="mt-1 line-clamp-2 text-sm text-ink-800">{activeAnnotation.quote}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeAnnotationMenu}
+                className="rounded-lg px-2 py-1 text-xs text-ink-500 transition-colors hover:bg-surface hover:text-ink-800"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setAnnotationMenuPaletteOpen(current => !current)}>
+                修改颜色
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => { void updateAnnotationStyle(activeAnnotation.id, 'underline', 'gray') }}>
+                改为下划线
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => { void removeAnnotation(activeAnnotation.id) }}>
+                删除标注
+              </Button>
+            </div>
+            {annotationMenuPaletteOpen && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {ANNOTATION_COLORS.map(option => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => { void updateAnnotationStyle(activeAnnotation.id, 'highlight', option.value) }}
+                    className="inline-flex min-h-9 items-center justify-center rounded-full border border-line px-3 py-1.5 text-xs text-ink-700 transition-colors hover:border-ink-300"
+                    style={{ backgroundColor: option.fill }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            className="fixed z-50 flex flex-col gap-2 rounded-xl border border-line bg-white shadow-[var(--shadow-card)]"
+            style={{ top: annotationMenu.top, left: annotationMenu.left, padding: 8, width: 280 }}
           >
-            {explainingSelection ? '翻译中...' : 'AI 翻译'}
-          </Button>
+            <p className="max-w-full truncate px-2 text-xs text-ink-500">{activeAnnotation.quote}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setAnnotationMenuPaletteOpen(current => !current)}>
+                修改颜色
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => { void updateAnnotationStyle(activeAnnotation.id, 'underline', 'gray') }}>
+                改为下划线
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => { void removeAnnotation(activeAnnotation.id) }}>
+                删除标注
+              </Button>
+            </div>
+            {annotationMenuPaletteOpen && (
+              <div className="flex flex-wrap gap-2">
+                {ANNOTATION_COLORS.map(option => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => { void updateAnnotationStyle(activeAnnotation.id, 'highlight', option.value) }}
+                    className="inline-flex min-h-9 items-center justify-center rounded-full border border-line px-3 py-1.5 text-xs text-ink-700 transition-colors hover:border-ink-300"
+                    style={{ backgroundColor: option.fill }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      )}
+
+      {annotationNotice && (
+        <div
+          className={[
+            'fixed right-6 top-6 z-50 rounded-xl border px-4 py-2 text-sm shadow-[var(--shadow-card)]',
+            annotationNotice.tone === 'error'
+              ? 'border-red-200 bg-red-50 text-red-700'
+              : annotationNotice.tone === 'info'
+                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-700',
+          ].join(' ')}
+        >
+          {annotationNotice.message}
         </div>
       )}
 
