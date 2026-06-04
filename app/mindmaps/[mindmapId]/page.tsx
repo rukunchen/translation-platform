@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import { Button } from '@/components/ui/Button'
@@ -15,6 +15,9 @@ type MindmapNode = {
   id: string
   label: string
   color: MindmapColor
+  collapsed?: boolean
+  note?: string
+  tags?: string[]
   children: MindmapNode[]
 }
 
@@ -113,6 +116,7 @@ function createInitialMindmapTree(): MindmapNode {
     id: 'root',
     label: '中心主题',
     color: 'blue',
+    collapsed: false,
     children: [],
   }
 }
@@ -142,6 +146,9 @@ function normalizeNode(value: unknown, fallbackId: string): MindmapNode {
       id: fallbackId,
       label: fallbackId === 'root' ? '中心主题' : '新节点',
       color: fallbackId === 'root' ? 'blue' : 'gray',
+      collapsed: false,
+      note: '',
+      tags: [],
       children: [],
     }
   }
@@ -151,12 +158,17 @@ function normalizeNode(value: unknown, fallbackId: string): MindmapNode {
   const label = typeof record.label === 'string' && record.label.trim()
     ? record.label
     : (id === 'root' ? '中心主题' : '新节点')
+  const note = typeof record.note === 'string' ? record.note : ''
+  const tags = Array.isArray(record.tags) ? record.tags.filter((tag): tag is string => typeof tag === 'string') : []
   const childrenSource = Array.isArray(record.children) ? record.children : []
 
   return {
     id,
     label,
     color: normalizeColor(record.color ?? (id === 'root' ? 'blue' : 'gray')),
+    collapsed: typeof record.collapsed === 'boolean' ? record.collapsed : false,
+    note,
+    tags,
     children: childrenSource.map((child, index) => normalizeNode(child, `${id}-${index + 1}`)),
   }
 }
@@ -168,6 +180,7 @@ function normalizeTree(value: unknown): MindmapNode {
     id: 'root',
     label: node.label || '中心主题',
     color: normalizeColor(node.color || 'blue'),
+    collapsed: false,
   }
 }
 
@@ -249,6 +262,52 @@ function addChildNode(
   }
 }
 
+function findParentNode(node: MindmapNode, nodeId: string): MindmapNode | null {
+  for (const child of node.children) {
+    if (child.id === nodeId) return node
+    const match = findParentNode(child, nodeId)
+    if (match) return match
+  }
+
+  return null
+}
+
+function addSiblingNode(
+  node: MindmapNode,
+  nodeId: string,
+  siblingNode: MindmapNode
+): { nextNode: MindmapNode; added: boolean } {
+  const siblingIndex = node.children.findIndex(child => child.id === nodeId)
+  if (siblingIndex >= 0) {
+    const nextChildren = [...node.children]
+    nextChildren.splice(siblingIndex + 1, 0, siblingNode)
+    return {
+      nextNode: {
+        ...node,
+        children: nextChildren,
+      },
+      added: true,
+    }
+  }
+
+  let added = false
+  const nextChildren = node.children.map(child => {
+    const result = addSiblingNode(child, nodeId, siblingNode)
+    if (result.added) added = true
+    return result.nextNode
+  })
+
+  if (!added) return { nextNode: node, added: false }
+
+  return {
+    nextNode: {
+      ...node,
+      children: nextChildren,
+    },
+    added: true,
+  }
+}
+
 function removeNodeById(node: MindmapNode, nodeId: string): { nextNode: MindmapNode; removed: boolean } {
   const nextChildren: MindmapNode[] = []
   let removed = false
@@ -279,6 +338,71 @@ function countNodes(node: MindmapNode): number {
   let total = 1
   for (const child of node.children) total += countNodes(child)
   return total
+}
+
+function setNodeCollapsed(
+  node: MindmapNode,
+  nodeId: string,
+  collapsed: boolean
+): { nextNode: MindmapNode; changed: boolean } {
+  return updateNodeById(node, nodeId, current => ({
+    ...current,
+    collapsed,
+  }))
+}
+
+function setTreeCollapsedState(node: MindmapNode, collapsed: boolean, keepRootExpanded = false): MindmapNode {
+  return {
+    ...node,
+    collapsed: keepRootExpanded && node.id === 'root' ? false : collapsed,
+    children: node.children.map(child => setTreeCollapsedState(child, collapsed, keepRootExpanded)),
+  }
+}
+
+function findNodePath(node: MindmapNode, nodeId: string, path: string[] = []): string[] | null {
+  const nextPath = [...path, node.id]
+  if (node.id === nodeId) return nextPath
+
+  for (const child of node.children) {
+    const match = findNodePath(child, nodeId, nextPath)
+    if (match) return match
+  }
+
+  return null
+}
+
+function expandPathToNode(node: MindmapNode, nodeId: string): MindmapNode {
+  const path = findNodePath(node, nodeId)
+  if (!path) return node
+
+  const ancestorIds = new Set(path.slice(0, -1))
+
+  function visit(current: MindmapNode): MindmapNode {
+    const nextChildren = current.children.map(visit)
+    const shouldExpand = ancestorIds.has(current.id)
+    return {
+      ...current,
+      collapsed: shouldExpand ? false : current.collapsed,
+      children: nextChildren,
+    }
+  }
+
+  return visit(node)
+}
+
+function buildNodeSearchText(node: MindmapNode) {
+  return [node.label, node.note ?? '', node.tags?.join(' ') ?? '']
+    .join('\n')
+    .toLowerCase()
+}
+
+function collectMatchingNodeIds(node: MindmapNode, keyword: string): string[] {
+  const normalized = keyword.trim().toLowerCase()
+  if (!normalized) return []
+
+  const matchesCurrent = buildNodeSearchText(node).includes(normalized) ? [node.id] : []
+  const childMatches = node.children.flatMap(child => collectMatchingNodeIds(child, normalized))
+  return [...matchesCurrent, ...childMatches]
 }
 
 function createNodeId() {
@@ -352,8 +476,18 @@ type TreeNodeCardProps = {
   node: MindmapNode
   selectedNodeId: string
   onAddChild: (nodeId: string) => void
+  onAddSibling: (nodeId: string) => void
   onDelete: (nodeId: string) => void
+  onInlineEditCancel: () => void
+  onInlineEditChange: (value: string) => void
+  onInlineEditCommit: () => void
+  onInlineEditStart: (nodeId: string) => void
   onSelect: (nodeId: string) => void
+  onToggleCollapse: (nodeId: string) => void
+  activeSearchNodeId: string | null
+  editingNodeId: string | null
+  editingNodeLabel: string
+  matchedNodeIds: Set<string>
 }
 
 function nodeActionClassName(level: 'root' | 'primary' | 'secondary', emphasis: 'default' | 'muted' | 'danger' = 'default') {
@@ -379,17 +513,41 @@ function TreeNodeCard({
   node,
   selectedNodeId,
   onAddChild,
+  onAddSibling,
   onDelete,
+  onInlineEditCancel,
+  onInlineEditChange,
+  onInlineEditCommit,
+  onInlineEditStart,
   onSelect,
+  onToggleCollapse,
+  activeSearchNodeId,
+  editingNodeId,
+  editingNodeLabel,
+  matchedNodeIds,
 }: TreeNodeCardProps) {
   const tone = colorMeta[node.color]
   const isSelected = node.id === selectedNodeId
   const isRoot = node.id === 'root'
   const isPrimary = depth === 1
+  const isInlineEditing = editingNodeId === node.id
+  const hasChildren = node.children.length > 0
+  const isCollapsed = Boolean(node.collapsed) && hasChildren
+  const isSearchMatch = matchedNodeIds.has(node.id)
+  const isActiveSearchMatch = activeSearchNodeId === node.id
+  const searchHighlightClass = isActiveSearchMatch
+    ? isRoot
+      ? 'shadow-[0_0_0_3px_rgba(255,255,255,0.22),0_28px_62px_rgba(31,41,55,0.2)]'
+      : 'border-[#CDBCA3] shadow-[0_0_0_3px_rgba(216,204,185,0.88),0_22px_46px_rgba(148,163,184,0.24)]'
+    : isSearchMatch
+      ? isRoot
+        ? 'shadow-[0_0_0_2px_rgba(255,255,255,0.16),0_26px_56px_rgba(31,41,55,0.18)]'
+        : 'border-[#D9CEBF] shadow-[0_0_0_2px_rgba(228,220,206,0.82),0_18px_38px_rgba(148,163,184,0.18)]'
+      : null
   const level = isRoot ? 'root' : isPrimary ? 'primary' : 'secondary'
 
   return (
-    <div className="relative">
+    <div className="relative scroll-m-[120px]" data-node-id={node.id}>
       <div className={cn('flex flex-col gap-6 lg:gap-9', node.children.length > 0 && 'lg:flex-row lg:items-center')}>
         <div
           className={cn(
@@ -407,8 +565,15 @@ function TreeNodeCard({
                   : 'min-h-[144px] rounded-[26px] px-5 py-[18px] sm:px-6 sm:py-5',
               isRoot ? tone.rootCard : isPrimary ? tone.primaryCard : tone.secondaryCard,
               isSelected
-                ? cn(tone.selected, isRoot ? 'shadow-[0_26px_56px_rgba(31,41,55,0.18)]' : 'shadow-[0_18px_40px_rgba(148,163,184,0.18)]')
+                ? cn(
+                  tone.selected,
+                  isRoot
+                    ? 'border-white/26 shadow-[0_28px_62px_rgba(31,41,55,0.2)] ring-1 ring-white/18'
+                    : 'border-[#CFC5B6] shadow-[0_20px_42px_rgba(148,163,184,0.2)] ring-2 ring-offset-2 ring-offset-[#F7F3EC]'
+                )
                 : 'hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(148,163,184,0.16)]'
+              ,
+              searchHighlightClass
             )}
             onClick={() => onSelect(node.id)}
             role="button"
@@ -458,21 +623,62 @@ function TreeNodeCard({
               </div>
 
               <div className={cn('min-w-0', isRoot ? 'mt-8' : 'mt-6')}>
-                <h3 className={cn(
-                  'break-words font-serif',
-                  isRoot
-                    ? 'text-[2.12rem] leading-[1.22] text-white'
-                    : isPrimary
-                      ? 'text-[1.24rem] leading-[1.38] text-ink-900'
-                      : 'text-[1.05rem] leading-snug text-ink-900'
-                )}>
-                  {node.label || '未命名节点'}
-                </h3>
+                {isInlineEditing ? (
+                  <input
+                    autoFocus
+                    value={editingNodeLabel}
+                    onChange={event => onInlineEditChange(event.target.value)}
+                    onBlur={onInlineEditCommit}
+                    onClick={event => event.stopPropagation()}
+                    onDoubleClick={event => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      event.stopPropagation()
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        onInlineEditCommit()
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault()
+                        onInlineEditCancel()
+                      }
+                    }}
+                    className={cn(
+                      'w-full rounded-[18px] border bg-transparent px-3 py-2 font-serif outline-none',
+                      isRoot
+                        ? 'border-white/20 text-[2rem] leading-[1.22] text-white placeholder:text-white/56'
+                        : isPrimary
+                          ? 'border-[#D8D0C3] text-[1.2rem] leading-[1.38] text-ink-900 placeholder:text-ink-400'
+                          : 'border-[#DDD5C8] text-[1.02rem] leading-snug text-ink-900 placeholder:text-ink-400'
+                    )}
+                    placeholder="输入节点名称"
+                  />
+                ) : (
+                  <h3
+                    className={cn(
+                      'break-words font-serif',
+                      isRoot
+                        ? 'text-[2.12rem] leading-[1.22] text-white'
+                        : isPrimary
+                          ? 'text-[1.24rem] leading-[1.38] text-ink-900'
+                          : 'text-[1.05rem] leading-snug text-ink-900'
+                    )}
+                    onDoubleClick={(event) => {
+                      event.stopPropagation()
+                      onInlineEditStart(node.id)
+                    }}
+                  >
+                    {node.label || '未命名节点'}
+                  </h3>
+                )}
                 <p className={cn(
                   'text-sm leading-6',
                   isRoot ? 'mt-3 text-white/76' : isPrimary ? 'mt-3 text-ink-600' : 'mt-2.5 text-ink-500'
                 )}>
-                  {node.children.length === 0 ? '暂无子节点' : `${node.children.length} 个子节点`}
+                  {hasChildren
+                    ? isCollapsed
+                      ? `已收起 ${node.children.length} 个子节点`
+                      : `${node.children.length} 个子节点`
+                    : '暂无子节点'}
                 </p>
               </div>
 
@@ -489,7 +695,7 @@ function TreeNodeCard({
                   size="sm"
                   variant="ghost"
                   className={cn('min-h-10 rounded-full px-4', nodeActionClassName(level, 'muted'))}
-                  onClick={() => onSelect(node.id)}
+                  onClick={() => onInlineEditStart(node.id)}
                 >
                   编辑
                 </Button>
@@ -501,6 +707,26 @@ function TreeNodeCard({
                 >
                   添加子节点
                 </Button>
+                {hasChildren && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={cn('min-h-10 rounded-full px-4', nodeActionClassName(level, 'muted'))}
+                    onClick={() => onToggleCollapse(node.id)}
+                  >
+                    {isCollapsed ? '展开' : '收起'}
+                  </Button>
+                )}
+                {!isRoot && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={cn('min-h-10 rounded-full px-4', nodeActionClassName(level))}
+                    onClick={() => onAddSibling(node.id)}
+                  >
+                    添加同级
+                  </Button>
+                )}
                 {!isRoot && (
                   <Button
                     size="sm"
@@ -516,7 +742,7 @@ function TreeNodeCard({
           </div>
         </div>
 
-        {node.children.length > 0 ? (
+        {hasChildren && !isCollapsed ? (
           <div className="relative min-w-0 flex-1">
             <div className={cn('pointer-events-none absolute left-0 top-1/2 hidden h-px w-[56px] -translate-y-1/2 opacity-60 lg:block', tone.line)} />
             <div className={cn('pointer-events-none absolute bottom-12 left-[56px] top-12 hidden w-px opacity-50 lg:block', tone.line)} />
@@ -536,15 +762,25 @@ function TreeNodeCard({
                       node={child}
                       selectedNodeId={selectedNodeId}
                       onAddChild={onAddChild}
+                      onAddSibling={onAddSibling}
                       onDelete={onDelete}
+                      onInlineEditCancel={onInlineEditCancel}
+                      onInlineEditChange={onInlineEditChange}
+                      onInlineEditCommit={onInlineEditCommit}
+                      onInlineEditStart={onInlineEditStart}
                       onSelect={onSelect}
+                      onToggleCollapse={onToggleCollapse}
+                      activeSearchNodeId={activeSearchNodeId}
+                      editingNodeId={editingNodeId}
+                      editingNodeLabel={editingNodeLabel}
+                      matchedNodeIds={matchedNodeIds}
                     />
                   </div>
                 ))}
               </div>
             </div>
           </div>
-        ) : isRoot ? (
+        ) : isRoot && !isCollapsed ? (
           <div className="rounded-[30px] border border-dashed border-line/70 bg-[linear-gradient(180deg,rgba(252,250,245,0.94),rgba(247,243,235,0.9))] px-8 py-6 text-sm leading-7 text-ink-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] sm:px-10 sm:py-7 lg:flex-1">
             从当前卡片或右侧属性面板添加一级节点，导图会以中心主题为起点向右舒展。
           </div>
@@ -570,6 +806,13 @@ export default function MindmapDetailPage() {
   const [saveError, setSaveError] = useState('')
   const [exportError, setExportError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeSearchIndex, setActiveSearchIndex] = useState(-1)
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
+  const [editingNodeLabel, setEditingNodeLabel] = useState('')
+  const [scrollRequest, setScrollRequest] = useState<{ nodeId: string; token: number } | null>(null)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const canvasViewportRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -611,6 +854,8 @@ export default function MindmapDetailPage() {
       setTitle(nextTitle)
       setTree(nextTree)
       setSelectedNodeId(nextTree.id)
+      setEditingNodeId(null)
+      setEditingNodeLabel('')
       setLastSavedAt(data.updated_at)
       setSavedSnapshot(nextSnapshot)
       setScreenState('ready')
@@ -630,6 +875,24 @@ export default function MindmapDetailPage() {
     [selectedNode.id, tree]
   )
   const totalNodes = useMemo(() => countNodes(tree), [tree])
+  const searchResults = useMemo(
+    () => collectMatchingNodeIds(tree, searchQuery),
+    [searchQuery, tree]
+  )
+  const activeSearchNodeId = activeSearchIndex >= 0 ? searchResults[activeSearchIndex] ?? null : null
+  const matchedNodeIds = useMemo(() => new Set(searchResults), [searchResults])
+  const searchResultItems = useMemo(
+    () => searchResults.map(nodeId => {
+      const node = findNodeById(tree, nodeId)
+      const depth = findNodeDepth(tree, nodeId) ?? 0
+      return {
+        id: nodeId,
+        label: node?.label || '未命名节点',
+        level: formatNodeLevel(depth),
+      }
+    }),
+    [searchResults, tree]
+  )
 
   const statusText = screenState === 'loading'
     ? '加载中...'
@@ -663,8 +926,20 @@ export default function MindmapDetailPage() {
     setTitle(value)
   }
 
+  function locateNode(nodeId: string) {
+    setTree(current => expandPathToNode(current, nodeId))
+    setSelectedNodeId(nodeId)
+    setScrollRequest({
+      nodeId,
+      token: Date.now(),
+    })
+  }
+
   function handleNodeLabelChange(value: string) {
     markEdited()
+    if (editingNodeId === selectedNode.id) {
+      setEditingNodeLabel(value)
+    }
     setTree(current => {
       const result = updateNodeById(current, selectedNode.id, node => ({
         ...node,
@@ -686,10 +961,13 @@ export default function MindmapDetailPage() {
   }
 
   function handleAddChild(nodeId: string) {
+    setEditingNodeId(null)
+    setEditingNodeLabel('')
     const childNode: MindmapNode = {
       id: createNodeId(),
       label: '新节点',
       color: 'gray',
+      collapsed: false,
       children: [],
     }
 
@@ -697,7 +975,8 @@ export default function MindmapDetailPage() {
 
     markEdited()
     setTree(current => {
-      const result = addChildNode(current, nodeId, childNode)
+      const expandedCurrent = setNodeCollapsed(current, nodeId, false).nextNode
+      const result = addChildNode(expandedCurrent, nodeId, childNode)
       added = result.added
       return result.added ? result.nextNode : current
     })
@@ -707,14 +986,45 @@ export default function MindmapDetailPage() {
     }
   }
 
+  function handleAddSibling(nodeId: string) {
+    if (nodeId === 'root') return
+
+    const currentNode = findNodeById(tree, nodeId)
+    const siblingNode: MindmapNode = {
+      id: createNodeId(),
+      label: '新主题',
+      color: currentNode?.color ?? 'gray',
+      collapsed: false,
+      children: [],
+    }
+
+    let added = false
+
+    setEditingNodeId(null)
+    setEditingNodeLabel('')
+    markEdited()
+    setTree(current => {
+      const result = addSiblingNode(current, nodeId, siblingNode)
+      added = result.added
+      return result.added ? result.nextNode : current
+    })
+
+    if (added) {
+      setSelectedNodeId(siblingNode.id)
+    }
+  }
+
   function handleDeleteNode(nodeId: string) {
     if (nodeId === 'root') return
 
     const confirmed = window.confirm('确定删除该节点及其所有子节点吗？')
     if (!confirmed) return
 
+    const parentNode = findParentNode(tree, nodeId)
     let removed = false
 
+    setEditingNodeId(null)
+    setEditingNodeLabel('')
     markEdited()
     setTree(current => {
       const result = removeNodeById(current, nodeId)
@@ -723,8 +1033,91 @@ export default function MindmapDetailPage() {
     })
 
     if (removed) {
-      setSelectedNodeId('root')
+      setSelectedNodeId(parentNode?.id ?? 'root')
     }
+  }
+
+  function handleInlineEditStart(nodeId: string) {
+    const node = findNodeById(tree, nodeId)
+    if (!node) return
+    setSelectedNodeId(nodeId)
+    setEditingNodeId(nodeId)
+    setEditingNodeLabel(node.label)
+  }
+
+  function handleInlineEditCancel() {
+    setEditingNodeId(null)
+    setEditingNodeLabel('')
+  }
+
+  function handleInlineEditCommit() {
+    if (!editingNodeId) return
+
+    const nodeId = editingNodeId
+    const nextLabel = editingNodeLabel
+    const currentNode = findNodeById(tree, nodeId)
+
+    setEditingNodeId(null)
+    setEditingNodeLabel('')
+
+    if (!currentNode || currentNode.label === nextLabel) return
+
+    markEdited()
+    setTree(current => {
+      const result = updateNodeById(current, nodeId, node => ({
+        ...node,
+        label: nextLabel,
+      }))
+      return result.changed ? result.nextNode : current
+    })
+  }
+
+  function handleToggleCollapse(nodeId: string) {
+    const currentNode = findNodeById(tree, nodeId)
+    if (!currentNode || currentNode.children.length === 0) return
+
+    markEdited()
+    setTree(current => {
+      const result = setNodeCollapsed(current, nodeId, !currentNode.collapsed)
+      return result.changed ? result.nextNode : current
+    })
+  }
+
+  function handleExpandAll() {
+    markEdited()
+    setTree(current => setTreeCollapsedState(current, false, true))
+  }
+
+  function handleCollapseAll() {
+    markEdited()
+    setSelectedNodeId('root')
+    setTree(current => setTreeCollapsedState(current, true, true))
+  }
+
+  function handleSearchQueryChange(value: string) {
+    setSearchQuery(value)
+    const normalized = value.trim()
+    if (!normalized) {
+      setActiveSearchIndex(-1)
+      return
+    }
+    setActiveSearchIndex(0)
+  }
+
+  function handleGoToPreviousMatch() {
+    if (searchResults.length === 0) return
+    const nextIndex = activeSearchIndex <= 0 ? searchResults.length - 1 : activeSearchIndex - 1
+    setActiveSearchIndex(nextIndex)
+    const nextNodeId = searchResults[nextIndex]
+    if (nextNodeId) locateNode(nextNodeId)
+  }
+
+  function handleGoToNextMatch() {
+    if (searchResults.length === 0) return
+    const nextIndex = activeSearchIndex >= searchResults.length - 1 ? 0 : activeSearchIndex + 1
+    setActiveSearchIndex(nextIndex)
+    const nextNodeId = searchResults[nextIndex]
+    if (nextNodeId) locateNode(nextNodeId)
   }
 
   async function handleSave() {
@@ -757,6 +1150,108 @@ export default function MindmapDetailPage() {
     setLastSavedAt(data?.updated_at ?? new Date().toISOString())
     setSavedSnapshot(JSON.stringify({ title: nextTitle, tree }))
   }
+
+  useEffect(() => {
+    if (editingNodeId && !findNodeById(tree, editingNodeId)) {
+      setEditingNodeId(null)
+      setEditingNodeLabel('')
+    }
+  }, [editingNodeId, tree])
+
+  useEffect(() => {
+    if (screenState !== 'ready') return
+
+    function isTypingTarget(target: EventTarget | null) {
+      return target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]') !== null
+    }
+
+    function handleKeydown(event: KeyboardEvent) {
+      const key = event.key
+      const isSaveShortcut = (event.metaKey || event.ctrlKey) && key.toLowerCase() === 's'
+      const isSearchShortcut = (event.metaKey || event.ctrlKey) && key.toLowerCase() === 'f'
+
+      if (isSaveShortcut) {
+        event.preventDefault()
+        if (!isTypingTarget(event.target)) {
+          void handleSave()
+        }
+        return
+      }
+
+      if (isSearchShortcut) {
+        event.preventDefault()
+        searchInputRef.current?.focus()
+        searchInputRef.current?.select()
+        return
+      }
+
+      if (isTypingTarget(event.target)) return
+
+      if (key === 'Tab') {
+        event.preventDefault()
+        handleAddChild(selectedNodeId)
+        return
+      }
+
+      if (key === ' ') {
+        const currentNode = findNodeById(tree, selectedNodeId)
+        if (!currentNode || currentNode.children.length === 0) return
+        event.preventDefault()
+        handleToggleCollapse(selectedNodeId)
+        return
+      }
+
+      if (key === 'Enter') {
+        event.preventDefault()
+        if (selectedNodeId === 'root') {
+          handleAddChild(selectedNodeId)
+        } else {
+          handleAddSibling(selectedNodeId)
+        }
+        return
+      }
+
+      if ((key === 'Backspace' || key === 'Delete') && selectedNodeId !== 'root') {
+        event.preventDefault()
+        handleDeleteNode(selectedNodeId)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeydown)
+    return () => window.removeEventListener('keydown', handleKeydown)
+  }, [screenState, selectedNodeId, tree, userId, title, saving, isDirty, editingNodeId, editingNodeLabel])
+
+  useEffect(() => {
+    if (!searchQuery.trim() || searchResults.length === 0) {
+      if (activeSearchIndex !== -1) setActiveSearchIndex(-1)
+      return
+    }
+
+    setActiveSearchIndex(current => {
+      if (current < 0) return 0
+      return Math.min(current, searchResults.length - 1)
+    })
+  }, [activeSearchIndex, searchQuery, searchResults.length])
+
+  useEffect(() => {
+    if (!activeSearchNodeId) return
+    locateNode(activeSearchNodeId)
+  }, [activeSearchNodeId])
+
+  useEffect(() => {
+    if (!scrollRequest) return
+
+    const frame = window.requestAnimationFrame(() => {
+      const target = canvasViewportRef.current?.querySelector<HTMLElement>(`[data-node-id="${scrollRequest.nodeId}"]`)
+      target?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'center',
+      })
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [scrollRequest, tree])
 
   function handleExportMarkdown() {
     if (screenState !== 'ready') return
@@ -896,10 +1391,73 @@ export default function MindmapDetailPage() {
                         以纸面笔记的留白和层级组织知识结构。桌面端向右延展分支，移动端保留纵向阅读顺序，保持编辑过程清楚克制。
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-full border border-[#E2DBCF] bg-[#FCFAF6] px-3 py-1.5 text-xs text-ink-600">
-                        {totalNodes} 个节点
-                      </span>
+                    <div className="flex w-full flex-col gap-3 sm:w-[360px]">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="rounded-full border border-[#E2DBCF] bg-[#FCFAF6] px-3 py-1.5 text-xs text-ink-600">
+                          {totalNodes} 个节点
+                        </span>
+                        <span className="rounded-full border border-[#E2DBCF] bg-[#FCFAF6] px-3 py-1.5 text-xs text-ink-600">
+                          {searchQuery.trim() ? `${searchResults.length} 个匹配` : '搜索节点'}
+                        </span>
+                      </div>
+                      <div className="rounded-[22px] border border-[#E5DED2] bg-[rgba(255,255,255,0.88)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            ref={searchInputRef}
+                            value={searchQuery}
+                            onChange={event => handleSearchQueryChange(event.target.value)}
+                            className="min-w-0 flex-1 border-0 bg-transparent text-sm leading-6 text-ink-900 outline-none placeholder:text-ink-400"
+                            placeholder="搜索节点..."
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="min-h-9 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-xs text-ink-600 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
+                            onClick={handleGoToPreviousMatch}
+                            disabled={searchResults.length === 0}
+                          >
+                            上一项
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="min-h-9 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-xs text-ink-600 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
+                            onClick={handleGoToNextMatch}
+                            disabled={searchResults.length === 0}
+                          >
+                            下一项
+                          </Button>
+                        </div>
+                        {searchQuery.trim() ? (
+                          <div className="mt-3 max-h-36 space-y-2 overflow-auto">
+                            {searchResultItems.length > 0 ? (
+                              searchResultItems.map((item, index) => (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveSearchIndex(index)
+                                    locateNode(item.id)
+                                  }}
+                                  className={cn(
+                                    'flex w-full items-center justify-between rounded-[16px] border px-3 py-2 text-left text-sm transition-colors',
+                                    activeSearchNodeId === item.id
+                                      ? 'border-[#D7CCBC] bg-[#F6F0E6] text-ink-900'
+                                      : 'border-[#ECE5D9] bg-[#FCFAF6] text-ink-600 hover:border-[#D8CCBC] hover:bg-[#F8F4EC] hover:text-ink-900'
+                                  )}
+                                >
+                                  <span className="truncate">{item.label}</span>
+                                  <span className="ml-3 shrink-0 text-xs text-ink-400">{item.level}</span>
+                                </button>
+                              ))
+                            ) : (
+                              <div className="rounded-[16px] border border-dashed border-[#E5DED2] bg-[#FCFAF6] px-3 py-2 text-sm text-ink-500">
+                                未匹配到节点。
+                              </div>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
 
@@ -913,11 +1471,31 @@ export default function MindmapDetailPage() {
                   >
                     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-[#E7E0D4] bg-[rgba(252,250,245,0.86)] px-4 py-3 text-xs text-ink-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
                       <span>横向查看深层分支，纵向查看同级节点。</span>
-                      <span className="rounded-full border border-[#DDD4C5] bg-[#FCFAF6] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-ink-400">
-                        Scroll Canvas
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="min-h-9 rounded-full border border-[#E0D9CD] bg-transparent px-3.5 text-[11px] uppercase tracking-[0.12em] text-ink-500 hover:border-[#C9BEAE] hover:bg-[#FBF8F2]"
+                          onClick={handleExpandAll}
+                          disabled={screenState !== 'ready'}
+                        >
+                          全部展开
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="min-h-9 rounded-full border border-[#E0D9CD] bg-transparent px-3.5 text-[11px] uppercase tracking-[0.12em] text-ink-500 hover:border-[#C9BEAE] hover:bg-[#FBF8F2]"
+                          onClick={handleCollapseAll}
+                          disabled={screenState !== 'ready'}
+                        >
+                          全部收起
+                        </Button>
+                      </div>
                     </div>
-                    <div className="overflow-auto overscroll-contain rounded-[28px] border border-[#E8E1D6] bg-[rgba(255,255,255,0.38)] lg:h-[680px]">
+                    <div className="mb-4 hidden rounded-[22px] border border-dashed border-[#E3DBCF] bg-[rgba(252,250,245,0.72)] px-4 py-3 text-xs leading-6 text-ink-500 lg:block">
+                      快捷键：Tab 添加子节点 · Enter 添加同级节点 · Delete 删除 · Cmd/Ctrl+S 保存
+                    </div>
+                    <div ref={canvasViewportRef} className="overflow-auto overscroll-contain rounded-[28px] border border-[#E8E1D6] bg-[rgba(255,255,255,0.38)] lg:h-[680px]">
                       <div
                         className="min-h-full min-w-max"
                         style={{ padding: '36px 40px 44px 40px' }}
@@ -927,8 +1505,18 @@ export default function MindmapDetailPage() {
                           node={tree}
                           selectedNodeId={selectedNodeId}
                           onAddChild={handleAddChild}
+                          onAddSibling={handleAddSibling}
                           onDelete={handleDeleteNode}
+                          onInlineEditCancel={handleInlineEditCancel}
+                          onInlineEditChange={setEditingNodeLabel}
+                          onInlineEditCommit={handleInlineEditCommit}
+                          onInlineEditStart={handleInlineEditStart}
                           onSelect={handleSelectNode}
+                          onToggleCollapse={handleToggleCollapse}
+                          activeSearchNodeId={activeSearchNodeId}
+                          editingNodeId={editingNodeId}
+                          editingNodeLabel={editingNodeLabel}
+                          matchedNodeIds={matchedNodeIds}
                         />
                       </div>
                     </div>
@@ -1067,6 +1655,30 @@ export default function MindmapDetailPage() {
                         </Button>
                         <Button
                           variant="secondary"
+                          className="min-h-11 rounded-full border-[#D6CFC2] bg-[#FCFBF8] px-6 text-ink-700 hover:border-[#BFB5A3] hover:bg-white hover:text-ink-900 disabled:cursor-not-allowed disabled:border-[#E5DED2] disabled:bg-[#F7F3EC] disabled:text-ink-400"
+                          onClick={() => handleAddSibling(selectedNode.id)}
+                          disabled={selectedNode.id === 'root'}
+                        >
+                          添加同级节点
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="min-h-11 rounded-full border-[#D6CFC2] bg-[#FCFBF8] px-6 text-ink-700 hover:border-[#BFB5A3] hover:bg-white hover:text-ink-900 disabled:cursor-not-allowed disabled:border-[#E5DED2] disabled:bg-[#F7F3EC] disabled:text-ink-400"
+                          onClick={() => handleToggleCollapse(selectedNode.id)}
+                          disabled={selectedNode.children.length === 0 || Boolean(selectedNode.collapsed)}
+                        >
+                          折叠当前分支
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="min-h-11 rounded-full border-[#D6CFC2] bg-[#FCFBF8] px-6 text-ink-700 hover:border-[#BFB5A3] hover:bg-white hover:text-ink-900 disabled:cursor-not-allowed disabled:border-[#E5DED2] disabled:bg-[#F7F3EC] disabled:text-ink-400"
+                          onClick={() => handleToggleCollapse(selectedNode.id)}
+                          disabled={selectedNode.children.length === 0 || !Boolean(selectedNode.collapsed)}
+                        >
+                          展开当前分支
+                        </Button>
+                        <Button
+                          variant="secondary"
                           className="min-h-11 rounded-full border-[#D6CFC2] bg-[#FCFBF8] px-6 text-ink-700 hover:border-[#BFB5A3] hover:bg-white hover:text-ink-900"
                           onClick={() => handleSelectNode('root')}
                         >
@@ -1087,7 +1699,7 @@ export default function MindmapDetailPage() {
                           className="mt-5 rounded-[18px] border border-[#E7E0D4] bg-[#F8F5EE] text-xs leading-6 text-ink-500"
                           style={{ padding: '14px 20px' }}
                         >
-                          中心主题作为整张导图的起点会被保留，因此这里不提供删除操作。
+                          中心主题作为整张导图的起点会被保留，因此这里不提供删除或同级创建操作。
                         </p>
                       )}
                     </div>
