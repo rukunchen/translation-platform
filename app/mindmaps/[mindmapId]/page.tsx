@@ -390,21 +390,21 @@ function TreeNodeCard({
 
   return (
     <div className="relative">
-      <div className={cn('flex flex-col gap-7 lg:gap-12', node.children.length > 0 && 'lg:flex-row lg:items-center')}>
+      <div className={cn('flex flex-col gap-6 lg:gap-9', node.children.length > 0 && 'lg:flex-row lg:items-center')}>
         <div
           className={cn(
             'relative z-10 min-w-0',
-            isRoot ? 'lg:w-[372px] xl:w-[404px]' : isPrimary ? 'lg:w-[304px]' : 'lg:w-[254px]'
+            isRoot ? 'lg:w-[344px] xl:w-[376px]' : isPrimary ? 'lg:w-[272px]' : 'lg:w-[228px]'
           )}
         >
           <div
             className={cn(
               'relative overflow-hidden border transition-all duration-200',
               isRoot
-                ? 'min-h-[250px] rounded-[38px] px-10 py-9 sm:px-11 sm:py-10'
+                ? 'min-h-[236px] rounded-[38px] px-9 py-8 sm:px-10 sm:py-9'
                 : isPrimary
-                  ? 'min-h-[190px] rounded-[30px] px-7 py-6 sm:px-8 sm:py-7'
-                  : 'min-h-[154px] rounded-[26px] px-6 py-5 sm:px-7 sm:py-6',
+                  ? 'min-h-[178px] rounded-[30px] px-6 py-5 sm:px-7 sm:py-6'
+                  : 'min-h-[144px] rounded-[26px] px-5 py-[18px] sm:px-6 sm:py-5',
               isRoot ? tone.rootCard : isPrimary ? tone.primaryCard : tone.secondaryCard,
               isSelected
                 ? cn(tone.selected, isRoot ? 'shadow-[0_26px_56px_rgba(31,41,55,0.18)]' : 'shadow-[0_18px_40px_rgba(148,163,184,0.18)]')
@@ -518,17 +518,17 @@ function TreeNodeCard({
 
         {node.children.length > 0 ? (
           <div className="relative min-w-0 flex-1">
-            <div className={cn('pointer-events-none absolute left-0 top-1/2 hidden h-px w-[72px] -translate-y-1/2 opacity-60 lg:block', tone.line)} />
-            <div className={cn('pointer-events-none absolute bottom-12 left-[72px] top-12 hidden w-px opacity-50 lg:block', tone.line)} />
+            <div className={cn('pointer-events-none absolute left-0 top-1/2 hidden h-px w-[56px] -translate-y-1/2 opacity-60 lg:block', tone.line)} />
+            <div className={cn('pointer-events-none absolute bottom-12 left-[56px] top-12 hidden w-px opacity-50 lg:block', tone.line)} />
 
-            <div className="relative mt-6 pl-7 lg:mt-0 lg:pl-[72px]">
+            <div className="relative mt-5 pl-7 lg:mt-0 lg:pl-[56px]">
               <div className={cn('pointer-events-none absolute bottom-6 left-[10px] top-4 w-px opacity-55 lg:hidden', tone.line)} />
 
-              <div className="space-y-6">
+              <div className="space-y-5">
                 {node.children.map(child => (
                   <div key={child.id} className="relative">
                     <div className={cn('pointer-events-none absolute left-[-16px] top-[38px] h-px w-5 opacity-55 lg:hidden', tone.line)} />
-                    <div className={cn('pointer-events-none absolute -left-[72px] top-[38px] hidden h-px w-[72px] opacity-60 lg:block', tone.line)} />
+                    <div className={cn('pointer-events-none absolute -left-[56px] top-[38px] hidden h-px w-[56px] opacity-60 lg:block', tone.line)} />
                     <div className={cn('pointer-events-none absolute -left-[8px] top-[34px] hidden h-[9px] w-[9px] rotate-45 border-r border-t opacity-60 lg:block', tone.arrow)} />
 
                     <TreeNodeCard
@@ -887,7 +887,7 @@ export default function MindmapDetailPage() {
               </Card>
             ) : (
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.06fr)_minmax(430px,0.94fr)]">
-                <Card padding="lg" className="rounded-[32px] border border-[#E6DFD3] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,244,237,0.94))] shadow-[0_24px_54px_rgba(130,120,103,0.08)]">
+                <Card padding="lg" className="min-w-0 overflow-hidden rounded-[32px] border border-[#E6DFD3] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,244,237,0.94))] shadow-[0_24px_54px_rgba(130,120,103,0.08)]">
                   <div className="mb-7 flex flex-col gap-4 border-b border-[#E7E0D4] pb-5 sm:flex-row sm:items-end sm:justify-between">
                     <div className="max-w-2xl">
                       <p className="text-xs uppercase tracking-[0.26em] text-ink-400">Mindmap View</p>
@@ -906,23 +906,39 @@ export default function MindmapDetailPage() {
                   <div
                     className="rounded-[34px] border border-[#E4DDD1] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
                     style={{
-                      padding: '34px 38px',
+                      padding: '22px',
                       backgroundImage: 'linear-gradient(rgba(134,125,113,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(134,125,113,0.035) 1px, transparent 1px), radial-gradient(circle at top left, rgba(198,154,109,0.05), transparent 28%), radial-gradient(circle at bottom right, rgba(111,159,176,0.05), transparent 24%), linear-gradient(180deg, rgba(252,250,245,0.98), rgba(246,242,234,0.96))',
                       backgroundSize: '28px 28px, 28px 28px, auto, auto, auto',
                     }}
                   >
-                    <TreeNodeCard
-                      depth={0}
-                      node={tree}
-                      selectedNodeId={selectedNodeId}
-                      onAddChild={handleAddChild}
-                      onDelete={handleDeleteNode}
-                      onSelect={handleSelectNode}
-                    />
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-[#E7E0D4] bg-[rgba(252,250,245,0.86)] px-4 py-3 text-xs text-ink-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                      <span>横向查看深层分支，纵向查看同级节点。</span>
+                      <span className="rounded-full border border-[#DDD4C5] bg-[#FCFAF6] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-ink-400">
+                        Scroll Canvas
+                      </span>
+                    </div>
+                    <div className="overflow-auto overscroll-contain rounded-[28px] border border-[#E8E1D6] bg-[rgba(255,255,255,0.38)] lg:h-[680px]">
+                      <div
+                        className="min-h-full min-w-max"
+                        style={{ padding: '36px 40px 44px 40px' }}
+                      >
+                        <TreeNodeCard
+                          depth={0}
+                          node={tree}
+                          selectedNodeId={selectedNodeId}
+                          onAddChild={handleAddChild}
+                          onDelete={handleDeleteNode}
+                          onSelect={handleSelectNode}
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4 rounded-[22px] border border-dashed border-[#E1D9CC] bg-[rgba(252,250,245,0.84)] px-4 py-3 text-sm leading-6 text-ink-500">
+                      分支较多时会保留画布内部滚动，避免节点压住右侧属性面板。
+                    </div>
                   </div>
                 </Card>
 
-                <Card padding="lg" className="rounded-[32px] border border-[#E6DFD3] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,242,235,0.95))] shadow-[0_24px_54px_rgba(130,120,103,0.08)]" as="section">
+                <Card padding="lg" className="rounded-[32px] border border-[#E6DFD3] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,242,235,0.95))] shadow-[0_24px_54px_rgba(130,120,103,0.08)] xl:sticky xl:top-6 xl:self-start" as="section">
                   <div className="mb-7 border-b border-[#E7E0D4] pb-5">
                     <p className="text-xs uppercase tracking-[0.26em] text-ink-400">Node Details</p>
                     <h2 id="mindmap-node-editor" className="mt-2 font-serif text-[1.9rem] leading-[1.2] text-ink-900">
