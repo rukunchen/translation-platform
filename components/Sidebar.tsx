@@ -305,7 +305,7 @@ export default function Sidebar() {
         />
       </nav>
 
-      <aside className="hidden w-64 bg-ink-900 md:flex flex-col h-full flex-shrink-0 border-r border-black/20">
+      <aside className="hidden h-screen min-h-0 w-64 flex-shrink-0 flex-col overflow-hidden border-r border-black/20 bg-ink-900 md:flex">
         <SidebarContent
           visibleWorkspaceItems={visibleWorkspaceItems}
           pathname={pathname}
@@ -418,7 +418,7 @@ function SidebarContent({
   onNavigate?: () => void
 }) {
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       <div style={{ padding: '28px 24px' }}>
         <Link
           href="/dashboard"
@@ -433,7 +433,7 @@ function SidebarContent({
       <div style={{ margin: '0 24px' }} className="h-px bg-white/8" />
 
       {/* 工作入口 */}
-      <nav className="flex-1" style={{ padding: '20px 16px' }}>
+      <nav className="min-h-0 flex-1 overflow-y-auto" style={{ padding: '20px 16px' }}>
         <div className="mb-4 px-2">
           <p className="text-[10px] uppercase tracking-[0.24em] text-white/35">Workspace</p>
           <p className="text-[12px] text-white/55 mt-1">进入具体工作</p>
@@ -457,7 +457,7 @@ function SidebarContent({
       <div style={{ margin: '0 24px' }} className="h-px bg-white/8" />
 
       {/* 用户区 */}
-      <div style={{ padding: '16px 16px 28px' }} className="space-y-1">
+      <div style={{ padding: '16px 16px 28px' }} className="shrink-0 space-y-1">
         <div className="flex items-center gap-3" style={{ padding: '10px 8px' }}>
           <div className="w-9 h-9 bg-brand rounded-full flex items-center justify-center flex-shrink-0">
             <span className="sidebar-white-text text-white text-sm font-semibold">{initial}</span>
@@ -479,7 +479,7 @@ function SidebarContent({
           subtle
         />
       </div>
-    </>
+    </div>
   )
 }
 
