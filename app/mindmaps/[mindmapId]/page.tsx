@@ -471,6 +471,16 @@ function downloadFile(filename: string, content: string, mimeType: string) {
   window.URL.revokeObjectURL(url)
 }
 
+function isTypingTarget(target: EventTarget | null) {
+  return target instanceof HTMLElement
+    && target.closest('input, textarea, select, button, [contenteditable="true"], [role="textbox"]') !== null
+}
+
+function canStartInlineEditFromTarget(target: EventTarget | null) {
+  return target instanceof HTMLElement
+    && target.closest('button, input, textarea, select, a, [contenteditable="true"], [role="textbox"], [data-inline-editor="true"]') === null
+}
+
 type TreeNodeCardProps = {
   depth: number
   node: MindmapNode
@@ -655,6 +665,12 @@ function DesktopBranchNode({
               searchHighlightClass
             )}
             onClick={() => onSelect(node.id)}
+            onDoubleClick={(event) => {
+              if (!canStartInlineEditFromTarget(event.target)) return
+              event.preventDefault()
+              event.stopPropagation()
+              onInlineEditStart(node.id)
+            }}
             role="button"
             tabIndex={0}
             onKeyDown={(event) => {
@@ -678,8 +694,10 @@ function DesktopBranchNode({
                 {isInlineEditing ? (
                   <input
                     autoFocus
+                    data-inline-editor="true"
                     value={editingNodeLabel}
                     onChange={event => onInlineEditChange(event.target.value)}
+                    onFocus={event => event.currentTarget.select()}
                     onBlur={onInlineEditCommit}
                     onClick={event => event.stopPropagation()}
                     onDoubleClick={event => event.stopPropagation()}
@@ -819,6 +837,12 @@ function DesktopPrimaryColumn({
               searchHighlightClass
             )}
             onClick={() => props.onSelect(node.id)}
+            onDoubleClick={(event) => {
+              if (!canStartInlineEditFromTarget(event.target)) return
+              event.preventDefault()
+              event.stopPropagation()
+              props.onInlineEditStart(node.id)
+            }}
             role="button"
             tabIndex={0}
             onKeyDown={(event) => {
@@ -846,8 +870,10 @@ function DesktopPrimaryColumn({
                 {isInlineEditing ? (
                   <input
                     autoFocus
+                    data-inline-editor="true"
                     value={props.editingNodeLabel}
                     onChange={event => props.onInlineEditChange(event.target.value)}
+                    onFocus={event => event.currentTarget.select()}
                     onBlur={props.onInlineEditCommit}
                     onClick={event => event.stopPropagation()}
                     onDoubleClick={event => event.stopPropagation()}
@@ -941,6 +967,12 @@ function DesktopMindmapCanvas({ tree, ...props }: { tree: MindmapNode } & Mindma
               searchHighlightClass
             )}
             onClick={() => props.onSelect(tree.id)}
+            onDoubleClick={(event) => {
+              if (!canStartInlineEditFromTarget(event.target)) return
+              event.preventDefault()
+              event.stopPropagation()
+              props.onInlineEditStart(tree.id)
+            }}
             role="button"
             tabIndex={0}
             onKeyDown={(event) => {
@@ -968,8 +1000,10 @@ function DesktopMindmapCanvas({ tree, ...props }: { tree: MindmapNode } & Mindma
                 {isInlineEditing ? (
                   <input
                     autoFocus
+                    data-inline-editor="true"
                     value={props.editingNodeLabel}
                     onChange={event => props.onInlineEditChange(event.target.value)}
+                    onFocus={event => event.currentTarget.select()}
                     onBlur={props.onInlineEditCommit}
                     onClick={event => event.stopPropagation()}
                     onDoubleClick={event => event.stopPropagation()}
@@ -1115,6 +1149,12 @@ function TreeNodeCard({
               searchHighlightClass
             )}
             onClick={() => onSelect(node.id)}
+            onDoubleClick={(event) => {
+              if (!canStartInlineEditFromTarget(event.target)) return
+              event.preventDefault()
+              event.stopPropagation()
+              onInlineEditStart(node.id)
+            }}
             role="button"
             tabIndex={0}
             onKeyDown={(event) => {
@@ -1165,8 +1205,10 @@ function TreeNodeCard({
                 {isInlineEditing ? (
                   <input
                     autoFocus
+                    data-inline-editor="true"
                     value={editingNodeLabel}
                     onChange={event => onInlineEditChange(event.target.value)}
+                    onFocus={event => event.currentTarget.select()}
                     onBlur={onInlineEditCommit}
                     onClick={event => event.stopPropagation()}
                     onDoubleClick={event => event.stopPropagation()}
@@ -1352,6 +1394,26 @@ export default function MindmapDetailPage() {
   const [scrollRequest, setScrollRequest] = useState<{ nodeId: string; token: number } | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const canvasViewportRef = useRef<HTMLDivElement | null>(null)
+  const screenStateRef = useRef(screenState)
+  const treeRef = useRef(tree)
+  const selectedNodeIdRef = useRef(selectedNodeId)
+  const editingNodeIdRef = useRef(editingNodeId)
+  const handleSaveRef = useRef<() => Promise<void>>(async () => {})
+  const handleAddChildRef = useRef<(nodeId: string) => void>(() => {})
+  const handleAddSiblingRef = useRef<(nodeId: string) => void>(() => {})
+  const handleDeleteNodeRef = useRef<(nodeId: string) => void>(() => {})
+  const handleToggleCollapseRef = useRef<(nodeId: string) => void>(() => {})
+
+  screenStateRef.current = screenState
+  treeRef.current = tree
+  selectedNodeIdRef.current = selectedNodeId
+  editingNodeIdRef.current = editingNodeId
+
+  function focusCanvasViewport() {
+    window.requestAnimationFrame(() => {
+      canvasViewportRef.current?.focus({ preventScroll: true })
+    })
+  }
 
   useEffect(() => {
     let alive = true
@@ -1404,7 +1466,12 @@ export default function MindmapDetailPage() {
   }, [mindmapId])
 
   const currentSnapshot = useMemo(() => JSON.stringify({ title, tree }), [title, tree])
-  const isDirty = screenState === 'ready' && currentSnapshot !== savedSnapshot
+  const hasPendingInlineEdit = useMemo(() => {
+    if (!editingNodeId) return false
+    const currentNode = findNodeById(tree, editingNodeId)
+    return Boolean(currentNode && currentNode.label !== editingNodeLabel)
+  }, [editingNodeId, editingNodeLabel, tree])
+  const isDirty = screenState === 'ready' && (currentSnapshot !== savedSnapshot || hasPendingInlineEdit)
   const selectedNode = useMemo(
     () => findNodeById(tree, selectedNodeId) ?? tree,
     [selectedNodeId, tree]
@@ -1458,6 +1525,7 @@ export default function MindmapDetailPage() {
 
   function handleSelectNode(nodeId: string) {
     setSelectedNodeId(nodeId)
+    focusCanvasViewport()
   }
 
   function handleTitleChange(value: string) {
@@ -1472,6 +1540,7 @@ export default function MindmapDetailPage() {
       nodeId,
       token: Date.now(),
     })
+    focusCanvasViewport()
   }
 
   function handleNodeLabelChange(value: string) {
@@ -1522,6 +1591,7 @@ export default function MindmapDetailPage() {
 
     if (added) {
       setSelectedNodeId(childNode.id)
+      focusCanvasViewport()
     }
   }
 
@@ -1550,6 +1620,7 @@ export default function MindmapDetailPage() {
 
     if (added) {
       setSelectedNodeId(siblingNode.id)
+      focusCanvasViewport()
     }
   }
 
@@ -1573,6 +1644,7 @@ export default function MindmapDetailPage() {
 
     if (removed) {
       setSelectedNodeId(parentNode?.id ?? 'root')
+      focusCanvasViewport()
     }
   }
 
@@ -1620,17 +1692,20 @@ export default function MindmapDetailPage() {
       const result = setNodeCollapsed(current, nodeId, !currentNode.collapsed)
       return result.changed ? result.nextNode : current
     })
+    focusCanvasViewport()
   }
 
   function handleExpandAll() {
     markEdited()
     setTree(current => setTreeCollapsedState(current, false, true))
+    focusCanvasViewport()
   }
 
   function handleCollapseAll() {
     markEdited()
     setSelectedNodeId('root')
     setTree(current => setTreeCollapsedState(current, true, true))
+    focusCanvasViewport()
   }
 
   function handleSearchQueryChange(value: string) {
@@ -1660,9 +1735,27 @@ export default function MindmapDetailPage() {
   }
 
   async function handleSave() {
-    if (!userId || screenState !== 'ready' || !isDirty || saving) return
+    if (!userId || screenState !== 'ready' || (!isDirty && !hasPendingInlineEdit) || saving) return
 
     const nextTitle = title.trim() || '未命名导图'
+    let nextTree = tree
+
+    if (editingNodeId) {
+      const currentEditingNode = findNodeById(tree, editingNodeId)
+      if (currentEditingNode && currentEditingNode.label !== editingNodeLabel) {
+        const result = updateNodeById(tree, editingNodeId, node => ({
+          ...node,
+          label: editingNodeLabel,
+        }))
+        if (result.changed) {
+          nextTree = result.nextNode
+          setTree(result.nextNode)
+        }
+      }
+      setEditingNodeId(null)
+      setEditingNodeLabel('')
+    }
+
     setSaving(true)
     setSaveError('')
 
@@ -1670,7 +1763,7 @@ export default function MindmapDetailPage() {
       .from('mindmaps')
       .update({
         title: nextTitle,
-        content_json: tree,
+        content_json: nextTree,
         updated_at: new Date().toISOString(),
       })
       .eq('id', mindmapId)
@@ -1687,8 +1780,14 @@ export default function MindmapDetailPage() {
 
     setTitle(nextTitle)
     setLastSavedAt(data?.updated_at ?? new Date().toISOString())
-    setSavedSnapshot(JSON.stringify({ title: nextTitle, tree }))
+    setSavedSnapshot(JSON.stringify({ title: nextTitle, tree: nextTree }))
   }
+
+  handleSaveRef.current = handleSave
+  handleAddChildRef.current = handleAddChild
+  handleAddSiblingRef.current = handleAddSibling
+  handleDeleteNodeRef.current = handleDeleteNode
+  handleToggleCollapseRef.current = handleToggleCollapse
 
   useEffect(() => {
     if (editingNodeId && !findNodeById(tree, editingNodeId)) {
@@ -1698,67 +1797,80 @@ export default function MindmapDetailPage() {
   }, [editingNodeId, tree])
 
   useEffect(() => {
-    if (screenState !== 'ready') return
-
-    function isTypingTarget(target: EventTarget | null) {
-      return target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]') !== null
-    }
-
     function handleKeydown(event: KeyboardEvent) {
+      if (event.isComposing) return
+
       const key = event.key
       const isSaveShortcut = (event.metaKey || event.ctrlKey) && key.toLowerCase() === 's'
       const isSearchShortcut = (event.metaKey || event.ctrlKey) && key.toLowerCase() === 'f'
 
       if (isSaveShortcut) {
         event.preventDefault()
-        if (!isTypingTarget(event.target)) {
-          void handleSave()
-        }
+        event.stopPropagation()
+        void handleSaveRef.current()
         return
       }
 
+      if (screenStateRef.current !== 'ready') return
+
       if (isSearchShortcut) {
         event.preventDefault()
+        event.stopPropagation()
         searchInputRef.current?.focus()
         searchInputRef.current?.select()
         return
       }
 
+      if (editingNodeIdRef.current) return
       if (isTypingTarget(event.target)) return
+
+      const currentNodeId = selectedNodeIdRef.current
 
       if (key === 'Tab') {
         event.preventDefault()
-        handleAddChild(selectedNodeId)
+        handleAddChildRef.current(currentNodeId)
         return
       }
 
       if (key === ' ') {
-        const currentNode = findNodeById(tree, selectedNodeId)
+        const currentNode = findNodeById(treeRef.current, currentNodeId)
         if (!currentNode || currentNode.children.length === 0) return
         event.preventDefault()
-        handleToggleCollapse(selectedNodeId)
+        handleToggleCollapseRef.current(currentNodeId)
         return
       }
 
       if (key === 'Enter') {
         event.preventDefault()
-        if (selectedNodeId === 'root') {
-          handleAddChild(selectedNodeId)
+        if (currentNodeId === 'root') {
+          handleAddChildRef.current(currentNodeId)
         } else {
-          handleAddSibling(selectedNodeId)
+          handleAddSiblingRef.current(currentNodeId)
         }
         return
       }
 
-      if ((key === 'Backspace' || key === 'Delete') && selectedNodeId !== 'root') {
+      if ((key === 'Backspace' || key === 'Delete') && currentNodeId !== 'root') {
         event.preventDefault()
-        handleDeleteNode(selectedNodeId)
+        handleDeleteNodeRef.current(currentNodeId)
       }
     }
 
     window.addEventListener('keydown', handleKeydown)
     return () => window.removeEventListener('keydown', handleKeydown)
-  }, [screenState, selectedNodeId, tree, userId, title, saving, isDirty, editingNodeId, editingNodeLabel])
+  }, [])
+
+  useEffect(() => {
+    if (!editingNodeId) return
+
+    const frame = window.requestAnimationFrame(() => {
+      const input = document.querySelector<HTMLInputElement>('[data-inline-editor="true"]')
+      input?.focus()
+      input?.select()
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [editingNodeId])
 
   useEffect(() => {
     if (!searchQuery.trim() || searchResults.length === 0) {
@@ -2034,7 +2146,11 @@ export default function MindmapDetailPage() {
                     <div className="mb-4 hidden rounded-[22px] border border-dashed border-[#E3DBCF] bg-[rgba(252,250,245,0.72)] px-4 py-3 text-xs leading-6 text-ink-500 lg:block">
                       快捷键：Tab 添加子节点 · Enter 添加同级节点 · Delete 删除 · Cmd/Ctrl+S 保存
                     </div>
-                    <div ref={canvasViewportRef} className="overflow-auto overscroll-contain rounded-[28px] border border-[#E8E1D6] bg-[rgba(255,255,255,0.38)] lg:h-[680px]">
+                    <div
+                      ref={canvasViewportRef}
+                      tabIndex={-1}
+                      className="overflow-auto overscroll-contain rounded-[28px] border border-[#E8E1D6] bg-[rgba(255,255,255,0.38)] outline-none lg:h-[680px]"
+                    >
                       <div
                         className="min-h-full min-w-max"
                         style={{ padding: '36px 40px 44px 40px' }}
