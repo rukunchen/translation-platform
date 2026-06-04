@@ -356,6 +356,24 @@ type TreeNodeCardProps = {
   onSelect: (nodeId: string) => void
 }
 
+function nodeActionClassName(level: 'root' | 'primary' | 'secondary', emphasis: 'default' | 'muted' | 'danger' = 'default') {
+  if (level === 'root') {
+    return emphasis === 'muted'
+      ? 'border-white/18 bg-white/8 text-white/86 hover:border-white/26 hover:bg-white/14 hover:text-white'
+      : 'border-white/22 bg-white/14 text-white hover:border-white hover:bg-white hover:text-ink-900'
+  }
+
+  if (emphasis === 'danger') {
+    return 'border border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100'
+  }
+
+  if (emphasis === 'muted') {
+    return 'border border-transparent bg-transparent text-ink-500 hover:border-line hover:bg-white/90 hover:text-ink-800'
+  }
+
+  return 'border border-line/90 bg-white/90 text-ink-700 hover:border-ink-300 hover:bg-white hover:text-ink-900'
+}
+
 function TreeNodeCard({
   depth,
   node,
@@ -368,24 +386,29 @@ function TreeNodeCard({
   const isSelected = node.id === selectedNodeId
   const isRoot = node.id === 'root'
   const isPrimary = depth === 1
-  const rootButtonClassName = 'border-white/25 bg-white/12 text-white hover:border-white hover:bg-white hover:text-ink-900'
+  const level = isRoot ? 'root' : isPrimary ? 'primary' : 'secondary'
 
   return (
     <div className="relative">
-      <div className={cn('flex flex-col gap-4 lg:gap-8', node.children.length > 0 && 'lg:flex-row lg:items-center')}>
+      <div className={cn('flex flex-col gap-6 lg:gap-10', node.children.length > 0 && 'lg:flex-row lg:items-center')}>
         <div
           className={cn(
             'relative z-10 min-w-0',
-            isRoot ? 'lg:w-[300px] xl:w-[320px]' : isPrimary ? 'lg:w-[258px]' : 'lg:w-[228px]'
+            isRoot ? 'lg:w-[360px] xl:w-[392px]' : isPrimary ? 'lg:w-[290px]' : 'lg:w-[248px]'
           )}
         >
           <div
             className={cn(
-              'relative overflow-hidden rounded-[28px] border px-4 py-4 transition-all duration-200 sm:px-5 sm:py-5',
-              isRoot ? 'min-h-[168px]' : isPrimary ? 'min-h-[138px]' : 'min-h-[120px]',
+              'relative overflow-hidden border transition-all duration-200',
+              isRoot
+                ? 'min-h-[220px] rounded-[34px] px-7 py-7 sm:px-8 sm:py-8'
+                : isPrimary
+                  ? 'min-h-[168px] rounded-[30px] px-5 py-5 sm:px-6 sm:py-6'
+                  : 'min-h-[142px] rounded-[26px] px-4 py-4 sm:px-5 sm:py-5',
               isRoot ? tone.rootCard : isPrimary ? tone.primaryCard : tone.secondaryCard,
-              isSelected && tone.selected,
-              !isSelected && 'hover:-translate-y-0.5 hover:shadow-[var(--shadow-card-hover)]'
+              isSelected
+                ? cn(tone.selected, isRoot ? 'shadow-[0_26px_56px_rgba(31,41,55,0.18)]' : 'shadow-[0_18px_40px_rgba(148,163,184,0.18)]')
+                : 'hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(148,163,184,0.16)]'
             )}
             onClick={() => onSelect(node.id)}
             role="button"
@@ -398,62 +421,74 @@ function TreeNodeCard({
             }}
           >
             {isRoot ? (
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.24),transparent_42%),radial-gradient(circle_at_bottom_right,rgba(15,23,42,0.14),transparent_34%)]" />
+              <>
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.24),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(15,23,42,0.16),transparent_34%)]" />
+                <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-white/24" />
+              </>
+            ) : isPrimary ? (
+              <>
+                <div className={cn('pointer-events-none absolute inset-x-0 top-0 h-1.5 rounded-t-[30px]', tone.line)} />
+                <div className={cn('pointer-events-none absolute inset-y-6 left-0 w-1.5 rounded-r-full opacity-80', tone.line)} />
+              </>
             ) : (
-              <div className={cn('pointer-events-none absolute inset-y-5 left-0 w-1 rounded-r-full', tone.line)} />
+              <div className={cn('pointer-events-none absolute inset-y-5 left-0 w-1 rounded-r-full opacity-80', tone.line)} />
             )}
 
-            <div className={cn('relative flex h-full flex-col gap-4', isRoot && 'items-center justify-center text-center')}>
-              <div className={cn('flex flex-wrap items-center gap-2', isRoot && 'justify-center')}>
+            <div className={cn('relative flex h-full flex-col', isRoot ? 'items-center justify-between text-center' : 'justify-between')}>
+              <div className={cn('flex flex-wrap items-center gap-2.5', isRoot && 'justify-center')}>
                 <span className={cn(
-                  'text-[11px] uppercase tracking-[0.22em]',
-                  isRoot ? 'text-white/72' : isPrimary ? 'text-ink-500' : 'text-ink-400'
+                  'text-[11px] uppercase tracking-[0.24em]',
+                  isRoot ? 'text-white/70' : isPrimary ? 'text-ink-500' : 'text-ink-400'
                 )}>
                   {formatNodeLevel(depth)}
                 </span>
-                <span className={cn('rounded-full border px-2.5 py-1 text-xs', isRoot ? tone.rootBadge : tone.chip)}>
+                <span className={cn('rounded-full border px-3 py-1 text-xs', isRoot ? tone.rootBadge : tone.chip)}>
                   {tone.label}
                 </span>
                 {isSelected && (
                   <span className={cn(
-                    'rounded-full border px-2.5 py-1 text-xs',
+                    'rounded-full border px-3 py-1 text-xs',
                     isRoot
                       ? 'border-white/20 bg-white/14 text-white'
-                      : 'border-white bg-white/90 text-ink-600 shadow-sm'
+                      : 'border-white/90 bg-white text-ink-600 shadow-sm'
                   )}>
                     当前选中
                   </span>
                 )}
               </div>
 
-              <div className="min-w-0">
+              <div className={cn('min-w-0', isRoot ? 'mt-6' : 'mt-5')}>
                 <h3 className={cn(
                   'break-words font-serif',
-                  isRoot ? 'text-[1.95rem] leading-tight text-white' : isPrimary ? 'text-xl text-ink-900' : 'text-lg text-ink-900'
+                  isRoot
+                    ? 'text-[2.2rem] leading-[1.15] text-white'
+                    : isPrimary
+                      ? 'text-[1.3rem] leading-snug text-ink-900'
+                      : 'text-[1.05rem] leading-snug text-ink-900'
                 )}>
                   {node.label || '未命名节点'}
                 </h3>
                 <p className={cn(
-                  'mt-2 text-sm',
-                  isRoot ? 'text-white/78' : isPrimary ? 'text-ink-600' : 'text-ink-500'
+                  'text-sm',
+                  isRoot ? 'mt-3 text-white/76' : isPrimary ? 'mt-3 text-ink-600' : 'mt-2.5 text-ink-500'
                 )}>
                   {node.children.length === 0 ? '暂无子节点' : `${node.children.length} 个子节点`}
                 </p>
               </div>
 
-              <div className={cn('flex flex-wrap gap-2', isRoot && 'justify-center')}>
+              <div className={cn('mt-5 flex flex-wrap gap-2.5', isRoot && 'justify-center')}>
                 <Button
                   size="sm"
                   variant="secondary"
-                  className={isRoot ? rootButtonClassName : undefined}
+                  className={nodeActionClassName(level)}
                   onClick={() => onSelect(node.id)}
                 >
                   选择节点
                 </Button>
                 <Button
                   size="sm"
-                  variant={isRoot ? 'secondary' : 'ghost'}
-                  className={isRoot ? rootButtonClassName : undefined}
+                  variant="ghost"
+                  className={nodeActionClassName(level, 'muted')}
                   onClick={() => onSelect(node.id)}
                 >
                   编辑
@@ -461,13 +496,18 @@ function TreeNodeCard({
                 <Button
                   size="sm"
                   variant={isRoot ? 'secondary' : 'ghost'}
-                  className={isRoot ? rootButtonClassName : undefined}
+                  className={nodeActionClassName(level)}
                   onClick={() => onAddChild(node.id)}
                 >
                   添加子节点
                 </Button>
                 {!isRoot && (
-                  <Button size="sm" variant="ghost" onClick={() => onDelete(node.id)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={nodeActionClassName(level, 'danger')}
+                    onClick={() => onDelete(node.id)}
+                  >
                     删除
                   </Button>
                 )}
@@ -478,18 +518,18 @@ function TreeNodeCard({
 
         {node.children.length > 0 ? (
           <div className="relative min-w-0 flex-1">
-            <div className={cn('pointer-events-none absolute left-0 top-1/2 hidden h-px w-10 -translate-y-1/2 lg:block', tone.line)} />
-            <div className={cn('pointer-events-none absolute bottom-8 left-10 top-8 hidden w-px lg:block', tone.line)} />
+            <div className={cn('pointer-events-none absolute left-0 top-1/2 hidden h-px w-14 -translate-y-1/2 opacity-75 lg:block', tone.line)} />
+            <div className={cn('pointer-events-none absolute bottom-10 left-14 top-10 hidden w-px opacity-65 lg:block', tone.line)} />
 
-            <div className="relative mt-4 pl-5 lg:mt-0 lg:pl-10">
-              <div className={cn('pointer-events-none absolute bottom-4 left-[7px] top-2 w-px lg:hidden', tone.line)} />
+            <div className="relative mt-5 pl-6 lg:mt-0 lg:pl-14">
+              <div className={cn('pointer-events-none absolute bottom-5 left-[8px] top-3 w-px opacity-70 lg:hidden', tone.line)} />
 
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {node.children.map(child => (
                   <div key={child.id} className="relative">
-                    <div className={cn('pointer-events-none absolute left-[-12px] top-[30px] h-px w-3 lg:hidden', tone.line)} />
-                    <div className={cn('pointer-events-none absolute -left-10 top-[30px] hidden h-px w-10 lg:block', tone.line)} />
-                    <div className={cn('pointer-events-none absolute -left-1 top-[26px] hidden h-2.5 w-2.5 rotate-45 border-r border-t lg:block', tone.arrow)} />
+                    <div className={cn('pointer-events-none absolute left-[-14px] top-[34px] h-px w-4 opacity-70 lg:hidden', tone.line)} />
+                    <div className={cn('pointer-events-none absolute -left-14 top-[34px] hidden h-px w-14 opacity-75 lg:block', tone.line)} />
+                    <div className={cn('pointer-events-none absolute -left-[7px] top-[29px] hidden h-3 w-3 rotate-45 border-r border-t opacity-80 lg:block', tone.arrow)} />
 
                     <TreeNodeCard
                       depth={depth + 1}
@@ -505,8 +545,8 @@ function TreeNodeCard({
             </div>
           </div>
         ) : isRoot ? (
-          <div className="rounded-[28px] border border-dashed border-line bg-canvas-2/90 px-6 py-10 text-sm leading-7 text-ink-500 lg:flex-1">
-            从当前卡片或右侧面板添加一级节点，导图会从中心主题向右展开。
+          <div className="rounded-[30px] border border-dashed border-line/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(244,241,233,0.86))] px-8 py-12 text-sm leading-7 text-ink-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] lg:flex-1">
+            从当前卡片或右侧属性面板添加一级节点，导图会以中心主题为起点向右舒展。
           </div>
         ) : null}
       </div>
@@ -760,34 +800,48 @@ export default function MindmapDetailPage() {
       <main className="flex-1 overflow-auto p-5">
         <div className="min-h-[calc(100vh-40px)] rounded-2xl border border-line bg-white">
           <MainContent size="wide">
-            <Card padding="md" className="mb-6 rounded-3xl">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-4 xl:min-w-0 xl:flex-1">
-                  <Button variant="secondary" onClick={() => router.push('/mindmaps')}>
+            <Card padding="md" className="mb-6 rounded-[30px] border border-line/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,244,237,0.92))] shadow-[0_20px_45px_rgba(148,163,184,0.10)]">
+              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-4 xl:min-w-0 xl:flex-1">
+                  <Button
+                    variant="secondary"
+                    className="min-h-11 rounded-2xl border-line/90 px-4"
+                    onClick={() => router.push('/mindmaps')}
+                  >
                     返回列表
                   </Button>
 
                   <div className="min-w-0 flex-1">
-                    <p className="mb-2 text-xs uppercase tracking-[0.18em] text-ink-400">Mindmap Editor</p>
+                    <p className="mb-3 text-xs uppercase tracking-[0.22em] text-ink-400">Mindmap Editor</p>
                     <input
                       value={title}
                       onChange={event => handleTitleChange(event.target.value)}
                       placeholder="请输入导图标题"
                       disabled={screenState !== 'ready'}
-                      className="w-full rounded-2xl border border-line bg-canvas px-4 py-3 font-serif text-xl text-ink-900 outline-none transition-colors placeholder:text-ink-400 focus:border-brand"
+                      className="w-full rounded-[24px] border border-line/80 bg-white/90 px-5 py-4 font-serif text-[1.6rem] text-ink-900 outline-none transition-colors placeholder:text-ink-400 focus:border-brand focus:bg-white"
                     />
                   </div>
                 </div>
 
-                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between xl:flex-shrink-0">
-                  <div className="space-y-1 text-sm">
-                    <p className={cn('font-medium', statusClassName)}>{statusText}</p>
-                    <p className="text-xs text-ink-500">最近保存时间：{formatDateTime(lastSavedAt)}</p>
+                <div className="flex flex-col gap-4 xl:max-w-[420px] xl:flex-shrink-0 xl:items-end">
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                    <span className={cn(
+                      'inline-flex min-h-10 items-center rounded-full border px-4 text-sm font-medium',
+                      screenState === 'error' || !!saveError || !!exportError
+                        ? 'border-red-200 bg-red-50 text-red-600'
+                        : isDirty
+                          ? 'border-amber-200 bg-amber-50 text-amber-700'
+                          : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    )}>
+                      {statusText}
+                    </span>
+                    <p className="text-xs text-ink-500">最近保存：{formatDateTime(lastSavedAt)}</p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="min-h-10 rounded-xl border border-line/80 bg-white/70 px-3 text-ink-600 hover:border-ink-300 hover:bg-white"
                       onClick={handleExportMarkdown}
                       disabled={screenState !== 'ready'}
                     >
@@ -796,13 +850,15 @@ export default function MindmapDetailPage() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="min-h-10 rounded-xl border border-line/80 bg-white/70 px-3 text-ink-600 hover:border-ink-300 hover:bg-white"
                       onClick={handleExportJson}
                       disabled={screenState !== 'ready'}
                     >
                       导出 JSON
                     </Button>
                     <Button
-                      variant="brand"
+                      variant="primary"
+                      className="min-h-10 rounded-xl px-5"
                       onClick={handleSave}
                       loading={saving}
                       disabled={screenState !== 'ready' || !isDirty}
@@ -836,20 +892,27 @@ export default function MindmapDetailPage() {
               </Card>
             ) : (
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-                <Card padding="lg" className="rounded-3xl">
-                  <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.18em] text-ink-400">Mindmap View</p>
-                      <h2 className="mt-2 font-serif text-2xl text-ink-900">单向导图</h2>
-                      <p className="mt-2 text-sm text-ink-500">桌面端从中心主题向右展开，移动端保留纵向结构，保证编辑操作稳定可用。</p>
+                <Card padding="lg" className="rounded-[32px] border border-line/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,244,237,0.90))] shadow-[0_24px_54px_rgba(148,163,184,0.12)]">
+                  <div className="mb-7 flex flex-col gap-4 border-b border-line/70 pb-5 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="max-w-2xl">
+                      <p className="text-xs uppercase tracking-[0.22em] text-ink-400">Mindmap View</p>
+                      <h2 className="mt-2 font-serif text-[2rem] text-ink-900">知识结构画布</h2>
+                      <p className="mt-2 text-sm leading-7 text-ink-500">
+                        桌面端从中心主题向右延展，移动端维持纵向阅读顺序。当前版本专注结构整理与节点编辑，保持轻量和清晰。
+                      </p>
                     </div>
-                    <p className="text-sm text-ink-500">{totalNodes} 个节点</p>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full border border-line/80 bg-white/80 px-3 py-1.5 text-xs text-ink-600">
+                        {totalNodes} 个节点
+                      </span>
+                    </div>
                   </div>
 
                   <div
-                    className="rounded-[32px] border border-line/80 px-4 py-5 sm:px-6 sm:py-6"
+                    className="rounded-[34px] border border-line/70 px-4 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] sm:px-7 sm:py-7"
                     style={{
-                      backgroundImage: 'radial-gradient(circle at top left, rgba(217,119,87,0.10), transparent 30%), radial-gradient(circle at bottom right, rgba(59,130,246,0.08), transparent 24%), linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,244,236,0.95))',
+                      backgroundImage: 'linear-gradient(rgba(123,115,103,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(123,115,103,0.05) 1px, transparent 1px), radial-gradient(circle at top left, rgba(217,119,87,0.10), transparent 28%), radial-gradient(circle at bottom right, rgba(59,130,246,0.08), transparent 24%), linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,244,236,0.95))',
+                      backgroundSize: '24px 24px, 24px 24px, auto, auto, auto',
                     }}
                   >
                     <TreeNodeCard
@@ -863,58 +926,67 @@ export default function MindmapDetailPage() {
                   </div>
                 </Card>
 
-                <Card padding="lg" className="rounded-3xl" as="section">
-                  <div className="mb-6">
-                    <p className="text-xs uppercase tracking-[0.18em] text-ink-400">Node Details</p>
-                    <h2 id="mindmap-node-editor" className="mt-2 font-serif text-2xl text-ink-900">
+                <Card padding="lg" className="rounded-[32px] border border-line/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,243,235,0.92))] shadow-[0_24px_54px_rgba(148,163,184,0.12)]" as="section">
+                  <div className="mb-7 border-b border-line/70 pb-5">
+                    <p className="text-xs uppercase tracking-[0.22em] text-ink-400">Node Details</p>
+                    <h2 id="mindmap-node-editor" className="mt-2 font-serif text-[2rem] text-ink-900">
                       当前节点
                     </h2>
                     <p className="mt-2 text-sm leading-relaxed text-ink-500">
-                      修改节点名称、颜色，或继续向下扩展子节点。删除节点会一并删除它的整个子树。
+                      这里集中编辑节点文本、颜色、层级信息与结构操作。所有保存、导出能力保持不变。
                     </p>
                   </div>
 
-                  <div className="space-y-6">
-                    <div className="rounded-[28px] border border-line bg-linear-to-br from-white to-canvas-2 px-5 py-5">
-                      <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-5">
+                    <div className="rounded-[28px] border border-line/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,241,233,0.92))] px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
                         <div className="min-w-0">
-                          <p className="text-xs uppercase tracking-[0.16em] text-ink-400">{formatNodeLevel(selectedNodeDepth)}</p>
+                          <p className="text-xs uppercase tracking-[0.18em] text-ink-400">{formatNodeLevel(selectedNodeDepth)}</p>
                           <h3 className="mt-2 break-words font-serif text-xl text-ink-900">
                             {selectedNode.label || '未命名节点'}
                           </h3>
-                          <p className="mt-2 text-sm text-ink-500">
+                          <p className="mt-3 text-sm leading-7 text-ink-500">
                             {selectedNode.id === 'root'
                               ? '这是中心主题，负责承载整张导图的主线。'
                               : `当前节点下有 ${selectedNode.children.length} 个直接子节点。`}
                           </p>
                         </div>
-                        <span className={cn('rounded-full border px-2.5 py-1 text-xs', colorMeta[selectedNode.color].chip)}>
+                        <span className={cn('rounded-full border px-3 py-1 text-xs', colorMeta[selectedNode.color].chip)}>
                           {colorMeta[selectedNode.color].label}
                         </span>
                       </div>
 
-                      <div className="mt-4 rounded-2xl border border-line/80 bg-white/80 px-4 py-3">
+                      <div className="mt-5 rounded-[22px] border border-line/70 bg-white/85 px-4 py-4">
                         <p className="text-xs uppercase tracking-[0.16em] text-ink-400">Node ID</p>
-                        <p className="mt-1 break-all text-sm text-ink-700">{selectedNode.id}</p>
+                        <p className="mt-2 break-all text-sm leading-6 text-ink-700">{selectedNode.id}</p>
                       </div>
                     </div>
 
-                    <div>
-                      <label htmlFor="mindmap-node-label" className="mb-2 block text-sm text-ink-700">
-                        节点文本
+                    <div className="rounded-[24px] border border-line/75 bg-white/88 px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                      <p className="text-xs uppercase tracking-[0.18em] text-ink-400">节点文本</p>
+                      <label htmlFor="mindmap-node-label" className="mt-3 block text-sm text-ink-700">
+                        节点名称
                       </label>
                       <input
                         id="mindmap-node-label"
                         value={selectedNode.label}
                         onChange={event => handleNodeLabelChange(event.target.value)}
-                        className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-400 focus:border-brand"
+                        className="mt-2 w-full rounded-[20px] border border-line/80 bg-canvas-2/55 px-4 py-3.5 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-400 focus:border-brand focus:bg-white"
                         placeholder="请输入节点文本"
                       />
                     </div>
 
-                    <div>
-                      <p className="mb-3 text-sm text-ink-700">节点颜色</p>
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <div className="rounded-[24px] border border-line/75 bg-white/88 px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.18em] text-ink-400">节点颜色</p>
+                          <p className="mt-2 text-sm text-ink-600">选择一组低饱和配色，用于区分结构层次。</p>
+                        </div>
+                        <span className={cn('rounded-full border px-3 py-1 text-xs', colorMeta[selectedNode.color].chip)}>
+                          当前色: {colorMeta[selectedNode.color].label}
+                        </span>
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                         {colorOrder.map(color => {
                           const tone = colorMeta[color]
                           const active = selectedNode.color === color
@@ -924,9 +996,9 @@ export default function MindmapDetailPage() {
                               type="button"
                               onClick={() => handleNodeColorChange(color)}
                               className={cn(
-                                'rounded-2xl border px-3 py-3 text-sm transition-colors',
+                                'min-h-11 rounded-[18px] border px-3 py-3 text-sm transition-colors',
                                 tone.button,
-                                active && tone.selected
+                                active && cn(tone.selected, 'shadow-sm')
                               )}
                             >
                               {tone.label}
@@ -936,36 +1008,54 @@ export default function MindmapDetailPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-line bg-canvas px-4 py-4 text-sm text-ink-600">
-                      <div className="flex items-center justify-between gap-3">
-                        <span>层级</span>
-                        <span className="text-ink-900">{formatNodeLevel(selectedNodeDepth)}</span>
-                      </div>
-                      <div className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-3">
-                        <span>子节点数量</span>
-                        <span className="text-ink-900">{selectedNode.children.length}</span>
+                    <div className="rounded-[24px] border border-line/75 bg-white/88 px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                      <p className="text-xs uppercase tracking-[0.18em] text-ink-400">层级信息</p>
+                      <div className="mt-4 space-y-3 rounded-[20px] border border-line/70 bg-canvas-2/55 px-4 py-4 text-sm text-ink-600">
+                        <div className="flex items-center justify-between gap-3">
+                          <span>层级</span>
+                          <span className="font-medium text-ink-900">{formatNodeLevel(selectedNodeDepth)}</span>
+                        </div>
+                        <div className="h-px bg-line/70" />
+                        <div className="flex items-center justify-between gap-3">
+                          <span>子节点数量</span>
+                          <span className="font-medium text-ink-900">{selectedNode.children.length}</span>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-3">
-                      <Button variant="secondary" onClick={() => handleAddChild(selectedNode.id)}>
-                        添加子节点
-                      </Button>
-                      <Button variant="ghost" onClick={() => handleSelectNode('root')}>
-                        选中中心主题
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        onClick={() => handleDeleteNode(selectedNode.id)}
-                        disabled={selectedNode.id === 'root'}
-                      >
-                        删除当前节点
-                      </Button>
-                    </div>
+                    <div className="rounded-[24px] border border-line/75 bg-white/88 px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                      <p className="text-xs uppercase tracking-[0.18em] text-ink-400">操作区</p>
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <Button
+                          variant="primary"
+                          className="min-h-11 rounded-2xl px-5"
+                          onClick={() => handleAddChild(selectedNode.id)}
+                        >
+                          添加子节点
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="min-h-11 rounded-2xl border-line/90 px-5"
+                          onClick={() => handleSelectNode('root')}
+                        >
+                          选中中心主题
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="min-h-11 rounded-2xl border border-red-200 bg-red-50 px-5 text-red-700 hover:border-red-300 hover:bg-red-100"
+                          onClick={() => handleDeleteNode(selectedNode.id)}
+                          disabled={selectedNode.id === 'root'}
+                        >
+                          删除当前节点
+                        </Button>
+                      </div>
 
-                    {selectedNode.id === 'root' && (
-                      <p className="text-xs text-ink-500">中心主题不可删除。</p>
-                    )}
+                      {selectedNode.id === 'root' && (
+                        <p className="mt-4 rounded-[18px] border border-line/70 bg-canvas-2/55 px-4 py-3 text-xs leading-6 text-ink-500">
+                          中心主题作为整张导图的起点会被保留，因此这里不提供删除操作。
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </Card>
               </div>
