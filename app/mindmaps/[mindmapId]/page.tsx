@@ -36,75 +36,75 @@ const colorMeta: Record<MindmapColor, {
 }> = {
   blue: {
     label: '蓝',
-    chip: 'border-sky-200 bg-sky-100 text-sky-700',
-    button: 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100',
-    selected: 'ring-2 ring-sky-200',
-    rootCard: 'border-sky-500 bg-sky-500 text-white shadow-[0_20px_44px_rgba(14,116,144,0.24)]',
-    rootBadge: 'border-white/20 bg-white/14 text-white/90',
-    primaryCard: 'border-sky-300 bg-linear-to-br from-sky-100 via-white to-sky-50 shadow-[0_14px_32px_rgba(14,116,144,0.10)]',
-    secondaryCard: 'border-sky-200 bg-white/92 shadow-[0_10px_24px_rgba(14,116,144,0.08)]',
-    line: 'bg-sky-200/90',
-    arrow: 'border-sky-300',
+    chip: 'border-[#D6E5EA] bg-[#EEF6F8] text-[#5C8897]',
+    button: 'border-[#D6E5EA] bg-[#EEF6F8] text-[#5C8897] hover:bg-[#E7F1F4]',
+    selected: 'ring-2 ring-[#D5E4E9]',
+    rootCard: 'border-[#5F8897] bg-[linear-gradient(180deg,#7EA9B8_0%,#6F9FB0_56%,#668F9F_100%)] text-white shadow-[0_24px_48px_rgba(111,159,176,0.22)]',
+    rootBadge: 'border-white/18 bg-white/12 text-white/88',
+    primaryCard: 'border-[#C8D8DE] bg-[linear-gradient(180deg,rgba(238,246,248,0.98),rgba(247,250,250,0.92))] shadow-[0_12px_26px_rgba(111,159,176,0.10)]',
+    secondaryCard: 'border-[#D6E5EA] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,252,252,0.92))] shadow-[0_8px_18px_rgba(111,159,176,0.06)]',
+    line: 'bg-[#C9D9DE]',
+    arrow: 'border-[#C1D4DA]',
   },
   green: {
     label: '绿',
-    chip: 'border-emerald-200 bg-emerald-100 text-emerald-700',
-    button: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
-    selected: 'ring-2 ring-emerald-200',
-    rootCard: 'border-emerald-500 bg-emerald-500 text-white shadow-[0_20px_44px_rgba(5,150,105,0.24)]',
-    rootBadge: 'border-white/20 bg-white/14 text-white/90',
-    primaryCard: 'border-emerald-300 bg-linear-to-br from-emerald-100 via-white to-emerald-50 shadow-[0_14px_32px_rgba(5,150,105,0.10)]',
-    secondaryCard: 'border-emerald-200 bg-white/92 shadow-[0_10px_24px_rgba(5,150,105,0.08)]',
-    line: 'bg-emerald-200/90',
-    arrow: 'border-emerald-300',
+    chip: 'border-[#D7E4DA] bg-[#F0F7F1] text-[#698A73]',
+    button: 'border-[#D7E4DA] bg-[#F0F7F1] text-[#698A73] hover:bg-[#E9F2EB]',
+    selected: 'ring-2 ring-[#D7E4DA]',
+    rootCard: 'border-[#6D9077] bg-[linear-gradient(180deg,#8DB196_0%,#7FA58A_56%,#6F9579_100%)] text-white shadow-[0_24px_48px_rgba(127,165,138,0.22)]',
+    rootBadge: 'border-white/18 bg-white/12 text-white/88',
+    primaryCard: 'border-[#D1DED4] bg-[linear-gradient(180deg,rgba(240,247,241,0.98),rgba(248,250,247,0.92))] shadow-[0_12px_26px_rgba(127,165,138,0.10)]',
+    secondaryCard: 'border-[#DCE8DF] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,252,250,0.92))] shadow-[0_8px_18px_rgba(127,165,138,0.06)]',
+    line: 'bg-[#D1DDD3]',
+    arrow: 'border-[#C9D8CC]',
   },
   orange: {
     label: '橙',
-    chip: 'border-amber-200 bg-amber-100 text-amber-700',
-    button: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100',
-    selected: 'ring-2 ring-amber-200',
-    rootCard: 'border-amber-500 bg-amber-500 text-white shadow-[0_20px_44px_rgba(217,119,6,0.24)]',
-    rootBadge: 'border-white/20 bg-white/14 text-white/90',
-    primaryCard: 'border-amber-300 bg-linear-to-br from-amber-100 via-white to-amber-50 shadow-[0_14px_32px_rgba(217,119,6,0.10)]',
-    secondaryCard: 'border-amber-200 bg-white/92 shadow-[0_10px_24px_rgba(217,119,6,0.08)]',
-    line: 'bg-amber-200/90',
-    arrow: 'border-amber-300',
+    chip: 'border-[#E8D8C7] bg-[#FAF3EA] text-[#A67D56]',
+    button: 'border-[#E8D8C7] bg-[#FAF3EA] text-[#A67D56] hover:bg-[#F4EBDC]',
+    selected: 'ring-2 ring-[#E8D8C7]',
+    rootCard: 'border-[#B78758] bg-[linear-gradient(180deg,#D3AA80_0%,#C69A6D_56%,#B78D62_100%)] text-white shadow-[0_24px_48px_rgba(198,154,109,0.22)]',
+    rootBadge: 'border-white/18 bg-white/12 text-white/88',
+    primaryCard: 'border-[#E2D2C1] bg-[linear-gradient(180deg,rgba(250,243,234,0.98),rgba(250,248,243,0.92))] shadow-[0_12px_26px_rgba(198,154,109,0.10)]',
+    secondaryCard: 'border-[#EBE0D3] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(252,249,245,0.92))] shadow-[0_8px_18px_rgba(198,154,109,0.06)]',
+    line: 'bg-[#E0D2C3]',
+    arrow: 'border-[#D7C7B6]',
   },
   purple: {
     label: '紫',
-    chip: 'border-violet-200 bg-violet-100 text-violet-700',
-    button: 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100',
-    selected: 'ring-2 ring-violet-200',
-    rootCard: 'border-violet-500 bg-violet-500 text-white shadow-[0_20px_44px_rgba(139,92,246,0.24)]',
-    rootBadge: 'border-white/20 bg-white/14 text-white/90',
-    primaryCard: 'border-violet-300 bg-linear-to-br from-violet-100 via-white to-violet-50 shadow-[0_14px_32px_rgba(139,92,246,0.10)]',
-    secondaryCard: 'border-violet-200 bg-white/92 shadow-[0_10px_24px_rgba(139,92,246,0.08)]',
-    line: 'bg-violet-200/90',
-    arrow: 'border-violet-300',
+    chip: 'border-[#DDD6E7] bg-[#F5F0FA] text-[#7C6A98]',
+    button: 'border-[#DDD6E7] bg-[#F5F0FA] text-[#7C6A98] hover:bg-[#EEE7F5]',
+    selected: 'ring-2 ring-[#DDD6E7]',
+    rootCard: 'border-[#85739F] bg-[linear-gradient(180deg,#A694C0_0%,#9A88B5_56%,#8D7BA8_100%)] text-white shadow-[0_24px_48px_rgba(154,136,181,0.22)]',
+    rootBadge: 'border-white/18 bg-white/12 text-white/88',
+    primaryCard: 'border-[#DED7E8] bg-[linear-gradient(180deg,rgba(245,240,250,0.98),rgba(250,247,252,0.92))] shadow-[0_12px_26px_rgba(154,136,181,0.10)]',
+    secondaryCard: 'border-[#E8E0F0] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(251,249,253,0.92))] shadow-[0_8px_18px_rgba(154,136,181,0.06)]',
+    line: 'bg-[#D8D0E3]',
+    arrow: 'border-[#CDC4DB]',
   },
   rose: {
     label: '玫瑰',
-    chip: 'border-rose-200 bg-rose-100 text-rose-700',
-    button: 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100',
-    selected: 'ring-2 ring-rose-200',
-    rootCard: 'border-rose-500 bg-rose-500 text-white shadow-[0_20px_44px_rgba(244,63,94,0.24)]',
-    rootBadge: 'border-white/20 bg-white/14 text-white/90',
-    primaryCard: 'border-rose-300 bg-linear-to-br from-rose-100 via-white to-rose-50 shadow-[0_14px_32px_rgba(244,63,94,0.10)]',
-    secondaryCard: 'border-rose-200 bg-white/92 shadow-[0_10px_24px_rgba(244,63,94,0.08)]',
-    line: 'bg-rose-200/90',
-    arrow: 'border-rose-300',
+    chip: 'border-[#E8D4D4] bg-[#FAF0F0] text-[#9F6C6C]',
+    button: 'border-[#E8D4D4] bg-[#FAF0F0] text-[#9F6C6C] hover:bg-[#F4E7E7]',
+    selected: 'ring-2 ring-[#E8D4D4]',
+    rootCard: 'border-[#B67878] bg-[linear-gradient(180deg,#CE9A9A_0%,#C58A8A_56%,#B67B7B_100%)] text-white shadow-[0_24px_48px_rgba(197,138,138,0.22)]',
+    rootBadge: 'border-white/18 bg-white/12 text-white/88',
+    primaryCard: 'border-[#E4D0D0] bg-[linear-gradient(180deg,rgba(250,240,240,0.98),rgba(251,247,247,0.92))] shadow-[0_12px_26px_rgba(197,138,138,0.10)]',
+    secondaryCard: 'border-[#ECDEDE] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(252,248,248,0.92))] shadow-[0_8px_18px_rgba(197,138,138,0.06)]',
+    line: 'bg-[#E1CFCF]',
+    arrow: 'border-[#D8C4C4]',
   },
   gray: {
     label: '灰',
-    chip: 'border-slate-200 bg-slate-100 text-slate-700',
-    button: 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
-    selected: 'ring-2 ring-slate-200',
-    rootCard: 'border-slate-500 bg-slate-500 text-white shadow-[0_20px_44px_rgba(71,85,105,0.24)]',
-    rootBadge: 'border-white/20 bg-white/14 text-white/90',
-    primaryCard: 'border-slate-300 bg-linear-to-br from-slate-100 via-white to-slate-50 shadow-[0_14px_32px_rgba(71,85,105,0.10)]',
-    secondaryCard: 'border-slate-200 bg-white/92 shadow-[0_10px_24px_rgba(71,85,105,0.08)]',
-    line: 'bg-slate-200/90',
-    arrow: 'border-slate-300',
+    chip: 'border-[#D7D7D1] bg-[#F3F2EE] text-[#7D7D76]',
+    button: 'border-[#D7D7D1] bg-[#F3F2EE] text-[#7D7D76] hover:bg-[#ECEBE5]',
+    selected: 'ring-2 ring-[#D7D7D1]',
+    rootCard: 'border-[#84847D] bg-[linear-gradient(180deg,#ABABA4_0%,#9A9A92_56%,#8E8E87_100%)] text-white shadow-[0_24px_48px_rgba(154,154,146,0.22)]',
+    rootBadge: 'border-white/18 bg-white/12 text-white/88',
+    primaryCard: 'border-[#DDDCD7] bg-[linear-gradient(180deg,rgba(243,242,238,0.98),rgba(250,249,246,0.92))] shadow-[0_12px_26px_rgba(154,154,146,0.10)]',
+    secondaryCard: 'border-[#E5E4DE] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(250,249,246,0.92))] shadow-[0_8px_18px_rgba(154,154,146,0.06)]',
+    line: 'bg-[#D7D5CF]',
+    arrow: 'border-[#CBC9C3]',
   },
 }
 
@@ -359,19 +359,19 @@ type TreeNodeCardProps = {
 function nodeActionClassName(level: 'root' | 'primary' | 'secondary', emphasis: 'default' | 'muted' | 'danger' = 'default') {
   if (level === 'root') {
     return emphasis === 'muted'
-      ? 'border-white/18 bg-white/8 text-white/86 hover:border-white/26 hover:bg-white/14 hover:text-white'
-      : 'border-white/22 bg-white/14 text-white hover:border-white hover:bg-white hover:text-ink-900'
+      ? 'border-white/10 bg-white/6 text-white/76 hover:border-white/18 hover:bg-white/12 hover:text-white'
+      : 'border-white/14 bg-white/10 text-white/92 hover:border-white/22 hover:bg-white/16 hover:text-white'
   }
 
   if (emphasis === 'danger') {
-    return 'border border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100'
+    return 'border border-[#E7D4D4] bg-[#FAF1F1] text-[#9E6B6B] hover:border-[#DDBFC0] hover:bg-[#F6E9E9]'
   }
 
   if (emphasis === 'muted') {
-    return 'border border-transparent bg-transparent text-ink-500 hover:border-line hover:bg-white/90 hover:text-ink-800'
+    return 'border border-transparent bg-transparent text-ink-500 hover:border-line/90 hover:bg-[#F9F7F2] hover:text-ink-800'
   }
 
-  return 'border border-line/90 bg-white/90 text-ink-700 hover:border-ink-300 hover:bg-white hover:text-ink-900'
+  return 'border border-line/90 bg-[#FCFBF8] text-ink-700 hover:border-ink-300 hover:bg-white hover:text-ink-900'
 }
 
 function TreeNodeCard({
@@ -390,21 +390,21 @@ function TreeNodeCard({
 
   return (
     <div className="relative">
-      <div className={cn('flex flex-col gap-6 lg:gap-10', node.children.length > 0 && 'lg:flex-row lg:items-center')}>
+      <div className={cn('flex flex-col gap-7 lg:gap-12', node.children.length > 0 && 'lg:flex-row lg:items-center')}>
         <div
           className={cn(
             'relative z-10 min-w-0',
-            isRoot ? 'lg:w-[360px] xl:w-[392px]' : isPrimary ? 'lg:w-[290px]' : 'lg:w-[248px]'
+            isRoot ? 'lg:w-[372px] xl:w-[404px]' : isPrimary ? 'lg:w-[304px]' : 'lg:w-[254px]'
           )}
         >
           <div
             className={cn(
               'relative overflow-hidden border transition-all duration-200',
               isRoot
-                ? 'min-h-[248px] rounded-[36px] px-10 py-9 sm:px-11 sm:py-10'
+                ? 'min-h-[250px] rounded-[38px] px-10 py-9 sm:px-11 sm:py-10'
                 : isPrimary
-                  ? 'min-h-[184px] rounded-[30px] px-7 py-6 sm:px-8 sm:py-7'
-                  : 'min-h-[156px] rounded-[26px] px-6 py-5 sm:px-7 sm:py-6',
+                  ? 'min-h-[190px] rounded-[30px] px-7 py-6 sm:px-8 sm:py-7'
+                  : 'min-h-[154px] rounded-[26px] px-6 py-5 sm:px-7 sm:py-6',
               isRoot ? tone.rootCard : isPrimary ? tone.primaryCard : tone.secondaryCard,
               isSelected
                 ? cn(tone.selected, isRoot ? 'shadow-[0_26px_56px_rgba(31,41,55,0.18)]' : 'shadow-[0_18px_40px_rgba(148,163,184,0.18)]')
@@ -422,16 +422,16 @@ function TreeNodeCard({
           >
             {isRoot ? (
               <>
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.24),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(15,23,42,0.16),transparent_34%)]" />
-                <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-white/24" />
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.24),transparent_42%),radial-gradient(circle_at_bottom_right,rgba(63,85,96,0.18),transparent_34%)]" />
+                <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-white/22" />
               </>
             ) : isPrimary ? (
               <>
                 <div className={cn('pointer-events-none absolute inset-x-0 top-0 h-1.5 rounded-t-[30px]', tone.line)} />
-                <div className={cn('pointer-events-none absolute inset-y-6 left-0 w-1.5 rounded-r-full opacity-80', tone.line)} />
+                <div className={cn('pointer-events-none absolute inset-y-7 left-0 w-1.5 rounded-r-full opacity-80', tone.line)} />
               </>
             ) : (
-              <div className={cn('pointer-events-none absolute inset-y-5 left-0 w-1 rounded-r-full opacity-80', tone.line)} />
+              <div className={cn('pointer-events-none absolute inset-y-6 left-0 w-[3px] rounded-r-full opacity-75', tone.line)} />
             )}
 
             <div className={cn('relative flex h-full flex-col', isRoot ? 'items-center justify-between text-center' : 'justify-between')}>
@@ -476,11 +476,11 @@ function TreeNodeCard({
                 </p>
               </div>
 
-              <div className={cn('mt-6 flex flex-wrap gap-3', isRoot && 'justify-center')}>
+              <div className={cn('mt-7 flex flex-wrap gap-3', isRoot && 'justify-center')}>
                 <Button
                   size="sm"
                   variant="secondary"
-                  className={nodeActionClassName(level)}
+                  className={cn('min-h-10 rounded-full px-4', nodeActionClassName(level))}
                   onClick={() => onSelect(node.id)}
                 >
                   选择节点
@@ -488,7 +488,7 @@ function TreeNodeCard({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className={nodeActionClassName(level, 'muted')}
+                  className={cn('min-h-10 rounded-full px-4', nodeActionClassName(level, 'muted'))}
                   onClick={() => onSelect(node.id)}
                 >
                   编辑
@@ -496,7 +496,7 @@ function TreeNodeCard({
                 <Button
                   size="sm"
                   variant={isRoot ? 'secondary' : 'ghost'}
-                  className={nodeActionClassName(level)}
+                  className={cn('min-h-10 rounded-full px-4', nodeActionClassName(level))}
                   onClick={() => onAddChild(node.id)}
                 >
                   添加子节点
@@ -505,7 +505,7 @@ function TreeNodeCard({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className={nodeActionClassName(level, 'danger')}
+                    className={cn('min-h-10 rounded-full px-4', nodeActionClassName(level, 'danger'))}
                     onClick={() => onDelete(node.id)}
                   >
                     删除
@@ -518,18 +518,18 @@ function TreeNodeCard({
 
         {node.children.length > 0 ? (
           <div className="relative min-w-0 flex-1">
-            <div className={cn('pointer-events-none absolute left-0 top-1/2 hidden h-px w-16 -translate-y-1/2 opacity-70 lg:block', tone.line)} />
-            <div className={cn('pointer-events-none absolute bottom-12 left-16 top-12 hidden w-px opacity-60 lg:block', tone.line)} />
+            <div className={cn('pointer-events-none absolute left-0 top-1/2 hidden h-px w-[72px] -translate-y-1/2 opacity-60 lg:block', tone.line)} />
+            <div className={cn('pointer-events-none absolute bottom-12 left-[72px] top-12 hidden w-px opacity-50 lg:block', tone.line)} />
 
-            <div className="relative mt-6 pl-7 lg:mt-0 lg:pl-16">
-              <div className={cn('pointer-events-none absolute bottom-6 left-[10px] top-4 w-px opacity-65 lg:hidden', tone.line)} />
+            <div className="relative mt-6 pl-7 lg:mt-0 lg:pl-[72px]">
+              <div className={cn('pointer-events-none absolute bottom-6 left-[10px] top-4 w-px opacity-55 lg:hidden', tone.line)} />
 
               <div className="space-y-6">
                 {node.children.map(child => (
                   <div key={child.id} className="relative">
-                    <div className={cn('pointer-events-none absolute left-[-16px] top-[38px] h-px w-5 opacity-65 lg:hidden', tone.line)} />
-                    <div className={cn('pointer-events-none absolute -left-16 top-[38px] hidden h-px w-16 opacity-70 lg:block', tone.line)} />
-                    <div className={cn('pointer-events-none absolute -left-[8px] top-[33px] hidden h-3 w-3 rotate-45 border-r border-t opacity-70 lg:block', tone.arrow)} />
+                    <div className={cn('pointer-events-none absolute left-[-16px] top-[38px] h-px w-5 opacity-55 lg:hidden', tone.line)} />
+                    <div className={cn('pointer-events-none absolute -left-[72px] top-[38px] hidden h-px w-[72px] opacity-60 lg:block', tone.line)} />
+                    <div className={cn('pointer-events-none absolute -left-[8px] top-[34px] hidden h-[9px] w-[9px] rotate-45 border-r border-t opacity-60 lg:block', tone.arrow)} />
 
                     <TreeNodeCard
                       depth={depth + 1}
@@ -545,7 +545,7 @@ function TreeNodeCard({
             </div>
           </div>
         ) : isRoot ? (
-          <div className="rounded-[30px] border border-dashed border-line/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(244,241,233,0.86))] px-8 py-6 text-sm leading-7 text-ink-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] sm:px-10 sm:py-7 lg:flex-1">
+          <div className="rounded-[30px] border border-dashed border-line/70 bg-[linear-gradient(180deg,rgba(252,250,245,0.94),rgba(247,243,235,0.9))] px-8 py-6 text-sm leading-7 text-ink-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] sm:px-10 sm:py-7 lg:flex-1">
             从当前卡片或右侧属性面板添加一级节点，导图会以中心主题为起点向右舒展。
           </div>
         ) : null}
@@ -648,16 +648,6 @@ export default function MindmapDetailPage() {
               : isDirty
                 ? '未保存'
                 : '已保存'
-
-  const statusClassName = screenState === 'error' || !!saveError || !!exportError
-    ? 'text-red-600'
-    : screenState === 'missing'
-      ? 'text-ink-500'
-      : screenState === 'auth'
-        ? 'text-ink-600'
-        : isDirty
-          ? 'text-amber-600'
-          : 'text-emerald-600'
 
   function markEdited() {
     if (saveError) setSaveError('')
@@ -795,58 +785,58 @@ export default function MindmapDetailPage() {
   }
 
   return (
-    <div className="flex h-screen bg-canvas">
+    <div className="flex h-screen bg-[linear-gradient(180deg,#F5F1E8_0%,#F0ECE2_100%)]">
       <Sidebar />
       <main className="flex-1 overflow-auto p-4 sm:p-5 lg:p-6">
-        <div className="min-h-[calc(100vh-40px)] rounded-2xl border border-line bg-white">
+        <div className="min-h-[calc(100vh-40px)] rounded-[28px] border border-[#E6E0D4] bg-[linear-gradient(180deg,rgba(252,250,246,0.98),rgba(246,242,234,0.96))] shadow-[0_24px_60px_rgba(130,120,103,0.08)]">
           <MainContent size="wide">
-            <Card padding="lg" className="mb-6 rounded-[30px] border border-line/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,244,237,0.92))] shadow-[0_20px_45px_rgba(148,163,184,0.10)]">
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-4 xl:min-w-0 xl:flex-1">
+            <Card padding="lg" className="mb-6 rounded-[30px] border border-[#E8E2D8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,244,237,0.94))] shadow-[0_18px_40px_rgba(130,120,103,0.06)]">
+              <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-end xl:gap-6">
+                <div className="flex items-center">
                   <Button
                     variant="secondary"
-                    className="min-h-11 rounded-2xl border-line/90 px-5"
+                    className="min-h-11 rounded-full border-[#D6CFC2] bg-[#FCFBF8] px-5 text-ink-700 hover:border-[#BFB5A3] hover:bg-white hover:text-ink-900"
                     onClick={() => router.push('/mindmaps')}
                   >
                     返回列表
                   </Button>
+                </div>
 
-                  <div className="min-w-0 flex-1">
-                    <p className="mb-3 text-xs uppercase tracking-[0.22em] text-ink-400">Mindmap Editor</p>
-                    <div
-                      className="rounded-[28px] border border-line/80 bg-white/90 transition-colors focus-within:border-brand focus-within:bg-white"
-                      style={{ padding: '14px 28px' }}
-                    >
-                      <input
-                        value={title}
-                        onChange={event => handleTitleChange(event.target.value)}
-                        placeholder="请输入导图标题"
-                        disabled={screenState !== 'ready'}
-                        className="w-full border-0 bg-transparent font-serif text-[1.46rem] leading-[1.28] text-ink-900 outline-none placeholder:text-ink-400 sm:text-[1.56rem]"
-                      />
-                    </div>
+                <div className="min-w-0">
+                  <p className="mb-3 text-xs uppercase tracking-[0.26em] text-ink-400">Mindmap Editor</p>
+                  <div
+                    className="rounded-[30px] border border-[#E5DED2] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,243,236,0.92))] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-colors focus-within:border-[#CDBDA6] focus-within:bg-white"
+                    style={{ padding: '16px 30px' }}
+                  >
+                    <input
+                      value={title}
+                      onChange={event => handleTitleChange(event.target.value)}
+                      placeholder="请输入导图标题"
+                      disabled={screenState !== 'ready'}
+                      className="w-full border-0 bg-transparent font-serif text-[1.52rem] leading-[1.3] text-ink-900 outline-none placeholder:text-ink-400 sm:text-[1.7rem]"
+                    />
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-4 xl:max-w-[420px] xl:flex-shrink-0 xl:items-end">
-                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                <div className="flex flex-col gap-4 xl:max-w-[460px] xl:items-end">
+                  <div className="flex flex-wrap items-center gap-3 text-sm xl:justify-end">
                     <span className={cn(
                       'inline-flex min-h-10 items-center rounded-full border px-4 text-sm font-medium',
                       screenState === 'error' || !!saveError || !!exportError
-                        ? 'border-red-200 bg-red-50 text-red-600'
+                        ? 'border-[#E8D3D3] bg-[#FAF0F0] text-[#9E6B6B]'
                         : isDirty
-                          ? 'border-amber-200 bg-amber-50 text-amber-700'
-                          : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          ? 'border-[#E8D8C7] bg-[#FAF3EA] text-[#A67D56]'
+                          : 'border-[#D7E4DA] bg-[#F0F7F1] text-[#698A73]'
                     )}>
                       {statusText}
                     </span>
                     <p className="text-xs text-ink-500">最近保存：{formatDateTime(lastSavedAt)}</p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex flex-wrap items-center gap-2.5 xl:justify-end">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="min-h-10 rounded-xl border border-line/80 bg-white/70 px-4 text-ink-600 hover:border-ink-300 hover:bg-white"
+                      className="min-h-10 rounded-full border border-[#E0D9CD] bg-transparent px-4 text-ink-600 hover:border-[#C9BEAE] hover:bg-[#FBF8F2]"
                       onClick={handleExportMarkdown}
                       disabled={screenState !== 'ready'}
                     >
@@ -855,7 +845,7 @@ export default function MindmapDetailPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="min-h-10 rounded-xl border border-line/80 bg-white/70 px-4 text-ink-600 hover:border-ink-300 hover:bg-white"
+                      className="min-h-10 rounded-full border border-[#E0D9CD] bg-transparent px-4 text-ink-600 hover:border-[#C9BEAE] hover:bg-[#FBF8F2]"
                       onClick={handleExportJson}
                       disabled={screenState !== 'ready'}
                     >
@@ -863,7 +853,7 @@ export default function MindmapDetailPage() {
                     </Button>
                     <Button
                       variant="primary"
-                      className="min-h-10 rounded-xl px-6"
+                      className="min-h-10 rounded-full bg-[#26231F] px-6 text-white hover:bg-[#1D1B18]"
                       onClick={handleSave}
                       loading={saving}
                       disabled={screenState !== 'ready' || !isDirty}
@@ -896,29 +886,29 @@ export default function MindmapDetailPage() {
                 <Button variant="brand" onClick={() => router.push('/mindmaps')}>返回列表</Button>
               </Card>
             ) : (
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.02fr)_minmax(460px,0.98fr)]">
-                <Card padding="lg" className="rounded-[32px] border border-line/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,244,237,0.90))] shadow-[0_24px_54px_rgba(148,163,184,0.12)]">
-                  <div className="mb-7 flex flex-col gap-4 border-b border-line/70 pb-5 sm:flex-row sm:items-end sm:justify-between">
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.06fr)_minmax(430px,0.94fr)]">
+                <Card padding="lg" className="rounded-[32px] border border-[#E6DFD3] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,244,237,0.94))] shadow-[0_24px_54px_rgba(130,120,103,0.08)]">
+                  <div className="mb-7 flex flex-col gap-4 border-b border-[#E7E0D4] pb-5 sm:flex-row sm:items-end sm:justify-between">
                     <div className="max-w-2xl">
-                      <p className="text-xs uppercase tracking-[0.22em] text-ink-400">Mindmap View</p>
-                      <h2 className="mt-2 font-serif text-[2rem] text-ink-900">知识结构画布</h2>
+                      <p className="text-xs uppercase tracking-[0.26em] text-ink-400">Mindmap View</p>
+                      <h2 className="mt-2 font-serif text-[2rem] text-ink-900">纸本知识画布</h2>
                       <p className="mt-2 text-sm leading-7 text-ink-500">
-                        桌面端从中心主题向右延展，移动端维持纵向阅读顺序。当前版本专注结构整理与节点编辑，保持轻量和清晰。
+                        以纸面笔记的留白和层级组织知识结构。桌面端向右延展分支，移动端保留纵向阅读顺序，保持编辑过程清楚克制。
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="rounded-full border border-line/80 bg-white/80 px-3 py-1.5 text-xs text-ink-600">
+                      <span className="rounded-full border border-[#E2DBCF] bg-[#FCFAF6] px-3 py-1.5 text-xs text-ink-600">
                         {totalNodes} 个节点
                       </span>
                     </div>
                   </div>
 
                   <div
-                    className="rounded-[34px] border border-line/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
+                    className="rounded-[34px] border border-[#E4DDD1] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
                     style={{
-                      padding: '32px 36px',
-                      backgroundImage: 'linear-gradient(rgba(123,115,103,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(123,115,103,0.05) 1px, transparent 1px), radial-gradient(circle at top left, rgba(217,119,87,0.10), transparent 28%), radial-gradient(circle at bottom right, rgba(59,130,246,0.08), transparent 24%), linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,244,236,0.95))',
-                      backgroundSize: '24px 24px, 24px 24px, auto, auto, auto',
+                      padding: '34px 38px',
+                      backgroundImage: 'linear-gradient(rgba(134,125,113,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(134,125,113,0.035) 1px, transparent 1px), radial-gradient(circle at top left, rgba(198,154,109,0.05), transparent 28%), radial-gradient(circle at bottom right, rgba(111,159,176,0.05), transparent 24%), linear-gradient(180deg, rgba(252,250,245,0.98), rgba(246,242,234,0.96))',
+                      backgroundSize: '28px 28px, 28px 28px, auto, auto, auto',
                     }}
                   >
                     <TreeNodeCard
@@ -932,26 +922,27 @@ export default function MindmapDetailPage() {
                   </div>
                 </Card>
 
-                <Card padding="lg" className="rounded-[32px] border border-line/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,243,235,0.92))] shadow-[0_24px_54px_rgba(148,163,184,0.12)]" as="section">
-                  <div className="mb-7 border-b border-line/70 pb-5">
-                    <p className="text-xs uppercase tracking-[0.22em] text-ink-400">Node Details</p>
+                <Card padding="lg" className="rounded-[32px] border border-[#E6DFD3] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,242,235,0.95))] shadow-[0_24px_54px_rgba(130,120,103,0.08)]" as="section">
+                  <div className="mb-7 border-b border-[#E7E0D4] pb-5">
+                    <p className="text-xs uppercase tracking-[0.26em] text-ink-400">Node Details</p>
                     <h2 id="mindmap-node-editor" className="mt-2 font-serif text-[1.9rem] leading-[1.2] text-ink-900">
                       当前节点
                     </h2>
                     <p className="mt-3 text-sm leading-7 text-ink-500">
-                      这里集中编辑节点文本、颜色、层级信息与结构操作。所有保存、导出能力保持不变。
+                      以属性面板的方式管理当前节点的概览、内容、样式与结构操作。所有保存与导出逻辑保持不变。
                     </p>
                   </div>
 
                   <div className="space-y-5">
                     <div
-                      className="rounded-[28px] border border-line/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,241,233,0.92))] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                      className="rounded-[28px] border border-[#E5DED2] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,241,233,0.94))] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
                       style={{ padding: '30px 32px' }}
                     >
+                      <p className="text-xs uppercase tracking-[0.22em] text-ink-400">当前节点概览</p>
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div className="min-w-0">
-                          <p className="text-xs uppercase tracking-[0.18em] text-ink-400">{formatNodeLevel(selectedNodeDepth)}</p>
-                          <h3 className="mt-3 break-words font-serif text-[1.55rem] leading-[1.24] text-ink-900">
+                          <p className="mt-3 text-xs uppercase tracking-[0.18em] text-ink-400">{formatNodeLevel(selectedNodeDepth)}</p>
+                          <h3 className="mt-2 break-words font-serif text-[1.55rem] leading-[1.24] text-ink-900">
                             {selectedNode.label || '未命名节点'}
                           </h3>
                           <p className="mt-3 text-sm leading-7 text-ink-500">
@@ -966,24 +957,38 @@ export default function MindmapDetailPage() {
                       </div>
 
                       <div
-                        className="mt-6 rounded-[22px] border border-line/70 bg-white/85"
+                        className="mt-6 rounded-[22px] border border-[#E7E0D4] bg-[#FCFAF6]"
                         style={{ padding: '18px 24px' }}
                       >
-                        <p className="text-xs uppercase tracking-[0.16em] text-ink-400">Node ID</p>
-                        <p className="mt-2 break-all text-sm leading-6 text-ink-700">{selectedNode.id}</p>
+                        <div className="space-y-3 text-sm text-ink-600">
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-xs uppercase tracking-[0.16em] text-ink-400">Node ID</span>
+                            <span className="break-all text-right text-sm leading-6 text-ink-700">{selectedNode.id}</span>
+                          </div>
+                          <div className="h-px bg-[#EBE4D8]" />
+                          <div className="flex items-center justify-between gap-4">
+                            <span>层级</span>
+                            <span className="font-medium text-ink-900">{formatNodeLevel(selectedNodeDepth)}</span>
+                          </div>
+                          <div className="h-px bg-[#EBE4D8]" />
+                          <div className="flex items-center justify-between gap-4">
+                            <span>子节点数量</span>
+                            <span className="font-medium text-ink-900">{selectedNode.children.length}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
                     <div
-                      className="rounded-[24px] border border-line/75 bg-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                      className="rounded-[24px] border border-[#E7E0D4] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(250,247,241,0.92))] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
                       style={{ padding: '28px 32px' }}
                     >
-                      <p className="text-xs uppercase tracking-[0.18em] text-ink-400">节点文本</p>
+                      <p className="text-xs uppercase tracking-[0.22em] text-ink-400">节点内容</p>
                       <label htmlFor="mindmap-node-label" className="mt-3 block text-sm text-ink-700">
                         节点名称
                       </label>
                       <div
-                        className="mt-3 rounded-[20px] border border-line/80 bg-canvas-2/55 transition-colors focus-within:border-brand focus-within:bg-white"
+                        className="mt-3 rounded-[20px] border border-[#E1DBCF] bg-[#F8F5EE] transition-colors focus-within:border-[#CBBBA4] focus-within:bg-white"
                         style={{ padding: '14px 20px' }}
                       >
                         <input
@@ -997,13 +1002,13 @@ export default function MindmapDetailPage() {
                     </div>
 
                     <div
-                      className="rounded-[24px] border border-line/75 bg-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                      className="rounded-[24px] border border-[#E7E0D4] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(250,247,241,0.92))] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
                       style={{ padding: '28px 32px' }}
                     >
+                      <p className="text-xs uppercase tracking-[0.22em] text-ink-400">节点样式</p>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-xs uppercase tracking-[0.18em] text-ink-400">节点颜色</p>
-                          <p className="mt-2 text-sm text-ink-600">选择一组低饱和配色，用于区分结构层次。</p>
+                          <p className="mt-3 text-sm text-ink-600">选择一组低饱和 Morandi 配色，用于标示结构层次。</p>
                         </div>
                         <span className={cn('rounded-full border px-3.5 py-1.5 text-xs leading-none', colorMeta[selectedNode.color].chip)}>
                           当前色: {colorMeta[selectedNode.color].label}
@@ -1032,49 +1037,28 @@ export default function MindmapDetailPage() {
                     </div>
 
                     <div
-                      className="rounded-[24px] border border-line/75 bg-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                      className="rounded-[24px] border border-[#E7E0D4] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(250,247,241,0.92))] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
                       style={{ padding: '28px 32px' }}
                     >
-                      <p className="text-xs uppercase tracking-[0.18em] text-ink-400">层级信息</p>
-                      <div
-                        className="mt-5 space-y-3 rounded-[20px] border border-line/70 bg-canvas-2/55 text-sm text-ink-600"
-                        style={{ padding: '18px 24px' }}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span>层级</span>
-                          <span className="font-medium text-ink-900">{formatNodeLevel(selectedNodeDepth)}</span>
-                        </div>
-                        <div className="h-px bg-line/70" />
-                        <div className="flex items-center justify-between gap-3">
-                          <span>子节点数量</span>
-                          <span className="font-medium text-ink-900">{selectedNode.children.length}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div
-                      className="rounded-[24px] border border-line/75 bg-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
-                      style={{ padding: '28px 32px' }}
-                    >
-                      <p className="text-xs uppercase tracking-[0.18em] text-ink-400">操作区</p>
+                      <p className="text-xs uppercase tracking-[0.22em] text-ink-400">结构操作</p>
                       <div className="mt-6 flex flex-wrap gap-4">
                         <Button
                           variant="primary"
-                          className="min-h-11 rounded-2xl px-6"
+                          className="min-h-11 rounded-full bg-[#26231F] px-6 text-white hover:bg-[#1D1B18]"
                           onClick={() => handleAddChild(selectedNode.id)}
                         >
                           添加子节点
                         </Button>
                         <Button
                           variant="secondary"
-                          className="min-h-11 rounded-2xl border-line/90 px-6"
+                          className="min-h-11 rounded-full border-[#D6CFC2] bg-[#FCFBF8] px-6 text-ink-700 hover:border-[#BFB5A3] hover:bg-white hover:text-ink-900"
                           onClick={() => handleSelectNode('root')}
                         >
                           选中中心主题
                         </Button>
                         <Button
                           variant="ghost"
-                          className="min-h-11 rounded-2xl border border-red-200 bg-red-50 px-6 text-red-700 hover:border-red-300 hover:bg-red-100"
+                          className="min-h-11 rounded-full border border-[#E5D3D3] bg-[#FBF3F3] px-6 text-[#9E6B6B] hover:border-[#D6BBBB] hover:bg-[#F7E9E9]"
                           onClick={() => handleDeleteNode(selectedNode.id)}
                           disabled={selectedNode.id === 'root'}
                         >
@@ -1084,7 +1068,7 @@ export default function MindmapDetailPage() {
 
                       {selectedNode.id === 'root' && (
                         <p
-                          className="mt-5 rounded-[18px] border border-line/70 bg-canvas-2/55 text-xs leading-6 text-ink-500"
+                          className="mt-5 rounded-[18px] border border-[#E7E0D4] bg-[#F8F5EE] text-xs leading-6 text-ink-500"
                           style={{ padding: '14px 20px' }}
                         >
                           中心主题作为整张导图的起点会被保留，因此这里不提供删除操作。
