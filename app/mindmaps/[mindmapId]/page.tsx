@@ -888,20 +888,20 @@ function DesktopBranchNode({
   const isSecondary = depth === 2
 
   return (
-    <div className="relative scroll-m-[140px] pl-8" data-node-id={node.id}>
-      <div className={cn('pointer-events-none absolute left-0 top-[18px] w-8 opacity-70', tone.line, lineClasses.horizontal)} />
-      <div className="pointer-events-none absolute left-0 top-[18px] bottom-[18px] w-8">
+    <div className="relative scroll-m-[140px] pl-10" data-node-id={node.id}>
+      <div className={cn('pointer-events-none absolute left-0 top-[18px] w-10 opacity-70', tone.line, lineClasses.horizontal)} />
+      <div className="pointer-events-none absolute left-0 top-[18px] bottom-[18px] w-10">
         <div className={cn('absolute left-0 top-0 h-full opacity-35', tone.line, lineClasses.vertical)} />
       </div>
       <div className={cn('pointer-events-none absolute left-[-4px] top-[14px] h-2.5 w-2.5 rounded-full border border-white/70 bg-white shadow-sm', tone.line)} />
       <div className={cn('flex items-start', styleMeta.compact ? 'gap-3.5' : 'gap-5')}>
-        <div className={cn('relative', styleMeta.compact ? 'min-w-[164px] max-w-[214px]' : 'min-w-[178px] max-w-[228px]', isSecondary ? 'pt-0' : 'pt-0.5')}>
+        <div className={cn('relative', styleMeta.compact ? 'min-w-[182px] max-w-[228px]' : 'min-w-[202px] max-w-[248px]', isSecondary ? 'pt-0' : 'pt-0.5')}>
           <div
             className={cn(
               'group relative overflow-hidden border transition-all duration-200',
               isSecondary
-                ? cn('rounded-[999px] border-[#E5DED2] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,246,241,0.96))]', styleMeta.compact ? 'px-3.5 py-1.5' : 'px-4 py-2')
-                : cn('rounded-[18px] border-[#E5DDD1] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,244,238,0.95))]', styleMeta.compact ? 'px-3.5 py-2' : 'px-4 py-2.5'),
+                ? cn('rounded-[999px] border-[#E5DED2] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,246,241,0.96))]', styleMeta.compact ? 'pl-5 pr-4 py-1.5' : 'pl-6 pr-5 py-2')
+                : cn('rounded-[18px] border-[#E5DDD1] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,244,238,0.95))]', styleMeta.compact ? 'pl-5 pr-4 py-2' : 'pl-6 pr-5 py-2.5'),
               tone.secondaryCard,
               isSelected
                 ? 'border-[#CFC2AE] shadow-[0_12px_26px_rgba(130,120,103,0.10)] ring-2 ring-[#E8DECF]'
@@ -926,7 +926,7 @@ function DesktopBranchNode({
           >
             <div className={cn('pointer-events-none absolute left-[-10px] top-1/2 w-10 -translate-y-1/2 opacity-55', tone.line, lineClasses.horizontal)} />
             <div className={cn('pointer-events-none absolute inset-y-2 left-0 rounded-r-full opacity-75', tone.line, lineClasses.accent)} />
-            <div className="relative pr-14">
+            <div className="relative pl-1 pr-14">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[8px] uppercase tracking-[0.18em] text-ink-400">{formatNodeLevel(depth)}</span>
                 {isSelected && (
@@ -1053,7 +1053,7 @@ function DesktopPrimaryColumn({
   const branchUp = index % 2 === 0
 
   return (
-    <div className={cn('relative flex shrink-0 flex-col justify-center', props.styleMeta.compact ? 'w-[268px]' : 'w-[300px]')}>
+    <div className={cn('relative flex shrink-0 flex-col justify-center', props.styleMeta.compact ? 'w-[282px]' : 'w-[320px]')}>
       <div className="pointer-events-none absolute left-0 top-1/2 h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/80 bg-white shadow-sm" />
       <div className={cn('pointer-events-none absolute left-[2px] top-1/2 w-9 -translate-y-1/2 opacity-70', tone.line, lineClasses.horizontal)} />
       <div className={cn('flex flex-col justify-end', props.styleMeta.compact ? 'min-h-[176px]' : 'min-h-[220px]')}>
@@ -1080,11 +1080,11 @@ function DesktopPrimaryColumn({
             )}
           />
         )}
-        <div className={cn('relative scroll-m-[140px]', props.styleMeta.compact ? 'pl-8' : 'pl-10')} data-node-id={node.id}>
+        <div className={cn('relative scroll-m-[140px]', props.styleMeta.compact ? 'pl-9' : 'pl-11')} data-node-id={node.id}>
           <div
             className={cn(
               'group relative overflow-hidden rounded-[26px] border transition-all duration-200',
-              props.styleMeta.compact ? 'min-h-[78px] w-[220px] px-4 py-3.5' : 'min-h-[88px] w-[244px] px-5 py-4',
+              props.styleMeta.compact ? 'min-h-[78px] w-[236px] pl-6 pr-5 py-3.5' : 'min-h-[88px] w-[268px] pl-7 pr-6 py-4',
               'bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,242,235,0.94))]',
               tone.primaryCard,
               isSelected
@@ -1112,7 +1112,7 @@ function DesktopPrimaryColumn({
             <div className={cn('pointer-events-none absolute left-[-10px] top-1/2 h-5 w-5 -translate-y-1/2 rotate-45 rounded-[4px] border border-[#E9E2D6] bg-[rgba(255,255,255,0.95)]', tone.secondaryCard)} />
             <div className={cn('pointer-events-none absolute inset-y-3 left-0 rounded-r-full opacity-85', tone.line, lineClasses.accent)} />
             <div className={cn('pointer-events-none absolute right-[-10px] top-1/2 h-5 w-5 -translate-y-1/2 rotate-45 rounded-[4px] border border-[#E9E2D6] bg-[rgba(246,242,235,0.96)]', tone.secondaryCard)} />
-            <div className="relative pr-16">
+            <div className="relative pl-1 pr-16">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[9px] uppercase tracking-[0.18em] text-ink-400">主题</span>
                 <span className={cn('rounded-full border px-2 py-0.5 text-[9px] leading-none', tone.chip)}>
@@ -2818,7 +2818,7 @@ export default function MindmapDetailPage() {
     return (
       <div className={cn(
         'grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]',
-        fullscreen && 'h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]'
+        fullscreen && 'h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_376px] 2xl:grid-cols-[minmax(0,1fr)_400px]'
       )}>
         {renderCanvasPanel(fullscreen)}
         {renderInspectorPanel(fullscreen)}
