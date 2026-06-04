@@ -596,6 +596,11 @@ function resolveBranchColor(nodeColor: MindmapColor, branchColor: MindmapColor |
   return styleMeta.rainbowBranches && branchColor ? branchColor : nodeColor
 }
 
+function isDesktopBrowserLayout() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+  return window.matchMedia('(hover: hover) and (pointer: fine)').matches
+}
+
 function renderLayoutTemplatePreview(templateId: LayoutTemplateId) {
   const nodeClass = 'absolute h-2.5 rounded-full bg-[#D8CDBF]'
   const lineClass = 'absolute rounded-full bg-[#D8CDBF]/90'
@@ -1201,9 +1206,9 @@ function DesktopPrimaryColumn({
 
 function DesktopMindmapCanvas({
   tree,
-  fullscreen = false,
+  useDesktopLayout = false,
   ...props
-}: { tree: MindmapNode; fullscreen?: boolean } & MindmapRendererProps) {
+}: { tree: MindmapNode; useDesktopLayout?: boolean } & MindmapRendererProps) {
   const tone = colorMeta[tree.color]
   const fontClass = getMindmapFontClass(props.styleMeta.fontFamily)
   const lineClasses = getBranchLineClasses(props.styleMeta.branchLine)
@@ -1216,7 +1221,7 @@ function DesktopMindmapCanvas({
   const searchHighlightClass = getNodeSearchHighlightClass(true, isSearchMatch, isActiveSearchMatch)
 
   return (
-    <div className={cn('hidden min-w-max', fullscreen ? 'md:block' : 'lg:block')}>
+    <div className={cn('hidden min-w-max', useDesktopLayout ? 'block' : 'lg:block')}>
       <div className={cn('flex min-h-[720px] items-center', props.styleMeta.compact ? 'gap-10 px-10 py-10' : 'gap-16 px-16 py-14')}>
         <div className="relative scroll-m-[140px] shrink-0" data-node-id={tree.id}>
           <div className="pointer-events-none absolute inset-[-16px] rounded-[42px] border border-white/35 bg-[radial-gradient(circle,rgba(255,255,255,0.10),transparent_72%)]" />
@@ -1667,6 +1672,7 @@ export default function MindmapDetailPage() {
   const [fullscreenInspectorTab, setFullscreenInspectorTab] = useState<FullscreenInspectorTab>('node')
   const [layoutTemplateNotice, setLayoutTemplateNotice] = useState('')
   const [isFullscreenEditor, setIsFullscreenEditor] = useState(false)
+  const [useDesktopFullscreenLayout, setUseDesktopFullscreenLayout] = useState(false)
   const [scrollRequest, setScrollRequest] = useState<{ nodeId: string; token: number } | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const canvasViewportRef = useRef<HTMLDivElement | null>(null)
@@ -2123,6 +2129,32 @@ export default function MindmapDetailPage() {
   }, [layoutTemplateNotice])
 
   useEffect(() => {
+    if (!isFullscreenEditor) {
+      setUseDesktopFullscreenLayout(false)
+      return
+    }
+
+    const updateLayoutMode = () => {
+      setUseDesktopFullscreenLayout(isDesktopBrowserLayout())
+    }
+
+    updateLayoutMode()
+
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return
+    }
+
+    const mediaQuery = window.matchMedia('(hover: hover) and (pointer: fine)')
+    mediaQuery.addEventListener('change', updateLayoutMode)
+    window.addEventListener('resize', updateLayoutMode)
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateLayoutMode)
+      window.removeEventListener('resize', updateLayoutMode)
+    }
+  }, [isFullscreenEditor])
+
+  useEffect(() => {
     function handleKeydown(event: KeyboardEvent) {
       if (event.isComposing) return
 
@@ -2270,6 +2302,7 @@ export default function MindmapDetailPage() {
 
   function renderCanvasPanel(fullscreen = false) {
     const canvasSurfaceStyle = getCanvasSurfaceStyle(canvasMeta.background)
+    const shouldUseDesktopCanvas = fullscreen ? useDesktopFullscreenLayout : false
 
     return (
       <Card
@@ -2321,7 +2354,7 @@ export default function MindmapDetailPage() {
           </div>
           <div className={cn(
             'mb-4 hidden rounded-[20px] border border-dashed border-[#E3DBCF] bg-[rgba(252,250,245,0.72)] px-4 py-3 text-xs leading-6 text-ink-500',
-            fullscreen ? 'md:block' : 'lg:block'
+            shouldUseDesktopCanvas ? 'block' : 'lg:block'
           )}>
             快捷键：Tab 添加子节点 · Enter 添加同级节点 · Delete 删除 · Cmd/Ctrl+S 保存
           </div>
@@ -2339,7 +2372,7 @@ export default function MindmapDetailPage() {
             >
               <DesktopMindmapCanvas
                 tree={tree}
-                fullscreen={fullscreen}
+                useDesktopLayout={shouldUseDesktopCanvas}
                 styleMeta={canvasMeta}
                 selectedNodeId={selectedNodeId}
                 onAddChild={handleAddChild}
@@ -2356,7 +2389,7 @@ export default function MindmapDetailPage() {
                 editingNodeLabel={editingNodeLabel}
                 matchedNodeIds={matchedNodeIds}
               />
-              <div className={fullscreen ? 'md:hidden' : 'lg:hidden'}>
+              <div className={shouldUseDesktopCanvas ? 'hidden' : 'lg:hidden'}>
                 <TreeNodeCard
                   depth={0}
                   node={tree}
@@ -2824,7 +2857,9 @@ export default function MindmapDetailPage() {
     return (
       <div className={cn(
         'grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]',
-        fullscreen && 'h-full min-h-0 gap-4 md:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_460px]'
+        fullscreen && 'h-full min-h-0 gap-4',
+        fullscreen && useDesktopFullscreenLayout && 'grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_460px]',
+        fullscreen && !useDesktopFullscreenLayout && 'md:grid-cols-[minmax(0,1fr)_380px]'
       )}>
         {renderCanvasPanel(fullscreen)}
         {renderInspectorPanel(fullscreen)}
