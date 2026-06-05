@@ -1979,6 +1979,27 @@ export default function MindmapDetailPage() {
   }, [isFullscreenEditor])
 
   useEffect(() => {
+    if (!isFullscreenEditor) return
+
+    const frame = window.requestAnimationFrame(() => {
+      const viewport = canvasViewportRef.current
+      const rootNode = viewport?.querySelector<HTMLElement>('[data-node-id="root"]')
+
+      if (!viewport || !rootNode) return
+
+      viewport.scrollLeft = 0
+      viewport.scrollTop = 0
+      rootNode.scrollIntoView({
+        behavior: 'auto',
+        block: 'center',
+        inline: 'start',
+      })
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [isFullscreenEditor, tree.id, useDesktopFullscreenLayout])
+
+  useEffect(() => {
     if (!layoutTemplateNotice) return
 
     const timeoutId = window.setTimeout(() => {
@@ -2224,12 +2245,15 @@ export default function MindmapDetailPage() {
             tabIndex={-1}
             className={cn(
               'overflow-auto overscroll-contain rounded-none bg-transparent outline-none',
-              fullscreen ? 'min-h-[420px] flex-1' : 'lg:h-[760px]'
+              fullscreen ? 'h-full min-h-0 flex-1' : 'lg:h-[760px]'
             )}
           >
             <div
-              className="min-h-full min-w-max"
-              style={{ padding: '48px 96px 80px 96px' }}
+              className={cn(
+                'min-h-full min-w-max',
+                fullscreen && 'min-h-[720px] w-max'
+              )}
+              style={{ padding: fullscreen ? '64px 96px 96px 96px' : '48px 96px 80px 96px' }}
             >
               <DesktopMindmapCanvas
                 tree={tree}
