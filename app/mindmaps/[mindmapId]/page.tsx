@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import { Button } from '@/components/ui/Button'
@@ -8,47 +8,164 @@ import { Card } from '@/components/ui/Card'
 import { MainContent } from '@/components/ui/MainContent'
 import { cn } from '@/components/ui/cn'
 import { supabase } from '@/lib/supabase'
-
-type MindmapColor = 'blue' | 'green' | 'orange' | 'purple' | 'rose' | 'gray'
-type MindmapLayout = 'xmind-axis' | 'logic' | 'right' | 'vertical'
-type MindmapBackground = 'paper' | 'white' | 'warm-gray' | 'dark'
-type MindmapFontFamily = 'serif' | 'sans' | 'mono'
-type MindmapBranchLine = 'thin' | 'default' | 'thick'
-type LayoutTemplateId = 'xmind-axis' | 'right' | 'logic' | 'organization' | 'timeline' | 'fishbone'
-
-type MindmapMeta = {
-  layout: MindmapLayout
-  background: MindmapBackground
-  fontFamily: MindmapFontFamily
-  branchLine: MindmapBranchLine
-  rainbowBranches: boolean
-  compact: boolean
-}
-
-type MindmapNode = {
-  id: string
-  label: string
-  color: MindmapColor
-  collapsed?: boolean
-  meta?: Partial<MindmapMeta>
-  note?: string
-  tags?: string[]
-  children: MindmapNode[]
-}
+import {
+  buildFishboneSvgLayout,
+  buildOrganizationTreeLayout,
+  buildTimelineSvgLayout,
+  buildXmindAxisTreeLayout,
+  buildXmindTopDownTreeLayout,
+  buildXmindTreeLayout,
+  type LayoutResult,
+  type XmindLayoutDirection,
+} from './mindmap-layout'
+import {
+  addChildNode,
+  addSiblingNode,
+  collectMatchingNodeIds,
+  countNodes,
+  expandPathToNode,
+  findNodeById,
+  findNodeDepth,
+  findParentNode,
+  getVisibleNavigationEntries,
+  promoteNodeById,
+  removeNodeById,
+  setNodeCollapsed,
+  setTreeCollapsedState,
+  updateNodeById,
+} from './mindmap-tree'
+import type {
+  LayoutTemplateId,
+  MindmapBackground,
+  MindmapBranchLine,
+  MindmapColor,
+  MindmapFontFamily,
+  MindmapMeta,
+  MindmapNavigationEntry,
+  MindmapNode,
+  MindmapTheme,
+  MindmapViewport,
+} from './mindmap-types'
+import { mindmapColorOrder } from './mindmap-types'
 
 type ScreenState = 'loading' | 'ready' | 'auth' | 'missing' | 'error'
 type NodeInspectorTab = 'content' | 'style' | 'structure'
 type FullscreenInspectorTab = 'node' | 'canvas'
+type MindmapHistoryEntry = {
+  title: string
+  tree: MindmapNode
+}
 
-const colorOrder: MindmapColor[] = ['blue', 'green', 'orange', 'purple', 'rose', 'gray']
+const colorOrder = mindmapColorOrder
+const minCanvasZoom = 0.6
+const maxCanvasZoom = 1.6
+const canvasZoomStep = 0.1
+const maxMindmapHistoryEntries = 80
+const authLoadTimeoutMs = 12_000
+const mindmapLoadTimeoutMs = 15_000
+const defaultCanvasViewport: MindmapViewport = { x: 0, y: 0, zoom: 1 }
 const defaultMindmapMeta: MindmapMeta = {
   layout: 'xmind-axis',
+  theme: 'classic',
   background: 'paper',
   fontFamily: 'serif',
   branchLine: 'thin',
   rainbowBranches: false,
   compact: false,
 }
+
+const mindmapThemeOptions: Array<{
+  id: MindmapTheme
+  label: string
+  description: string
+  colors: [string, string, string]
+  patch: Omit<Partial<MindmapMeta>, 'layout'>
+}> = [
+  {
+    id: 'classic',
+    label: '经典纸本',
+    description: '柔和纸张、细线、适合长时间编辑。',
+    colors: ['#7EA9B8', '#B7A58D', '#93AD99'],
+    patch: {
+      theme: 'classic',
+      background: 'paper',
+      fontFamily: 'serif',
+      branchLine: 'thin',
+      rainbowBranches: false,
+      compact: false,
+    },
+  },
+  {
+    id: 'business',
+    label: '商务清爽',
+    description: '白底、无衬线、线条更清晰。',
+    colors: ['#5D7482', '#8B9AA0', '#C6A06F'],
+    patch: {
+      theme: 'business',
+      background: 'white',
+      fontFamily: 'sans',
+      branchLine: 'default',
+      rainbowBranches: false,
+      compact: false,
+    },
+  },
+  {
+    id: 'rainbow',
+    label: '彩虹分支',
+    description: '多色分支，适合分类和头脑风暴。',
+    colors: ['#7EA9B8', '#93AD99', '#C58A8A'],
+    patch: {
+      theme: 'rainbow',
+      background: 'paper',
+      fontFamily: 'serif',
+      branchLine: 'default',
+      rainbowBranches: true,
+      compact: false,
+    },
+  },
+  {
+    id: 'compact',
+    label: '紧凑阅读',
+    description: '压缩间距，分支多时更省空间。',
+    colors: ['#8C928B', '#B8A47C', '#829BA4'],
+    patch: {
+      theme: 'compact',
+      background: 'warm-gray',
+      fontFamily: 'sans',
+      branchLine: 'thin',
+      rainbowBranches: true,
+      compact: true,
+    },
+  },
+  {
+    id: 'dark',
+    label: '深色画布',
+    description: '深色背景，适合演示和低光环境。',
+    colors: ['#8EAFC0', '#9AB58F', '#C7A17A'],
+    patch: {
+      theme: 'dark',
+      background: 'dark',
+      fontFamily: 'sans',
+      branchLine: 'default',
+      rainbowBranches: true,
+      compact: false,
+    },
+  },
+  {
+    id: 'minimal',
+    label: '极简白板',
+    description: '白底细线，减少视觉干扰。',
+    colors: ['#A4B1B6', '#B7A58D', '#A6AA9D'],
+    patch: {
+      theme: 'minimal',
+      background: 'white',
+      fontFamily: 'sans',
+      branchLine: 'thin',
+      rainbowBranches: false,
+      compact: true,
+    },
+  },
+]
 
 const colorMeta: Record<MindmapColor, {
   label: string
@@ -69,8 +186,8 @@ const colorMeta: Record<MindmapColor, {
     selected: 'ring-2 ring-[#D5E4E9]',
     rootCard: 'border-[#5F8897] bg-[linear-gradient(180deg,#7EA9B8_0%,#6F9FB0_56%,#668F9F_100%)] text-white shadow-[0_24px_48px_rgba(111,159,176,0.22)]',
     rootBadge: 'border-white/18 bg-white/12 text-white/88',
-    primaryCard: 'border-[#C8D8DE] bg-[linear-gradient(180deg,rgba(238,246,248,0.98),rgba(247,250,250,0.92))] shadow-[0_12px_26px_rgba(111,159,176,0.10)]',
-    secondaryCard: 'border-[#D6E5EA] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,252,252,0.92))] shadow-[0_8px_18px_rgba(111,159,176,0.06)]',
+    primaryCard: 'border-[#C8D8DE] bg-[linear-gradient(180deg,#EEF6F8_0%,#F7FAFA_100%)] shadow-[0_12px_26px_rgba(111,159,176,0.10)]',
+    secondaryCard: 'border-[#D6E5EA] bg-[linear-gradient(180deg,#FFFFFF_0%,#F9FCFC_100%)] shadow-[0_8px_18px_rgba(111,159,176,0.06)]',
     line: 'bg-[#C9D9DE]',
     arrow: 'border-[#C1D4DA]',
   },
@@ -81,8 +198,8 @@ const colorMeta: Record<MindmapColor, {
     selected: 'ring-2 ring-[#D7E4DA]',
     rootCard: 'border-[#6D9077] bg-[linear-gradient(180deg,#8DB196_0%,#7FA58A_56%,#6F9579_100%)] text-white shadow-[0_24px_48px_rgba(127,165,138,0.22)]',
     rootBadge: 'border-white/18 bg-white/12 text-white/88',
-    primaryCard: 'border-[#D1DED4] bg-[linear-gradient(180deg,rgba(240,247,241,0.98),rgba(248,250,247,0.92))] shadow-[0_12px_26px_rgba(127,165,138,0.10)]',
-    secondaryCard: 'border-[#DCE8DF] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,252,250,0.92))] shadow-[0_8px_18px_rgba(127,165,138,0.06)]',
+    primaryCard: 'border-[#D1DED4] bg-[linear-gradient(180deg,#F0F7F1_0%,#F8FAF7_100%)] shadow-[0_12px_26px_rgba(127,165,138,0.10)]',
+    secondaryCard: 'border-[#DCE8DF] bg-[linear-gradient(180deg,#FFFFFF_0%,#F9FCFA_100%)] shadow-[0_8px_18px_rgba(127,165,138,0.06)]',
     line: 'bg-[#D1DDD3]',
     arrow: 'border-[#C9D8CC]',
   },
@@ -93,8 +210,8 @@ const colorMeta: Record<MindmapColor, {
     selected: 'ring-2 ring-[#E8D8C7]',
     rootCard: 'border-[#B78758] bg-[linear-gradient(180deg,#D3AA80_0%,#C69A6D_56%,#B78D62_100%)] text-white shadow-[0_24px_48px_rgba(198,154,109,0.22)]',
     rootBadge: 'border-white/18 bg-white/12 text-white/88',
-    primaryCard: 'border-[#E2D2C1] bg-[linear-gradient(180deg,rgba(250,243,234,0.98),rgba(250,248,243,0.92))] shadow-[0_12px_26px_rgba(198,154,109,0.10)]',
-    secondaryCard: 'border-[#EBE0D3] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(252,249,245,0.92))] shadow-[0_8px_18px_rgba(198,154,109,0.06)]',
+    primaryCard: 'border-[#E2D2C1] bg-[linear-gradient(180deg,#FAF3EA_0%,#FAF8F3_100%)] shadow-[0_12px_26px_rgba(198,154,109,0.10)]',
+    secondaryCard: 'border-[#EBE0D3] bg-[linear-gradient(180deg,#FFFFFF_0%,#FCF9F5_100%)] shadow-[0_8px_18px_rgba(198,154,109,0.06)]',
     line: 'bg-[#E0D2C3]',
     arrow: 'border-[#D7C7B6]',
   },
@@ -105,8 +222,8 @@ const colorMeta: Record<MindmapColor, {
     selected: 'ring-2 ring-[#DDD6E7]',
     rootCard: 'border-[#85739F] bg-[linear-gradient(180deg,#A694C0_0%,#9A88B5_56%,#8D7BA8_100%)] text-white shadow-[0_24px_48px_rgba(154,136,181,0.22)]',
     rootBadge: 'border-white/18 bg-white/12 text-white/88',
-    primaryCard: 'border-[#DED7E8] bg-[linear-gradient(180deg,rgba(245,240,250,0.98),rgba(250,247,252,0.92))] shadow-[0_12px_26px_rgba(154,136,181,0.10)]',
-    secondaryCard: 'border-[#E8E0F0] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(251,249,253,0.92))] shadow-[0_8px_18px_rgba(154,136,181,0.06)]',
+    primaryCard: 'border-[#DED7E8] bg-[linear-gradient(180deg,#F5F0FA_0%,#FAF7FC_100%)] shadow-[0_12px_26px_rgba(154,136,181,0.10)]',
+    secondaryCard: 'border-[#E8E0F0] bg-[linear-gradient(180deg,#FFFFFF_0%,#FBF9FD_100%)] shadow-[0_8px_18px_rgba(154,136,181,0.06)]',
     line: 'bg-[#D8D0E3]',
     arrow: 'border-[#CDC4DB]',
   },
@@ -117,8 +234,8 @@ const colorMeta: Record<MindmapColor, {
     selected: 'ring-2 ring-[#E8D4D4]',
     rootCard: 'border-[#B67878] bg-[linear-gradient(180deg,#CE9A9A_0%,#C58A8A_56%,#B67B7B_100%)] text-white shadow-[0_24px_48px_rgba(197,138,138,0.22)]',
     rootBadge: 'border-white/18 bg-white/12 text-white/88',
-    primaryCard: 'border-[#E4D0D0] bg-[linear-gradient(180deg,rgba(250,240,240,0.98),rgba(251,247,247,0.92))] shadow-[0_12px_26px_rgba(197,138,138,0.10)]',
-    secondaryCard: 'border-[#ECDEDE] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(252,248,248,0.92))] shadow-[0_8px_18px_rgba(197,138,138,0.06)]',
+    primaryCard: 'border-[#E4D0D0] bg-[linear-gradient(180deg,#FAF0F0_0%,#FBF7F7_100%)] shadow-[0_12px_26px_rgba(197,138,138,0.10)]',
+    secondaryCard: 'border-[#ECDEDE] bg-[linear-gradient(180deg,#FFFFFF_0%,#FCF8F8_100%)] shadow-[0_8px_18px_rgba(197,138,138,0.06)]',
     line: 'bg-[#E1CFCF]',
     arrow: 'border-[#D8C4C4]',
   },
@@ -129,11 +246,71 @@ const colorMeta: Record<MindmapColor, {
     selected: 'ring-2 ring-[#D7D7D1]',
     rootCard: 'border-[#84847D] bg-[linear-gradient(180deg,#ABABA4_0%,#9A9A92_56%,#8E8E87_100%)] text-white shadow-[0_24px_48px_rgba(154,154,146,0.22)]',
     rootBadge: 'border-white/18 bg-white/12 text-white/88',
-    primaryCard: 'border-[#DDDCD7] bg-[linear-gradient(180deg,rgba(243,242,238,0.98),rgba(250,249,246,0.92))] shadow-[0_12px_26px_rgba(154,154,146,0.10)]',
-    secondaryCard: 'border-[#E5E4DE] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(250,249,246,0.92))] shadow-[0_8px_18px_rgba(154,154,146,0.06)]',
+    primaryCard: 'border-[#DDDCD7] bg-[linear-gradient(180deg,#F3F2EE_0%,#FAF9F6_100%)] shadow-[0_12px_26px_rgba(154,154,146,0.10)]',
+    secondaryCard: 'border-[#E5E4DE] bg-[linear-gradient(180deg,#FFFFFF_0%,#FAF9F6_100%)] shadow-[0_8px_18px_rgba(154,154,146,0.06)]',
     line: 'bg-[#D7D5CF]',
     arrow: 'border-[#CBC9C3]',
   },
+}
+
+const xmindColorMeta: Record<MindmapColor, {
+  accent: string
+  soft: string
+  text: string
+  line: string
+  action: string
+}> = {
+  blue: {
+    accent: 'border-[#62A8BF] bg-[#62A8BF] text-white',
+    soft: 'border-transparent bg-[#E9F6F8] text-[#2F687A]',
+    text: 'text-[#2F687A]',
+    line: '#62A8BF',
+    action: 'border-[#BFDDE5] bg-white text-[#2F687A] hover:bg-[#F3FAFB]',
+  },
+  green: {
+    accent: 'border-[#79B99F] bg-[#79B99F] text-white',
+    soft: 'border-transparent bg-[#EAF7F1] text-[#477C66]',
+    text: 'text-[#477C66]',
+    line: '#79B99F',
+    action: 'border-[#C8E4D8] bg-white text-[#477C66] hover:bg-[#F3FBF7]',
+  },
+  orange: {
+    accent: 'border-[#FF9C62] bg-[#FF9C62] text-white',
+    soft: 'border-transparent bg-[#FFF0E6] text-[#A55F34]',
+    text: 'text-[#A55F34]',
+    line: '#FF9C62',
+    action: 'border-[#F1D2BD] bg-white text-[#A55F34] hover:bg-[#FFF8F3]',
+  },
+  purple: {
+    accent: 'border-[#A78AC9] bg-[#A78AC9] text-white',
+    soft: 'border-transparent bg-[#F2ECFA] text-[#715892]',
+    text: 'text-[#715892]',
+    line: '#A78AC9',
+    action: 'border-[#D8C8EA] bg-white text-[#715892] hover:bg-[#FAF7FD]',
+  },
+  rose: {
+    accent: 'border-[#EF7777] bg-[#EF7777] text-white',
+    soft: 'border-transparent bg-[#FDECEC] text-[#A45454]',
+    text: 'text-[#A45454]',
+    line: '#EF7777',
+    action: 'border-[#F1C7C7] bg-white text-[#A45454] hover:bg-[#FFF7F7]',
+  },
+  gray: {
+    accent: 'border-[#9EA2A0] bg-[#9EA2A0] text-white',
+    soft: 'border-transparent bg-[#F0F1EF] text-[#686D6A]',
+    text: 'text-[#686D6A]',
+    line: '#9EA2A0',
+    action: 'border-[#D7DAD7] bg-white text-[#686D6A] hover:bg-[#F8F9F7]',
+  },
+}
+
+const svgColorMeta: Record<MindmapColor, { fill: string; softFill: string; text: string; line: string }> = {
+  blue: { fill: '#62A8BF', softFill: '#E9F6F8', text: '#2F687A', line: '#62A8BF' },
+  green: { fill: '#79B99F', softFill: '#EAF7F1', text: '#477C66', line: '#79B99F' },
+  orange: { fill: '#FF9C62', softFill: '#FFF0E6', text: '#A55F34', line: '#FF9C62' },
+  purple: { fill: '#A78AC9', softFill: '#F2ECFA', text: '#715892', line: '#A78AC9' },
+  rose: { fill: '#EF7777', softFill: '#FDECEC', text: '#A45454', line: '#EF7777' },
+  gray: { fill: '#9EA2A0', softFill: '#F0F1EF', text: '#686D6A', line: '#9EA2A0' },
 }
 
 function createInitialMindmapTree(): MindmapNode {
@@ -166,13 +343,41 @@ function normalizeColor(value: unknown): MindmapColor {
     : 'gray'
 }
 
+function normalizeMindmapTheme(value: unknown): MindmapTheme {
+  return typeof value === 'string' && mindmapThemeOptions.some(option => option.id === value)
+    ? value as MindmapTheme
+    : defaultMindmapMeta.theme
+}
+
+function clampCanvasZoom(value: number) {
+  const clamped = Math.min(maxCanvasZoom, Math.max(minCanvasZoom, value))
+  return Math.round(clamped * 100) / 100
+}
+
+function normalizeCanvasViewport(value: unknown): MindmapViewport {
+  const record = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const x = typeof record.x === 'number' && Number.isFinite(record.x) ? record.x : defaultCanvasViewport.x
+  const y = typeof record.y === 'number' && Number.isFinite(record.y) ? record.y : defaultCanvasViewport.y
+  const zoom = typeof record.zoom === 'number' && Number.isFinite(record.zoom)
+    ? clampCanvasZoom(record.zoom)
+    : defaultCanvasViewport.zoom
+
+  return { x, y, zoom }
+}
+
 function normalizeMindmapMeta(value: unknown): MindmapMeta {
   const record = value && typeof value === 'object' ? value as Record<string, unknown> : {}
 
   return {
-    layout: record.layout === 'logic' || record.layout === 'right' || record.layout === 'vertical' || record.layout === 'xmind-axis'
+    layout: record.layout === 'logic'
+      || record.layout === 'right'
+      || record.layout === 'organization'
+      || record.layout === 'timeline'
+      || record.layout === 'fishbone'
+      || record.layout === 'xmind-axis'
       ? record.layout
       : defaultMindmapMeta.layout,
+    theme: normalizeMindmapTheme(record.theme),
     background: record.background === 'white' || record.background === 'warm-gray' || record.background === 'dark' || record.background === 'paper'
       ? record.background
       : defaultMindmapMeta.background,
@@ -188,7 +393,17 @@ function normalizeMindmapMeta(value: unknown): MindmapMeta {
     compact: typeof record.compact === 'boolean'
       ? record.compact
       : defaultMindmapMeta.compact,
+    viewport: record.viewport ? normalizeCanvasViewport(record.viewport) : undefined,
   }
+}
+
+function doesMindmapMetaMatchTheme(meta: MindmapMeta, option: (typeof mindmapThemeOptions)[number]) {
+  return meta.theme === option.id
+    && meta.background === option.patch.background
+    && meta.fontFamily === option.patch.fontFamily
+    && meta.branchLine === option.patch.branchLine
+    && meta.rainbowBranches === option.patch.rainbowBranches
+    && meta.compact === option.patch.compact
 }
 
 function normalizeNode(value: unknown, fallbackId: string): MindmapNode {
@@ -235,227 +450,6 @@ function normalizeTree(value: unknown): MindmapNode {
     collapsed: false,
     meta: normalizeMindmapMeta(node.meta),
   }
-}
-
-function findNodeById(node: MindmapNode, nodeId: string): MindmapNode | null {
-  if (node.id === nodeId) return node
-  for (const child of node.children) {
-    const match = findNodeById(child, nodeId)
-    if (match) return match
-  }
-  return null
-}
-
-function findNodeDepth(node: MindmapNode, nodeId: string, depth = 0): number | null {
-  if (node.id === nodeId) return depth
-  for (const child of node.children) {
-    const match = findNodeDepth(child, nodeId, depth + 1)
-    if (match !== null) return match
-  }
-  return null
-}
-
-function updateNodeById(
-  node: MindmapNode,
-  nodeId: string,
-  updater: (current: MindmapNode) => MindmapNode
-): { nextNode: MindmapNode; changed: boolean } {
-  if (node.id === nodeId) {
-    return { nextNode: updater(node), changed: true }
-  }
-
-  let changed = false
-  const nextChildren = node.children.map(child => {
-    const result = updateNodeById(child, nodeId, updater)
-    if (result.changed) changed = true
-    return result.nextNode
-  })
-
-  if (!changed) return { nextNode: node, changed: false }
-
-  return {
-    nextNode: {
-      ...node,
-      children: nextChildren,
-    },
-    changed: true,
-  }
-}
-
-function addChildNode(
-  node: MindmapNode,
-  parentId: string,
-  childNode: MindmapNode
-): { nextNode: MindmapNode; added: boolean } {
-  if (node.id === parentId) {
-    return {
-      nextNode: {
-        ...node,
-        children: [...node.children, childNode],
-      },
-      added: true,
-    }
-  }
-
-  let added = false
-  const nextChildren = node.children.map(child => {
-    const result = addChildNode(child, parentId, childNode)
-    if (result.added) added = true
-    return result.nextNode
-  })
-
-  if (!added) return { nextNode: node, added: false }
-
-  return {
-    nextNode: {
-      ...node,
-      children: nextChildren,
-    },
-    added: true,
-  }
-}
-
-function findParentNode(node: MindmapNode, nodeId: string): MindmapNode | null {
-  for (const child of node.children) {
-    if (child.id === nodeId) return node
-    const match = findParentNode(child, nodeId)
-    if (match) return match
-  }
-
-  return null
-}
-
-function addSiblingNode(
-  node: MindmapNode,
-  nodeId: string,
-  siblingNode: MindmapNode
-): { nextNode: MindmapNode; added: boolean } {
-  const siblingIndex = node.children.findIndex(child => child.id === nodeId)
-  if (siblingIndex >= 0) {
-    const nextChildren = [...node.children]
-    nextChildren.splice(siblingIndex + 1, 0, siblingNode)
-    return {
-      nextNode: {
-        ...node,
-        children: nextChildren,
-      },
-      added: true,
-    }
-  }
-
-  let added = false
-  const nextChildren = node.children.map(child => {
-    const result = addSiblingNode(child, nodeId, siblingNode)
-    if (result.added) added = true
-    return result.nextNode
-  })
-
-  if (!added) return { nextNode: node, added: false }
-
-  return {
-    nextNode: {
-      ...node,
-      children: nextChildren,
-    },
-    added: true,
-  }
-}
-
-function removeNodeById(node: MindmapNode, nodeId: string): { nextNode: MindmapNode; removed: boolean } {
-  const nextChildren: MindmapNode[] = []
-  let removed = false
-
-  for (const child of node.children) {
-    if (child.id === nodeId) {
-      removed = true
-      continue
-    }
-
-    const result = removeNodeById(child, nodeId)
-    if (result.removed) removed = true
-    nextChildren.push(result.nextNode)
-  }
-
-  if (!removed) return { nextNode: node, removed: false }
-
-  return {
-    nextNode: {
-      ...node,
-      children: nextChildren,
-    },
-    removed: true,
-  }
-}
-
-function countNodes(node: MindmapNode): number {
-  let total = 1
-  for (const child of node.children) total += countNodes(child)
-  return total
-}
-
-function setNodeCollapsed(
-  node: MindmapNode,
-  nodeId: string,
-  collapsed: boolean
-): { nextNode: MindmapNode; changed: boolean } {
-  return updateNodeById(node, nodeId, current => ({
-    ...current,
-    collapsed,
-  }))
-}
-
-function setTreeCollapsedState(node: MindmapNode, collapsed: boolean, keepRootExpanded = false): MindmapNode {
-  return {
-    ...node,
-    collapsed: keepRootExpanded && node.id === 'root' ? false : collapsed,
-    children: node.children.map(child => setTreeCollapsedState(child, collapsed, keepRootExpanded)),
-  }
-}
-
-function findNodePath(node: MindmapNode, nodeId: string, path: string[] = []): string[] | null {
-  const nextPath = [...path, node.id]
-  if (node.id === nodeId) return nextPath
-
-  for (const child of node.children) {
-    const match = findNodePath(child, nodeId, nextPath)
-    if (match) return match
-  }
-
-  return null
-}
-
-function expandPathToNode(node: MindmapNode, nodeId: string): MindmapNode {
-  const path = findNodePath(node, nodeId)
-  if (!path) return node
-
-  const ancestorIds = new Set(path.slice(0, -1))
-
-  function visit(current: MindmapNode): MindmapNode {
-    const nextChildren = current.children.map(visit)
-    const shouldExpand = ancestorIds.has(current.id)
-    return {
-      ...current,
-      collapsed: shouldExpand ? false : current.collapsed,
-      children: nextChildren,
-    }
-  }
-
-  return visit(node)
-}
-
-function buildNodeSearchText(node: MindmapNode) {
-  return [node.label, node.note ?? '', node.tags?.join(' ') ?? '']
-    .join('\n')
-    .toLowerCase()
-}
-
-function collectMatchingNodeIds(node: MindmapNode, keyword: string): string[] {
-  const normalized = keyword.trim().toLowerCase()
-  if (!normalized) return []
-
-  const matchesCurrent = buildNodeSearchText(node).includes(normalized) ? [node.id] : []
-  const childMatches = node.children.flatMap(child => collectMatchingNodeIds(child, normalized))
-  return [...matchesCurrent, ...childMatches]
 }
 
 function createNodeId() {
@@ -524,6 +518,111 @@ function downloadFile(filename: string, content: string, mimeType: string) {
   window.URL.revokeObjectURL(url)
 }
 
+function runWithTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(errorMessage))
+    }, timeoutMs)
+
+    promise
+      .then(resolve, reject)
+      .finally(() => window.clearTimeout(timeoutId))
+  })
+}
+
+function escapeXml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+function wrapSvgText(value: string, maxLineLength: number) {
+  const normalized = normalizeMarkdownText(value, '未命名节点')
+  const lines: string[] = []
+  for (let index = 0; index < normalized.length; index += maxLineLength) {
+    lines.push(normalized.slice(index, index + maxLineLength))
+  }
+  return lines.slice(0, 3)
+}
+
+function getSvgLayout(tree: MindmapNode, styleMeta: MindmapMeta) {
+  if (styleMeta.layout === 'xmind-axis') return buildXmindAxisTreeLayout(tree, styleMeta)
+  if (styleMeta.layout === 'right') return buildXmindTreeLayout(tree, styleMeta)
+  if (styleMeta.layout === 'timeline') return buildTimelineSvgLayout(tree, styleMeta)
+  if (styleMeta.layout === 'fishbone') return buildFishboneSvgLayout(tree, styleMeta)
+  if (styleMeta.layout === 'organization') return buildOrganizationTreeLayout(tree, styleMeta)
+  return buildXmindTopDownTreeLayout(tree, styleMeta)
+}
+
+function getLayoutConnectorPath(
+  connector: { fromX: number; fromY: number; kind?: 'curve' | 'spine'; toX: number; toY: number },
+  direction?: XmindLayoutDirection
+) {
+  if (connector.kind === 'spine') {
+    return `M ${connector.fromX} ${connector.fromY} L ${connector.toX} ${connector.toY}`
+  }
+
+  const vertical = direction === 'down'
+    || Math.abs(connector.toY - connector.fromY) > Math.abs(connector.toX - connector.fromX)
+  const controlOffset = vertical
+    ? Math.max(46, Math.min(120, Math.abs(connector.toY - connector.fromY) * 0.5))
+    : Math.max(76, Math.min(180, Math.abs(connector.toX - connector.fromX) * 0.45))
+  const horizontalDirection = connector.toX >= connector.fromX ? 1 : -1
+  const verticalDirection = connector.toY >= connector.fromY ? 1 : -1
+
+  return vertical
+    ? `M ${connector.fromX} ${connector.fromY} C ${connector.fromX} ${connector.fromY + controlOffset * verticalDirection}, ${connector.toX} ${connector.toY - controlOffset * verticalDirection}, ${connector.toX} ${connector.toY}`
+    : `M ${connector.fromX} ${connector.fromY} C ${connector.fromX + controlOffset * horizontalDirection} ${connector.fromY}, ${connector.toX - controlOffset * horizontalDirection} ${connector.toY}, ${connector.toX} ${connector.toY}`
+}
+
+function buildMindmapSvg(tree: MindmapNode, title: string, styleMeta: MindmapMeta) {
+  const layout = getSvgLayout(tree, styleMeta)
+  const width = Math.max(960, Math.ceil(layout.width + 80))
+  const height = Math.max(720, Math.ceil(layout.height + 80))
+  const background = styleMeta.background === 'dark' ? '#24272D' : styleMeta.background === 'white' ? '#FFFFFF' : '#F8F4EC'
+  const lineWidth = styleMeta.branchLine === 'thick' ? 2.4 : styleMeta.branchLine === 'default' ? 1.8 : 1.25
+  const escapedTitle = escapeXml(title.trim() || '未命名导图')
+
+  const connectorSvg = layout.connectors.map(connector => {
+    const pathData = getLayoutConnectorPath(connector)
+
+    return `<path d="${pathData}" fill="none" stroke="${connector.color}" stroke-linecap="round" stroke-width="${lineWidth}" opacity="0.78" />`
+  }).join('\n')
+
+  const nodeSvg = layout.nodes.map(placement => {
+    const color = svgColorMeta[placement.branchColor ?? placement.node.color]
+    const isRoot = placement.depth === 0
+    const isPrimary = placement.depth === 1
+    const fill = isRoot ? '#111111' : isPrimary ? color.fill : color.softFill
+    const textColor = isRoot || isPrimary ? '#FFFFFF' : color.text
+    const radius = isRoot ? 7 : isPrimary ? 6 : 5
+    const lines = wrapSvgText(placement.node.label, isRoot ? 18 : 22)
+    const fontSize = isRoot ? 18 : isPrimary ? 14 : 12
+    const lineHeight = fontSize + 4
+    const textStartY = placement.y + placement.height / 2 - ((lines.length - 1) * lineHeight) / 2 + fontSize / 2 - 2
+    const textSvg = lines.map((line, index) => (
+      `<text x="${placement.x + placement.width / 2}" y="${textStartY + index * lineHeight}" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="${fontSize}" font-weight="${isRoot || isPrimary ? 600 : 500}" fill="${textColor}">${escapeXml(line)}</text>`
+    )).join('\n')
+
+    return [
+      `<rect x="${placement.x}" y="${placement.y}" width="${placement.width}" height="${placement.height}" rx="${radius}" fill="${fill}" stroke="${isRoot ? '#111111' : color.line}" stroke-width="1" />`,
+      textSvg,
+    ].join('\n')
+  }).join('\n')
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapedTitle}">`,
+    `<rect width="100%" height="100%" fill="${background}" />`,
+    `<text x="40" y="44" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="600" fill="${styleMeta.background === 'dark' ? '#F8FAFC' : '#2F2D29'}">${escapedTitle}</text>`,
+    connectorSvg,
+    nodeSvg,
+    '</svg>',
+  ].join('\n')
+}
+
 function isTypingTarget(target: EventTarget | null) {
   return target instanceof HTMLElement
     && target.closest('input, textarea, select, button, [contenteditable="true"], [role="textbox"]') !== null
@@ -557,8 +656,8 @@ function getCanvasSurfaceStyle(background: MindmapBackground) {
 
   if (background === 'dark') {
     return {
-      backgroundImage: 'linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px), radial-gradient(circle at top left, rgba(137,165,177,0.14), transparent 24%), linear-gradient(180deg, rgba(42,45,50,0.98), rgba(28,31,36,0.98))',
-      backgroundSize: '30px 30px, 30px 30px, auto, auto',
+      backgroundImage: 'linear-gradient(rgba(255,255,255,0.024) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.024) 1px, transparent 1px), radial-gradient(circle at top left, rgba(112,139,152,0.12), transparent 28%), linear-gradient(180deg, rgba(34,38,43,0.98), rgba(24,27,31,0.98))',
+      backgroundSize: '32px 32px, 32px 32px, auto, auto',
     }
   }
 
@@ -596,9 +695,9 @@ function resolveBranchColor(nodeColor: MindmapColor, branchColor: MindmapColor |
   return styleMeta.rainbowBranches && branchColor ? branchColor : nodeColor
 }
 
-function isDesktopBrowserLayout() {
+function isMobileBrowserLayout() {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
-  return window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  return window.matchMedia('(max-width: 1023px)').matches
 }
 
 function renderLayoutTemplatePreview(templateId: LayoutTemplateId) {
@@ -738,6 +837,7 @@ function nodeActionClassName(level: 'root' | 'primary' | 'secondary', emphasis: 
 }
 
 type MindmapRendererProps = Omit<TreeNodeCardProps, 'depth' | 'node'>
+type MindmapLayoutBuilder = (tree: MindmapNode, styleMeta: MindmapMeta) => LayoutResult
 
 function getNodeSearchHighlightClass(
   isRoot: boolean,
@@ -759,459 +859,13 @@ function getNodeSearchHighlightClass(
   return null
 }
 
-function DesktopBranchNode({
-  depth,
-  branchColor,
-  node,
-  styleMeta,
-  selectedNodeId,
-  onAddChild,
-  onAddSibling,
-  onDelete,
-  onInlineEditCancel,
-  onInlineEditChange,
-  onInlineEditCommit,
-  onInlineEditStart,
-  onSelect,
-  onToggleCollapse,
-  activeSearchNodeId,
-  editingNodeId,
-  editingNodeLabel,
-  matchedNodeIds,
-}: { depth: number; node: MindmapNode } & MindmapRendererProps) {
-  const tone = colorMeta[resolveBranchColor(node.color, branchColor, styleMeta)]
-  const fontClass = getMindmapFontClass(styleMeta.fontFamily)
-  const lineClasses = getBranchLineClasses(styleMeta.branchLine)
-  const isSelected = node.id === selectedNodeId
-  const isInlineEditing = editingNodeId === node.id
-  const hasChildren = node.children.length > 0
-  const isCollapsed = Boolean(node.collapsed) && hasChildren
-  const isSearchMatch = matchedNodeIds.has(node.id)
-  const isActiveSearchMatch = activeSearchNodeId === node.id
-  const searchHighlightClass = getNodeSearchHighlightClass(false, isSearchMatch, isActiveSearchMatch)
-  const isSecondary = depth === 2
+type MindmapNodeVariant = 'root' | 'primary' | 'secondary' | 'leaf'
 
-  return (
-    <div className="relative scroll-m-[140px] pl-12" data-node-id={node.id}>
-      <div className={cn('pointer-events-none absolute left-0 top-[18px] w-12 opacity-70', tone.line, lineClasses.horizontal)} />
-      <div className="pointer-events-none absolute left-0 top-[18px] bottom-[18px] w-12">
-        <div className={cn('absolute left-0 top-0 h-full opacity-35', tone.line, lineClasses.vertical)} />
-      </div>
-      <div className={cn('pointer-events-none absolute left-[-4px] top-[14px] h-2.5 w-2.5 rounded-full border border-white/70 bg-white shadow-sm', tone.line)} />
-      <div className="flex items-start gap-12">
-        <div className={cn('relative', styleMeta.compact ? 'min-w-[180px] max-w-[304px]' : 'min-w-[180px] max-w-[352px]', isSecondary ? 'pt-0' : 'pt-0.5')}>
-          <div
-            className={cn(
-              'group relative overflow-visible border transition-all duration-200',
-              isSecondary
-                ? 'min-w-[180px] rounded-[16px] border-[#E5DED2] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,246,241,0.96))] px-5 py-3.5'
-                : 'min-w-[160px] rounded-[18px] border-[#E5DDD1] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,244,238,0.95))] px-[18px] py-3',
-              tone.secondaryCard,
-              isSelected
-                ? 'border-[#CFC2AE] shadow-[0_12px_26px_rgba(130,120,103,0.10)] ring-2 ring-[#E8DECF]'
-                : 'shadow-[0_4px_10px_rgba(130,120,103,0.04)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(130,120,103,0.08)]',
-              searchHighlightClass
-            )}
-            onClick={() => onSelect(node.id)}
-            onDoubleClick={(event) => {
-              if (!canStartInlineEditFromTarget(event.target)) return
-              event.preventDefault()
-              event.stopPropagation()
-              onInlineEditStart(node.id)
-            }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                onSelect(node.id)
-              }
-            }}
-          >
-            <div className={cn('pointer-events-none absolute inset-y-4 left-4 w-[3px] rounded-full opacity-70', tone.line)} />
-            <div className="relative pl-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[8px] uppercase tracking-[0.18em] text-ink-400">{formatNodeLevel(depth)}</span>
-                {isSelected && (
-                  <span className="rounded-full border border-[#E4DCCF] bg-white px-2 py-0.5 text-[8px] text-ink-500">
-                    选中
-                  </span>
-                )}
-              </div>
-              <div className="mt-1 min-w-0">
-                {isInlineEditing ? (
-                  <input
-                    autoFocus
-                    data-inline-editor="true"
-                    value={editingNodeLabel}
-                    onChange={event => onInlineEditChange(event.target.value)}
-                    onFocus={event => event.currentTarget.select()}
-                    onBlur={onInlineEditCommit}
-                    onClick={event => event.stopPropagation()}
-                    onDoubleClick={event => event.stopPropagation()}
-                    onKeyDown={(event) => {
-                      event.stopPropagation()
-                      if (event.key === 'Enter') {
-                        event.preventDefault()
-                        onInlineEditCommit()
-                      }
-                      if (event.key === 'Escape') {
-                        event.preventDefault()
-                        onInlineEditCancel()
-                      }
-                    }}
-                    className="w-full rounded-[12px] border border-[#DDD5C8] bg-transparent px-4 py-2 text-sm text-ink-900 outline-none placeholder:text-ink-400"
-                    placeholder="输入节点名称"
-                  />
-                ) : (
-                  <p
-                    className={cn(
-                      'max-w-full break-words leading-relaxed text-ink-900 [overflow-wrap:anywhere]',
-                      fontClass,
-                      isSecondary ? 'text-[0.94rem] font-medium' : 'text-[0.96rem]'
-                    )}
-                    onDoubleClick={(event) => {
-                      event.stopPropagation()
-                      onInlineEditStart(node.id)
-                    }}
-                  >
-                    {node.label || '未命名节点'}
-                  </p>
-                )}
-                <p className="mt-1 text-[10px] leading-5 text-ink-500">
-                  {hasChildren
-                    ? isCollapsed
-                      ? `已折叠 ${node.children.length} 个子节点`
-                      : `${node.children.length} 个子节点`
-                    : '子条目'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {hasChildren && !isCollapsed && (
-          <div className={cn('relative pl-12', styleMeta.compact ? 'min-w-[236px]' : 'min-w-[272px]')}>
-            <div className={cn('pointer-events-none absolute left-0 top-3 bottom-3 opacity-32', tone.line, lineClasses.vertical)} />
-            <div className="space-y-5">
-              {node.children.map(child => (
-                <DesktopBranchNode
-                  key={child.id}
-                  depth={depth + 1}
-                  branchColor={branchColor}
-                  node={child}
-                  styleMeta={styleMeta}
-                  selectedNodeId={selectedNodeId}
-                  onAddChild={onAddChild}
-                  onAddSibling={onAddSibling}
-                  onDelete={onDelete}
-                  onInlineEditCancel={onInlineEditCancel}
-                  onInlineEditChange={onInlineEditChange}
-                  onInlineEditCommit={onInlineEditCommit}
-                  onInlineEditStart={onInlineEditStart}
-                  onSelect={onSelect}
-                  onToggleCollapse={onToggleCollapse}
-                  activeSearchNodeId={activeSearchNodeId}
-                  editingNodeId={editingNodeId}
-                  editingNodeLabel={editingNodeLabel}
-                  matchedNodeIds={matchedNodeIds}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
+type MindmapNodeCardProps = TreeNodeCardProps & {
+  variant: MindmapNodeVariant
 }
 
-function DesktopPrimaryColumn({
-  branchColor,
-  index,
-  node,
-  ...props
-}: { index: number; node: MindmapNode } & MindmapRendererProps) {
-  const tone = colorMeta[resolveBranchColor(node.color, branchColor, props.styleMeta)]
-  const fontClass = getMindmapFontClass(props.styleMeta.fontFamily)
-  const lineClasses = getBranchLineClasses(props.styleMeta.branchLine)
-  const isSelected = node.id === props.selectedNodeId
-  const isInlineEditing = props.editingNodeId === node.id
-  const hasChildren = node.children.length > 0
-  const isCollapsed = Boolean(node.collapsed) && hasChildren
-  const isSearchMatch = props.matchedNodeIds.has(node.id)
-  const isActiveSearchMatch = props.activeSearchNodeId === node.id
-  const searchHighlightClass = getNodeSearchHighlightClass(false, isSearchMatch, isActiveSearchMatch)
-  const branchUp = index % 2 === 0
-
-  return (
-    <div className={cn('relative flex shrink-0 flex-col justify-center', props.styleMeta.compact ? 'w-[388px]' : 'w-[456px]')}>
-      <div className="pointer-events-none absolute left-0 top-1/2 h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/80 bg-white shadow-sm" />
-      <div className={cn('pointer-events-none absolute left-[2px] top-1/2 w-9 -translate-y-1/2 opacity-70', tone.line, lineClasses.horizontal)} />
-      <div className={cn('flex flex-col justify-end', props.styleMeta.compact ? 'min-h-[176px]' : 'min-h-[220px]')}>
-        {branchUp && hasChildren && !isCollapsed ? (
-          <div className={cn('relative', props.styleMeta.compact ? 'pb-6' : 'pb-9')}>
-            <div className={cn('pointer-events-none absolute left-[58px] opacity-40', tone.line, props.styleMeta.compact ? 'bottom-0 h-6' : 'bottom-0 h-9', lineClasses.vertical)} />
-            <div className="relative flex flex-col items-start gap-5">
-              {node.children.map(child => (
-                <DesktopBranchNode key={child.id} depth={2} branchColor={branchColor} node={child} {...props} />
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      <div className={cn('relative flex items-center justify-start', props.styleMeta.compact ? 'py-3.5' : 'py-5')}>
-        {hasChildren && (
-          <div
-            className={cn(
-              'pointer-events-none absolute left-[58px] opacity-40',
-              branchUp ? 'top-0 h-5' : 'bottom-0 h-5',
-              tone.line,
-              lineClasses.vertical
-            )}
-          />
-        )}
-        <div className={cn('relative scroll-m-[140px]', props.styleMeta.compact ? 'pl-12' : 'pl-14')} data-node-id={node.id}>
-          <div
-            className={cn(
-              'group relative overflow-visible rounded-[18px] border transition-all duration-200',
-              props.styleMeta.compact ? 'min-h-[92px] min-w-[200px] w-[316px] px-8 py-5' : 'min-h-[104px] min-w-[200px] w-[368px] px-10 py-5',
-              'bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,242,235,0.94))]',
-              tone.primaryCard,
-              isSelected
-                ? 'border-[#CDBFA9] shadow-[0_18px_36px_rgba(130,120,103,0.13)] ring-2 ring-[#ECE2D3]'
-                : 'shadow-[0_8px_18px_rgba(130,120,103,0.05)] hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(130,120,103,0.10)]',
-              searchHighlightClass
-            )}
-            onClick={() => props.onSelect(node.id)}
-            onDoubleClick={(event) => {
-              if (!canStartInlineEditFromTarget(event.target)) return
-              event.preventDefault()
-              event.stopPropagation()
-              props.onInlineEditStart(node.id)
-            }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                props.onSelect(node.id)
-              }
-            }}
-          >
-            <div className={cn('pointer-events-none absolute inset-y-5 left-4 w-[4px] rounded-full opacity-80', tone.line)} />
-            <div className="relative pl-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[9px] uppercase tracking-[0.18em] text-ink-400">主题</span>
-                <span className={cn('rounded-full border px-2 py-0.5 text-[9px] leading-none', tone.chip)}>
-                  {tone.label}
-                </span>
-                {isSelected && (
-                  <span className="rounded-full border border-white/90 bg-white px-2 py-0.5 text-[9px] leading-none text-ink-600 shadow-sm">
-                    选中
-                  </span>
-                )}
-              </div>
-              <div className="mt-2 min-w-0">
-                {isInlineEditing ? (
-                  <input
-                    autoFocus
-                    data-inline-editor="true"
-                    value={props.editingNodeLabel}
-                    onChange={event => props.onInlineEditChange(event.target.value)}
-                    onFocus={event => event.currentTarget.select()}
-                    onBlur={props.onInlineEditCommit}
-                    onClick={event => event.stopPropagation()}
-                    onDoubleClick={event => event.stopPropagation()}
-                    onKeyDown={(event) => {
-                      event.stopPropagation()
-                      if (event.key === 'Enter') {
-                        event.preventDefault()
-                        props.onInlineEditCommit()
-                      }
-                      if (event.key === 'Escape') {
-                        event.preventDefault()
-                        props.onInlineEditCancel()
-                      }
-                    }}
-                    className="w-full rounded-[14px] border border-[#DDD5C8] bg-transparent px-4 py-2 text-[0.98rem] leading-6 text-ink-900 outline-none placeholder:text-ink-400"
-                    placeholder="输入节点名称"
-                  />
-                ) : (
-                  <h3
-                    className={cn('max-w-full break-words font-medium text-[1.06rem] leading-relaxed text-ink-900 [overflow-wrap:anywhere]', fontClass)}
-                    onDoubleClick={(event) => {
-                      event.stopPropagation()
-                      props.onInlineEditStart(node.id)
-                    }}
-                  >
-                    {node.label || '未命名节点'}
-                  </h3>
-                )}
-                <p className="mt-1.5 text-[11px] leading-5 text-ink-500">
-                  {hasChildren
-                    ? isCollapsed
-                      ? `已折叠 ${node.children.length} 个分支`
-                      : `${node.children.length} 个分支`
-                    : '暂无子主题'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className={cn('flex flex-col', props.styleMeta.compact ? 'min-h-[176px]' : 'min-h-[220px]')}>
-        {!branchUp && hasChildren && !isCollapsed ? (
-          <div className={cn('relative', props.styleMeta.compact ? 'pt-6' : 'pt-9')}>
-            <div className={cn('pointer-events-none absolute left-[58px] top-0 opacity-40', tone.line, props.styleMeta.compact ? 'h-6' : 'h-9', lineClasses.vertical)} />
-            <div className="relative flex flex-col items-start gap-5">
-              {node.children.map(child => (
-                <DesktopBranchNode key={child.id} depth={2} branchColor={branchColor} node={child} {...props} />
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  )
-}
-
-function DesktopMindmapCanvas({
-  tree,
-  useDesktopLayout = false,
-  ...props
-}: { tree: MindmapNode; useDesktopLayout?: boolean } & MindmapRendererProps) {
-  const tone = colorMeta[tree.color]
-  const fontClass = getMindmapFontClass(props.styleMeta.fontFamily)
-  const lineClasses = getBranchLineClasses(props.styleMeta.branchLine)
-  const isSelected = tree.id === props.selectedNodeId
-  const isInlineEditing = props.editingNodeId === tree.id
-  const hasChildren = tree.children.length > 0
-  const isCollapsed = Boolean(tree.collapsed) && hasChildren
-  const isSearchMatch = props.matchedNodeIds.has(tree.id)
-  const isActiveSearchMatch = props.activeSearchNodeId === tree.id
-  const searchHighlightClass = getNodeSearchHighlightClass(true, isSearchMatch, isActiveSearchMatch)
-
-  return (
-    <div className={cn('hidden min-w-max', useDesktopLayout ? 'block' : 'lg:block')}>
-      <div className={cn('flex min-h-[860px] items-center', props.styleMeta.compact ? 'gap-12 px-16 py-20' : 'gap-20 px-24 py-24')}>
-        <div className="relative scroll-m-[140px] shrink-0" data-node-id={tree.id}>
-          <div
-            className={cn(
-              'group relative min-h-[200px] min-w-[260px] w-[376px] overflow-visible rounded-[34px] border px-12 py-10 transition-all duration-200',
-              tone.rootCard,
-              isSelected
-                ? 'border-white/26 shadow-[0_28px_62px_rgba(31,41,55,0.2)] ring-1 ring-white/18'
-                : 'hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(31,41,55,0.16)]',
-              searchHighlightClass
-            )}
-            onClick={() => props.onSelect(tree.id)}
-            onDoubleClick={(event) => {
-              if (!canStartInlineEditFromTarget(event.target)) return
-              event.preventDefault()
-              event.stopPropagation()
-              props.onInlineEditStart(tree.id)
-            }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                props.onSelect(tree.id)
-              }
-            }}
-          >
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.24),transparent_42%),radial-gradient(circle_at_bottom_right,rgba(63,85,96,0.18),transparent_34%)]" />
-            <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-white/18" />
-            <div className="relative flex h-full flex-col items-center justify-between text-center">
-              <div className="flex flex-wrap items-center justify-center gap-2.5">
-                <span className="text-[11px] uppercase tracking-[0.24em] text-white/72">中心主题</span>
-                <span className={cn('rounded-full border px-3 py-1 text-[10px] leading-none', tone.rootBadge)}>
-                  {tone.label}
-                </span>
-                {isSelected && (
-                  <span className="rounded-full border border-white/20 bg-white/14 px-3 py-1 text-[10px] text-white">
-                    当前选中
-                  </span>
-                )}
-              </div>
-              <div className="mt-6 min-w-0">
-                {isInlineEditing ? (
-                  <input
-                    autoFocus
-                    data-inline-editor="true"
-                    value={props.editingNodeLabel}
-                    onChange={event => props.onInlineEditChange(event.target.value)}
-                    onFocus={event => event.currentTarget.select()}
-                    onBlur={props.onInlineEditCommit}
-                    onClick={event => event.stopPropagation()}
-                    onDoubleClick={event => event.stopPropagation()}
-                    onKeyDown={(event) => {
-                      event.stopPropagation()
-                      if (event.key === 'Enter') {
-                        event.preventDefault()
-                        props.onInlineEditCommit()
-                      }
-                      if (event.key === 'Escape') {
-                        event.preventDefault()
-                        props.onInlineEditCancel()
-                      }
-                    }}
-                    className={cn('w-full rounded-[18px] border border-white/20 bg-transparent px-4 py-2 text-center text-[1.72rem] leading-relaxed text-white outline-none placeholder:text-white/56', fontClass)}
-                    placeholder="输入节点名称"
-                  />
-                ) : (
-                  <h3
-                    className={cn('max-w-full break-words text-[1.82rem] leading-relaxed text-white [overflow-wrap:anywhere]', fontClass)}
-                    onDoubleClick={(event) => {
-                      event.stopPropagation()
-                      props.onInlineEditStart(tree.id)
-                    }}
-                  >
-                    {tree.label || '中心主题'}
-                  </h3>
-                )}
-                <p className="mt-3 text-sm leading-6 text-white/76">
-                  {hasChildren
-                    ? isCollapsed
-                      ? `主轴已收起，共 ${tree.children.length} 个一级主题`
-                      : `${tree.children.length} 个一级主题`
-                    : '暂无一级主题'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {hasChildren && !isCollapsed ? (
-          <div className={cn('relative flex', props.styleMeta.compact ? 'gap-12 pl-12' : 'gap-14 pl-16')}>
-            <div className={cn('pointer-events-none absolute -left-16 top-1/2 w-16 -translate-y-1/2 opacity-70', tone.line, lineClasses.horizontal)} />
-            <div className={cn('pointer-events-none absolute left-0 right-0 top-1/2 -translate-y-1/2 opacity-35', tone.line, lineClasses.horizontal)} />
-            <div className={cn('pointer-events-none absolute -left-1 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border border-white/80 bg-white shadow-sm', tone.line)} />
-            {tree.children.map((child, index) => (
-              <DesktopPrimaryColumn
-                key={child.id}
-                index={index}
-                branchColor={colorOrder[index % colorOrder.length]}
-                node={child}
-                {...props}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-[24px] border border-dashed border-[#E1D9CC] bg-[rgba(252,250,245,0.84)] px-7 py-5 text-sm leading-7 text-ink-500">
-            {hasChildren
-              ? '当前中心主题的主轴已收起，可通过节点按钮或右侧面板重新展开。'
-              : '先添加一级主题，画布会沿主轴横向展开。'}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function TreeNodeCard({
+function MindmapNodeCard({
   branchColor,
   depth,
   node,
@@ -1230,279 +884,904 @@ function TreeNodeCard({
   editingNodeId,
   editingNodeLabel,
   matchedNodeIds,
-}: TreeNodeCardProps) {
+  variant,
+}: MindmapNodeCardProps) {
   const tone = colorMeta[resolveBranchColor(node.color, branchColor, styleMeta)]
   const fontClass = getMindmapFontClass(styleMeta.fontFamily)
   const isSelected = node.id === selectedNodeId
-  const isRoot = node.id === 'root'
-  const isPrimary = depth === 1
+  const isRoot = variant === 'root'
+  const isPrimary = variant === 'primary'
   const isInlineEditing = editingNodeId === node.id
   const hasChildren = node.children.length > 0
   const isCollapsed = Boolean(node.collapsed) && hasChildren
   const isSearchMatch = matchedNodeIds.has(node.id)
   const isActiveSearchMatch = activeSearchNodeId === node.id
-  const searchHighlightClass = isActiveSearchMatch
-    ? isRoot
-      ? 'shadow-[0_0_0_3px_rgba(255,255,255,0.22),0_28px_62px_rgba(31,41,55,0.2)]'
-      : 'border-[#CDBCA3] shadow-[0_0_0_3px_rgba(216,204,185,0.88),0_22px_46px_rgba(148,163,184,0.24)]'
-    : isSearchMatch
-      ? isRoot
-        ? 'shadow-[0_0_0_2px_rgba(255,255,255,0.16),0_26px_56px_rgba(31,41,55,0.18)]'
-        : 'border-[#D9CEBF] shadow-[0_0_0_2px_rgba(228,220,206,0.82),0_18px_38px_rgba(148,163,184,0.18)]'
-      : null
-  const level = isRoot ? 'root' : isPrimary ? 'primary' : 'secondary'
+  const searchHighlightClass = getNodeSearchHighlightClass(isRoot, isSearchMatch, isActiveSearchMatch)
+  const actionLevel = isRoot ? 'root' : isPrimary ? 'primary' : 'secondary'
+  const variantClass = {
+    root: 'min-w-[320px] max-w-[460px] rounded-[30px] px-14 py-9 text-center',
+    primary: 'min-w-[260px] max-w-[400px] rounded-[22px] px-12 py-[22px] text-center',
+    secondary: 'min-w-[240px] max-w-[360px] rounded-[18px] px-11 py-[18px] text-center',
+    leaf: 'min-w-[210px] max-w-[330px] rounded-[16px] px-10 py-4 text-center',
+  }[variant]
+  const titleClass = {
+    root: 'text-[1.72rem] text-white',
+    primary: 'text-[1.08rem] font-medium text-ink-900',
+    secondary: 'text-[0.96rem] font-medium text-ink-900',
+    leaf: 'text-[0.92rem] text-ink-900',
+  }[variant]
+  const actionVisibilityClass = isRoot || isSelected
+    ? 'opacity-100'
+    : 'lg:max-h-0 lg:overflow-hidden lg:opacity-0 lg:group-hover:max-h-32 lg:group-hover:opacity-100 lg:group-focus-within:max-h-32 lg:group-focus-within:opacity-100'
+  const actionButtonClass = {
+    root: 'min-h-8 px-3.5 text-[11px]',
+    primary: 'min-h-8 px-3 text-[11px]',
+    secondary: 'min-h-7 px-2.5 text-[10px]',
+    leaf: 'min-h-7 px-2.5 text-[10px]',
+  }[variant]
 
   return (
     <div className="relative scroll-m-[120px]" data-node-id={node.id}>
-      <div className={cn('flex flex-col gap-6 lg:gap-9', node.children.length > 0 && 'lg:flex-row lg:items-center')}>
-        <div
-          className={cn(
-            'relative z-10 min-w-0',
-            isRoot ? 'lg:w-[344px] xl:w-[376px]' : isPrimary ? 'lg:w-[272px]' : 'lg:w-[228px]'
-          )}
-        >
-          <div
-            className={cn(
-              'relative overflow-hidden border transition-all duration-200',
-              isRoot
-                ? 'min-h-[228px] rounded-[32px] px-8 py-7 sm:min-h-[236px] sm:rounded-[38px] sm:px-11 sm:py-9'
-                : isPrimary
-                  ? 'min-h-[170px] rounded-[24px] px-8 py-5 sm:min-h-[178px] sm:rounded-[30px] sm:px-9 sm:py-6'
-                  : 'min-h-[140px] rounded-[22px] px-7 py-[18px] sm:min-h-[144px] sm:rounded-[26px] sm:px-8 sm:py-5',
-              isRoot ? tone.rootCard : isPrimary ? tone.primaryCard : tone.secondaryCard,
-              isSelected
-                ? cn(
-                  tone.selected,
-                  isRoot
-                    ? 'border-white/26 shadow-[0_28px_62px_rgba(31,41,55,0.2)] ring-1 ring-white/18'
-                    : 'border-[#CFC5B6] shadow-[0_20px_42px_rgba(148,163,184,0.2)] ring-2 ring-offset-2 ring-offset-[#F7F3EC]'
-                )
-                : 'hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(148,163,184,0.16)]'
-              ,
-              searchHighlightClass
+      <div
+        className={cn(
+          'group relative overflow-visible border transition-all duration-200',
+          variantClass,
+          isRoot ? tone.rootCard : isPrimary ? tone.primaryCard : tone.secondaryCard,
+          isSelected
+            ? isRoot
+              ? 'border-white/26 shadow-[0_28px_62px_rgba(31,41,55,0.2)] ring-1 ring-white/18'
+              : 'border-[#CFC2AE] shadow-[0_14px_30px_rgba(130,120,103,0.12)] ring-2 ring-[#E8DECF]'
+            : 'shadow-[0_8px_18px_rgba(130,120,103,0.05)] hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(130,120,103,0.10)]',
+          searchHighlightClass
+        )}
+        onClick={() => onSelect(node.id)}
+        onDoubleClick={(event) => {
+          if (!canStartInlineEditFromTarget(event.target)) return
+          event.preventDefault()
+          event.stopPropagation()
+          onInlineEditStart(node.id)
+        }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onSelect(node.id)
+          }
+        }}
+      >
+        {isRoot ? (
+          <>
+            <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.22),transparent_42%),radial-gradient(circle_at_bottom_right,rgba(63,85,96,0.16),transparent_34%)]" />
+            <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-white/18" />
+          </>
+        ) : (
+          <div className={cn('pointer-events-none absolute inset-y-4 left-7 rounded-full opacity-75', isPrimary ? 'w-[4px]' : 'w-[3px]', tone.line)} />
+        )}
+
+        <div className="relative min-w-0">
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5">
+            <span className={cn('uppercase tracking-[0.18em]', isRoot ? 'text-[10px] text-white/72' : 'text-[9px] text-ink-400')}>
+              {formatNodeLevel(depth)}
+            </span>
+            <span className={cn('rounded-full border px-4 py-1 text-[10px] leading-none', isRoot ? tone.rootBadge : tone.chip)}>
+              {tone.label}
+            </span>
+            {isSelected && (
+              <span className={cn(
+                'rounded-full border px-4 py-1 text-[10px] leading-none',
+                isRoot ? 'border-white/20 bg-white/14 text-white' : 'border-white/90 bg-white text-ink-600 shadow-sm'
+              )}>
+                选中
+              </span>
             )}
-            onClick={() => onSelect(node.id)}
+          </div>
+
+          <div className={cn('min-w-0', isRoot ? 'mt-5' : 'mt-3.5')}>
+            {isInlineEditing ? (
+              <input
+                autoFocus
+                data-inline-editor="true"
+                value={editingNodeLabel}
+                onChange={event => onInlineEditChange(event.target.value)}
+                onFocus={event => event.currentTarget.select()}
+                onBlur={onInlineEditCommit}
+                onClick={event => event.stopPropagation()}
+                onDoubleClick={event => event.stopPropagation()}
+                onKeyDown={(event) => {
+                  event.stopPropagation()
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    onInlineEditCommit()
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault()
+                    onInlineEditCancel()
+                  }
+                }}
+                className={cn(
+                  'w-full rounded-[14px] border bg-transparent py-2 outline-none placeholder:text-ink-400',
+                  fontClass,
+                  isRoot
+                    ? 'border-white/20 px-6 text-center text-[1.54rem] leading-relaxed text-white placeholder:text-white/56'
+                    : 'border-[#DDD5C8] px-8 text-center text-sm leading-6 text-ink-900'
+                )}
+                placeholder="输入节点名称"
+              />
+            ) : (
+              <h3
+                className={cn('block max-w-full break-words text-center leading-relaxed [overflow-wrap:anywhere]', fontClass, titleClass)}
+                onDoubleClick={(event) => {
+                  event.stopPropagation()
+                  onInlineEditStart(node.id)
+                }}
+              >
+                {node.label || (isRoot ? '中心主题' : '未命名节点')}
+              </h3>
+            )}
+            <p className={cn('text-center leading-5', isRoot ? 'mt-3 text-sm text-white/76' : 'mt-2 text-[11px] text-ink-500')}>
+              {hasChildren
+                ? isCollapsed
+                  ? `已折叠 ${node.children.length} 个子节点`
+                  : `${node.children.length} 个子节点`
+                : isRoot ? '暂无一级主题' : '暂无子节点'}
+            </p>
+          </div>
+
+          <div className={cn(
+            'flex flex-wrap transition-all duration-150',
+            isRoot ? 'mt-6 justify-center gap-3' : 'mt-4 justify-center gap-2',
+            actionVisibilityClass
+          )}>
+            <Button
+              size="sm"
+              variant={isRoot ? 'secondary' : 'ghost'}
+              className={cn('rounded-full', actionButtonClass, nodeActionClassName(actionLevel))}
+              onClick={(event) => {
+                event.stopPropagation()
+                onSelect(node.id)
+              }}
+            >
+              选择
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className={cn('rounded-full', actionButtonClass, nodeActionClassName(actionLevel, 'muted'))}
+              onClick={(event) => {
+                event.stopPropagation()
+                onInlineEditStart(node.id)
+              }}
+            >
+              编辑
+            </Button>
+            <Button
+              size="sm"
+              variant={isRoot ? 'secondary' : 'ghost'}
+              className={cn('rounded-full', actionButtonClass, nodeActionClassName(actionLevel))}
+              onClick={(event) => {
+                event.stopPropagation()
+                onAddChild(node.id)
+              }}
+            >
+              添加
+            </Button>
+            {hasChildren && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className={cn('rounded-full', actionButtonClass, nodeActionClassName(actionLevel, 'muted'))}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onToggleCollapse(node.id)
+                }}
+              >
+                {isCollapsed ? '展开' : '收起'}
+              </Button>
+            )}
+            {!isRoot && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className={cn('rounded-full', actionButtonClass, nodeActionClassName(actionLevel))}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onAddSibling(node.id)
+                }}
+              >
+                同级
+              </Button>
+            )}
+            {!isRoot && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className={cn('rounded-full', actionButtonClass, nodeActionClassName(actionLevel, 'danger'))}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onDelete(node.id)
+                }}
+              >
+                删除
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MindmapXmindNode({
+  branchColor,
+  depth,
+  node,
+  styleMeta,
+  selectedNodeId,
+  onAddChild,
+  onAddSibling,
+  onDelete,
+  onInlineEditCancel,
+  onInlineEditChange,
+  onInlineEditCommit,
+  onInlineEditStart,
+  onSelect,
+  onToggleCollapse,
+  activeSearchNodeId,
+  editingNodeId,
+  editingNodeLabel,
+  matchedNodeIds,
+  variant,
+}: MindmapNodeCardProps) {
+  const resolvedColor = variant === 'root' ? node.color : branchColor ?? node.color
+  const tone = xmindColorMeta[resolvedColor]
+  const fontClass = getMindmapFontClass(styleMeta.fontFamily)
+  const isSelected = node.id === selectedNodeId
+  const isRoot = variant === 'root'
+  const isPrimary = variant === 'primary'
+  const isInlineEditing = editingNodeId === node.id
+  const hasChildren = node.children.length > 0
+  const isCollapsed = Boolean(node.collapsed) && hasChildren
+  const isSearchMatch = matchedNodeIds.has(node.id)
+  const isActiveSearchMatch = activeSearchNodeId === node.id
+  const actionLevel = isRoot ? 'root' : isPrimary ? 'primary' : 'secondary'
+  const searchHighlightClass = getNodeSearchHighlightClass(isRoot, isSearchMatch, isActiveSearchMatch)
+  const nodeClass = isRoot
+    ? 'w-[400px] max-w-[400px] rounded-[7px] border-[#111111] bg-[#111111] px-7 py-4 text-center text-white shadow-[0_14px_32px_rgba(17,17,17,0.16)]'
+    : isPrimary
+      ? cn('w-[270px] max-w-[270px] rounded-[6px] px-6 py-2.5 text-center shadow-none', tone.accent)
+      : cn('w-[260px] max-w-[260px] rounded-[5px] px-5 py-2 text-center shadow-none', tone.soft)
+  const titleClass = isRoot
+    ? 'text-[1.14rem] font-semibold leading-snug sm:text-[1.28rem]'
+    : isPrimary
+      ? 'text-[0.92rem] font-semibold leading-snug'
+      : 'text-[0.82rem] leading-snug'
+
+  return (
+    <div className="relative scroll-m-[120px]" data-node-id={node.id}>
+      <div
+        className={cn(
+          'group relative border transition-[box-shadow,transform,border-color] duration-150 hover:-translate-y-0.5',
+          nodeClass,
+          isSelected && (isRoot ? 'ring-2 ring-[#111111]/15' : 'ring-2 ring-white ring-offset-2 ring-offset-[#F8F4EC]'),
+          searchHighlightClass
+        )}
+        onClick={() => onSelect(node.id)}
+        onDoubleClick={(event) => {
+          if (!canStartInlineEditFromTarget(event.target)) return
+          event.preventDefault()
+          event.stopPropagation()
+          onInlineEditStart(node.id)
+        }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onSelect(node.id)
+          }
+        }}
+      >
+        {isInlineEditing ? (
+          <input
+            autoFocus
+            data-inline-editor="true"
+            value={editingNodeLabel}
+            onChange={event => onInlineEditChange(event.target.value)}
+            onFocus={event => event.currentTarget.select()}
+            onBlur={onInlineEditCommit}
+            onClick={event => event.stopPropagation()}
+            onDoubleClick={event => event.stopPropagation()}
+            onKeyDown={(event) => {
+              event.stopPropagation()
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                onInlineEditCommit()
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                onInlineEditCancel()
+              }
+            }}
+            className={cn(
+              'w-full rounded-[4px] border bg-white/92 px-3 py-1.5 text-center outline-none',
+              fontClass,
+              isRoot ? 'border-white/20 text-[1.12rem] text-ink-900' : 'border-white/70 text-sm text-ink-900'
+            )}
+            placeholder="输入节点名称"
+          />
+        ) : (
+          <h3
+            className={cn('block max-w-full whitespace-normal break-words text-center [overflow-wrap:anywhere]', fontClass, titleClass)}
             onDoubleClick={(event) => {
-              if (!canStartInlineEditFromTarget(event.target)) return
-              event.preventDefault()
               event.stopPropagation()
               onInlineEditStart(node.id)
             }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                onSelect(node.id)
-              }
+          >
+            {node.label || (isRoot ? '中心主题' : '未命名节点')}
+          </h3>
+        )}
+
+        {hasChildren && isCollapsed ? (
+          <span className={cn(
+            'pointer-events-none absolute -right-2 -top-2 rounded-full border px-2 py-0.5 text-[10px] leading-none shadow-sm',
+            isRoot ? 'border-white/18 bg-white/12 text-white' : 'border-white bg-white text-ink-500'
+          )}>
+            {node.children.length}
+          </span>
+        ) : null}
+
+        <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 flex -translate-x-1/2 flex-nowrap gap-1.5 rounded-full border border-[#E7DFD4] bg-white/96 px-2 py-1.5 opacity-0 shadow-[0_10px_24px_rgba(99,91,80,0.12)] transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+          <Button
+            size="sm"
+            variant="ghost"
+            className={cn('min-h-7 rounded-full px-2.5 text-[10px]', isRoot ? nodeActionClassName(actionLevel) : tone.action)}
+            onClick={(event) => {
+              event.stopPropagation()
+              onInlineEditStart(node.id)
             }}
           >
-            {isRoot ? (
-              <>
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.24),transparent_42%),radial-gradient(circle_at_bottom_right,rgba(63,85,96,0.18),transparent_34%)]" />
-                <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-white/22" />
-              </>
-            ) : isPrimary ? (
-              <>
-                <div className={cn('pointer-events-none absolute inset-x-0 top-0 h-1.5 rounded-t-[30px]', tone.line)} />
-                <div className={cn('pointer-events-none absolute inset-y-7 left-0 w-1.5 rounded-r-full opacity-80', tone.line)} />
-              </>
-            ) : (
-              <div className={cn('pointer-events-none absolute inset-y-6 left-0 w-[3px] rounded-r-full opacity-75', tone.line)} />
-            )}
-
-            <div className={cn('relative flex h-full flex-col', isRoot ? 'items-center justify-between text-center' : 'justify-between')}>
-              <div className={cn('flex flex-wrap items-center gap-x-2.5 gap-y-2', isRoot && 'justify-center')}>
-                <span className={cn(
-                  'text-[11px] uppercase leading-none tracking-[0.24em]',
-                  isRoot ? 'text-white/70' : isPrimary ? 'text-ink-500' : 'text-ink-400'
-                )}>
-                  {formatNodeLevel(depth)}
-                </span>
-                <span className={cn('rounded-full border px-3.5 py-1.5 text-xs leading-none', isRoot ? tone.rootBadge : tone.chip)}>
-                  {tone.label}
-                </span>
-                {isSelected && (
-                  <span className={cn(
-                    'rounded-full border px-3.5 py-1.5 text-xs leading-none',
-                    isRoot
-                      ? 'border-white/20 bg-white/14 text-white'
-                      : 'border-white/90 bg-white text-ink-600 shadow-sm'
-                  )}>
-                    当前选中
-                  </span>
-                )}
-              </div>
-
-              <div className={cn('min-w-0', isRoot ? 'mt-7' : 'mt-5')}>
-                {isInlineEditing ? (
-                  <input
-                    autoFocus
-                    data-inline-editor="true"
-                    value={editingNodeLabel}
-                    onChange={event => onInlineEditChange(event.target.value)}
-                    onFocus={event => event.currentTarget.select()}
-                    onBlur={onInlineEditCommit}
-                    onClick={event => event.stopPropagation()}
-                    onDoubleClick={event => event.stopPropagation()}
-                    onKeyDown={(event) => {
-                      event.stopPropagation()
-                      if (event.key === 'Enter') {
-                        event.preventDefault()
-                        onInlineEditCommit()
-                      }
-                      if (event.key === 'Escape') {
-                        event.preventDefault()
-                        onInlineEditCancel()
-                      }
-                    }}
-                    className={cn(
-                      'w-full rounded-[18px] border bg-transparent px-3 py-2 font-serif outline-none',
-                      fontClass,
-                      isRoot
-                        ? 'border-white/20 text-[2rem] leading-[1.22] text-white placeholder:text-white/56'
-                        : isPrimary
-                          ? 'border-[#D8D0C3] text-[1.2rem] leading-[1.38] text-ink-900 placeholder:text-ink-400'
-                          : 'border-[#DDD5C8] text-[1.02rem] leading-snug text-ink-900 placeholder:text-ink-400'
-                    )}
-                    placeholder="输入节点名称"
-                  />
-                ) : (
-                  <h3
-                    className={cn(
-                      'break-words font-serif [overflow-wrap:anywhere]',
-                      fontClass,
-                      isRoot
-                        ? 'text-[1.88rem] leading-[1.18] text-white sm:text-[2.12rem] sm:leading-[1.22]'
-                        : isPrimary
-                          ? 'text-[1.16rem] leading-[1.34] text-ink-900 sm:text-[1.24rem] sm:leading-[1.38]'
-                          : 'text-[1rem] leading-snug text-ink-900 sm:text-[1.05rem]'
-                    )}
-                    onDoubleClick={(event) => {
-                      event.stopPropagation()
-                      onInlineEditStart(node.id)
-                    }}
-                  >
-                    {node.label || '未命名节点'}
-                  </h3>
-                )}
-                <p className={cn(
-                  'text-sm leading-6',
-                  isRoot ? 'mt-3 text-white/76' : isPrimary ? 'mt-3 text-ink-600' : 'mt-2.5 text-ink-500'
-                )}>
-                  {hasChildren
-                    ? isCollapsed
-                      ? `已收起 ${node.children.length} 个子节点`
-                      : `${node.children.length} 个子节点`
-                    : '暂无子节点'}
-                </p>
-              </div>
-
-              <div className={cn('mt-6 flex flex-wrap gap-2.5 sm:mt-7 sm:gap-3', isRoot && 'justify-center')}>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className={cn('min-h-10 rounded-full px-4', nodeActionClassName(level))}
-                  onClick={() => onSelect(node.id)}
-                >
-                  选择节点
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className={cn('min-h-10 rounded-full px-4', nodeActionClassName(level, 'muted'))}
-                  onClick={() => onInlineEditStart(node.id)}
-                >
-                  编辑
-                </Button>
-                <Button
-                  size="sm"
-                  variant={isRoot ? 'secondary' : 'ghost'}
-                  className={cn('min-h-10 rounded-full px-4', nodeActionClassName(level))}
-                  onClick={() => onAddChild(node.id)}
-                >
-                  添加子节点
-                </Button>
-                {hasChildren && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className={cn('min-h-10 rounded-full px-4', nodeActionClassName(level, 'muted'))}
-                    onClick={() => onToggleCollapse(node.id)}
-                  >
-                    {isCollapsed ? '展开' : '收起'}
-                  </Button>
-                )}
-                {!isRoot && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className={cn('min-h-10 rounded-full px-4', nodeActionClassName(level))}
-                    onClick={() => onAddSibling(node.id)}
-                  >
-                    添加同级
-                  </Button>
-                )}
-                {!isRoot && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className={cn('min-h-10 rounded-full px-4', nodeActionClassName(level, 'danger'))}
-                    onClick={() => onDelete(node.id)}
-                  >
-                    删除
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
+            编辑
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className={cn('min-h-7 rounded-full px-2.5 text-[10px]', isRoot ? nodeActionClassName(actionLevel) : tone.action)}
+            onClick={(event) => {
+              event.stopPropagation()
+              onAddChild(node.id)
+            }}
+          >
+            添加
+          </Button>
+          {hasChildren && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className={cn('min-h-7 rounded-full px-2.5 text-[10px]', isRoot ? nodeActionClassName(actionLevel, 'muted') : tone.action)}
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggleCollapse(node.id)
+              }}
+            >
+              {isCollapsed ? '展开' : '收起'}
+            </Button>
+          )}
+          {!isRoot && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className={cn('min-h-7 rounded-full px-2.5 text-[10px]', tone.action)}
+              onClick={(event) => {
+                event.stopPropagation()
+                onAddSibling(node.id)
+              }}
+            >
+              同级
+            </Button>
+          )}
+          {!isRoot && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="min-h-7 rounded-full border border-transparent px-2.5 text-[10px] text-[#A06F6F] hover:border-[#E4CDCD] hover:bg-[#FAF1F1]"
+              onClick={(event) => {
+                event.stopPropagation()
+                onDelete(node.id)
+              }}
+            >
+              删除
+            </Button>
+          )}
         </div>
+      </div>
+    </div>
+  )
+}
 
-        {hasChildren && !isCollapsed ? (
-          <div className="relative min-w-0 flex-1">
-            <div className={cn('pointer-events-none absolute left-0 top-1/2 hidden h-px w-[56px] -translate-y-1/2 opacity-60 lg:block', tone.line)} />
-            <div className={cn('pointer-events-none absolute bottom-12 left-[56px] top-12 hidden w-px opacity-50 lg:block', tone.line)} />
+function MindmapXmindBranch({
+  branchColor,
+  depth,
+  node,
+  ...props
+}: { depth: number; node: MindmapNode } & MindmapRendererProps) {
+  const resolvedColor = branchColor ?? node.color
+  const tone = xmindColorMeta[resolvedColor]
+  const hasChildren = node.children.length > 0
+  const isCollapsed = Boolean(node.collapsed) && hasChildren
+  const variant: MindmapNodeVariant = depth === 1 ? 'primary' : depth === 2 ? 'secondary' : 'leaf'
+  const lineWidth = props.styleMeta.branchLine === 'thick' ? 2.2 : props.styleMeta.branchLine === 'default' ? 1.6 : 1.15
+  const childGap = props.styleMeta.compact ? 'gap-2.5' : 'gap-3.5'
 
-            <div className="relative mt-5 pl-10 lg:mt-0 lg:pl-[56px]">
-              <div className={cn('pointer-events-none absolute bottom-6 left-[14px] top-4 w-px opacity-55 lg:hidden', tone.line)} />
+  return (
+    <div className="relative flex shrink-0 items-center gap-24">
+      <div className="relative z-10 shrink-0">
+        <MindmapXmindNode
+          branchColor={branchColor}
+          depth={depth}
+          node={node}
+          variant={variant}
+          {...props}
+        />
+      </div>
 
-              <div className="space-y-5">
-                {node.children.map(child => (
-                  <div key={child.id} className="relative">
-                    <div className={cn('pointer-events-none absolute left-[-20px] top-[38px] h-px w-7 opacity-55 lg:hidden', tone.line)} />
-                    <div className={cn('pointer-events-none absolute -left-[56px] top-[38px] hidden h-px w-[56px] opacity-60 lg:block', tone.line)} />
-                    <div className={cn('pointer-events-none absolute -left-[8px] top-[34px] hidden h-[9px] w-[9px] rotate-45 border-r border-t opacity-60 lg:block', tone.arrow)} />
-
-                    <TreeNodeCard
-                      branchColor={branchColor}
-                      depth={depth + 1}
-                      node={child}
-                      styleMeta={styleMeta}
-                      selectedNodeId={selectedNodeId}
-                      onAddChild={onAddChild}
-                      onAddSibling={onAddSibling}
-                      onDelete={onDelete}
-                      onInlineEditCancel={onInlineEditCancel}
-                      onInlineEditChange={onInlineEditChange}
-                      onInlineEditCommit={onInlineEditCommit}
-                      onInlineEditStart={onInlineEditStart}
-                      onSelect={onSelect}
-                      onToggleCollapse={onToggleCollapse}
-                      activeSearchNodeId={activeSearchNodeId}
-                      editingNodeId={editingNodeId}
-                      editingNodeLabel={editingNodeLabel}
-                      matchedNodeIds={matchedNodeIds}
-                    />
-                  </div>
-                ))}
-              </div>
+      {hasChildren && !isCollapsed ? (
+        <div className={cn('relative flex flex-col', childGap)}>
+          <svg
+            aria-hidden="true"
+            className="pointer-events-none absolute left-[-96px] top-1/2 h-4 w-12 -translate-y-1/2 overflow-visible"
+            viewBox="0 0 48 16"
+          >
+            <path
+              d="M0 8 C15 8 28 8 48 8"
+              fill="none"
+              stroke={tone.line}
+              strokeLinecap="round"
+              strokeWidth={lineWidth}
+              opacity="0.72"
+            />
+          </svg>
+          {node.children.length > 1 && (
+            <div
+              className="pointer-events-none absolute bottom-[18px] left-[-48px] top-[18px] rounded-full"
+              style={{ width: lineWidth, backgroundColor: tone.line, opacity: 0.42 }}
+            />
+          )}
+          {node.children.map(child => (
+            <div key={child.id} className="relative pl-[72px]">
+              <svg
+                aria-hidden="true"
+                className="pointer-events-none absolute left-[-48px] top-1/2 h-5 w-[120px] -translate-y-1/2 overflow-visible"
+                viewBox="0 0 120 20"
+              >
+                <path
+                  d="M0 10 C34 10 62 10 120 10"
+                  fill="none"
+                  stroke={tone.line}
+                  strokeLinecap="round"
+                  strokeWidth={lineWidth}
+                  opacity="0.66"
+                />
+              </svg>
+              <MindmapXmindBranch
+                branchColor={branchColor}
+                depth={depth + 1}
+                node={child}
+                {...props}
+              />
             </div>
-          </div>
-        ) : isRoot && !isCollapsed ? (
-          <div className="rounded-[30px] border border-dashed border-line/70 bg-[linear-gradient(180deg,rgba(252,250,245,0.94),rgba(247,243,235,0.9))] px-8 py-6 text-sm leading-7 text-ink-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] sm:px-10 sm:py-7 lg:flex-1">
-            从当前卡片或右侧属性面板添加一级节点，导图会以中心主题为起点向右舒展。
-          </div>
-        ) : null}
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function MindmapXmindLayout({
+  direction = 'right',
+  tree,
+  ...props
+}: { direction?: XmindLayoutDirection; tree: MindmapNode } & MindmapRendererProps) {
+  const hasChildren = tree.children.length > 0
+  const isCollapsed = Boolean(tree.collapsed) && hasChildren
+  const lineWidth = props.styleMeta.branchLine === 'thick' ? 2.4 : props.styleMeta.branchLine === 'default' ? 1.8 : 1.25
+  const layout = direction === 'axis'
+    ? buildXmindAxisTreeLayout(tree, props.styleMeta)
+    : direction === 'down'
+    ? buildXmindTopDownTreeLayout(tree, props.styleMeta)
+    : buildXmindTreeLayout(tree, props.styleMeta)
+
+  if (!hasChildren || isCollapsed) {
+    return (
+      <div className="relative min-h-[720px] min-w-[900px]">
+        <div className="absolute left-20 top-1/2 z-20 -translate-y-1/2">
+          <MindmapXmindNode
+            depth={0}
+            node={tree}
+            variant="root"
+            {...props}
+          />
+        </div>
+        <div className="absolute left-[540px] top-1/2 max-w-[300px] -translate-y-1/2 rounded-[8px] border border-dashed border-[#D9D1C5] bg-white/86 px-5 py-3 text-center text-sm leading-6 text-ink-500">
+          {hasChildren
+            ? '中心主题已收起，可通过节点按钮或右侧面板展开。'
+            : '先添加一级主题，导图会按 XMind 风格向右展开。'}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="relative min-h-[720px] min-w-max"
+      style={{
+        height: Math.max(720, layout.height),
+        width: layout.width,
+      }}
+    >
+      <svg
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 overflow-visible"
+        height={Math.max(720, layout.height)}
+        width={layout.width}
+      >
+        {layout.connectors.map((connector, index) => {
+          const pathData = getLayoutConnectorPath(connector, direction)
+
+          return (
+            <path
+              key={`${connector.fromX}-${connector.fromY}-${connector.toX}-${connector.toY}-${index}`}
+              d={pathData}
+              fill="none"
+              opacity="0.78"
+              stroke={connector.color}
+              strokeLinecap="round"
+              strokeWidth={lineWidth}
+            />
+          )
+        })}
+      </svg>
+
+      {layout.nodes.map(placement => (
+        <div
+          key={placement.node.id}
+          className="absolute z-10"
+          style={{
+            height: placement.height,
+            left: placement.x,
+            top: placement.y,
+            width: placement.width,
+          }}
+        >
+          <MindmapXmindNode
+            branchColor={placement.branchColor}
+            depth={placement.depth}
+            node={placement.node}
+            variant={placement.variant}
+            {...props}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MindmapPlacementLayout({
+  buildLayout,
+  tree,
+  ...props
+}: { buildLayout: MindmapLayoutBuilder; tree: MindmapNode } & MindmapRendererProps) {
+  const lineWidth = props.styleMeta.branchLine === 'thick' ? 2.4 : props.styleMeta.branchLine === 'default' ? 1.8 : 1.25
+  const layout = buildLayout(tree, props.styleMeta)
+
+  return (
+    <div
+      className="relative min-h-[720px] min-w-max"
+      style={{
+        height: Math.max(720, layout.height),
+        width: layout.width,
+      }}
+    >
+      <svg
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 overflow-visible"
+        height={Math.max(720, layout.height)}
+        width={layout.width}
+      >
+        {layout.connectors.map((connector, index) => (
+          <path
+            key={`${connector.fromX}-${connector.fromY}-${connector.toX}-${connector.toY}-${index}`}
+            d={getLayoutConnectorPath(connector)}
+            fill="none"
+            opacity={connector.kind === 'spine' ? '0.7' : '0.78'}
+            stroke={connector.color}
+            strokeLinecap="round"
+            strokeWidth={lineWidth}
+          />
+        ))}
+      </svg>
+
+      {layout.nodes.map(placement => (
+        <div
+          key={placement.nodeId}
+          className="absolute z-10"
+          style={{
+            height: placement.height,
+            left: placement.x,
+            top: placement.y,
+            width: placement.width,
+          }}
+        >
+          <MindmapXmindNode
+            branchColor={placement.branchColor}
+            depth={placement.depth}
+            node={placement.node}
+            variant={placement.variant}
+            {...props}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MindmapDesktopBranch({
+  branchColor,
+  depth,
+  node,
+  ...props
+}: { depth: number; node: MindmapNode } & MindmapRendererProps) {
+  const tone = colorMeta[resolveBranchColor(node.color, branchColor, props.styleMeta)]
+  const lineClasses = getBranchLineClasses(props.styleMeta.branchLine)
+  const hasChildren = node.children.length > 0
+  const isCollapsed = Boolean(node.collapsed) && hasChildren
+  const variant: MindmapNodeVariant = depth === 1 ? 'primary' : depth === 2 ? 'secondary' : 'leaf'
+  const childGapClass = depth === 1 ? 'gap-24' : 'gap-20'
+  const incomingLineClass = depth === 1 ? '-left-28 w-[94px]' : depth === 2 ? '-left-[78px] w-[60px]' : '-left-[62px] w-[44px]'
+  const childTrunkClass = depth === 1 ? '-left-[78px]' : '-left-[62px]'
+
+  return (
+    <div className={cn('relative flex shrink-0 items-center', childGapClass)}>
+      <div className="relative z-10 shrink-0">
+        <div className={cn('pointer-events-none absolute top-1/2 z-0 -translate-y-1/2 rounded-full opacity-70', incomingLineClass, tone.line, lineClasses.horizontal)} />
+        <MindmapNodeCard
+          branchColor={branchColor}
+          depth={depth}
+          node={node}
+          variant={variant}
+          {...props}
+        />
+      </div>
+
+      {hasChildren && !isCollapsed ? (
+        <div className="relative flex flex-col gap-6">
+          {node.children.length > 1 && (
+            <div className={cn('pointer-events-none absolute bottom-10 top-10 z-0 rounded-full opacity-55', childTrunkClass, tone.line, lineClasses.vertical)} />
+          )}
+          {node.children.map(child => (
+            <MindmapDesktopBranch
+              key={child.id}
+              branchColor={branchColor}
+              depth={depth + 1}
+              node={child}
+              {...props}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function MindmapDesktopLayout({
+  tree,
+  ...props
+}: { tree: MindmapNode } & MindmapRendererProps) {
+  if (props.styleMeta.layout === 'xmind-axis') {
+    return <MindmapXmindLayout direction="axis" tree={tree} {...props} />
+  }
+
+  if (props.styleMeta.layout === 'right') {
+    return <MindmapXmindLayout direction="right" tree={tree} {...props} />
+  }
+
+  if (props.styleMeta.layout === 'timeline') {
+    return <MindmapPlacementLayout buildLayout={buildTimelineSvgLayout} tree={tree} {...props} />
+  }
+
+  if (props.styleMeta.layout === 'fishbone') {
+    return <MindmapPlacementLayout buildLayout={buildFishboneSvgLayout} tree={tree} {...props} />
+  }
+
+  if (props.styleMeta.layout === 'organization') {
+    return <MindmapPlacementLayout buildLayout={buildOrganizationTreeLayout} tree={tree} {...props} />
+  }
+
+  return <MindmapXmindLayout direction="down" tree={tree} {...props} />
+}
+
+function MindmapMobileBranch({
+  branchColor,
+  depth,
+  node,
+  ...props
+}: { depth: number; node: MindmapNode } & MindmapRendererProps) {
+  const tone = colorMeta[resolveBranchColor(node.color, branchColor, props.styleMeta)]
+  const hasChildren = node.children.length > 0
+  const isCollapsed = Boolean(node.collapsed) && hasChildren
+  const variant: MindmapNodeVariant = depth === 0 ? 'root' : depth === 1 ? 'primary' : depth === 2 ? 'secondary' : 'leaf'
+
+  return (
+    <div className="min-w-0">
+      <MindmapNodeCard
+        branchColor={branchColor}
+        depth={depth}
+        node={node}
+        variant={variant}
+        {...props}
+      />
+
+      {hasChildren && !isCollapsed ? (
+        <div className="relative mt-5 space-y-5 pl-5">
+          <div className={cn('pointer-events-none absolute bottom-3 left-2 top-0 w-px opacity-45', tone.line)} />
+          {node.children.map((child, index) => (
+            <div key={child.id} className="relative min-w-0">
+              <div className={cn('pointer-events-none absolute -left-3 top-9 h-px w-3 opacity-55', tone.line)} />
+              <MindmapMobileBranch
+                branchColor={depth === 0 ? colorOrder[index % colorOrder.length] : branchColor}
+                depth={depth + 1}
+                node={child}
+                {...props}
+              />
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function MindmapMobileLayout({
+  tree,
+  ...props
+}: { tree: MindmapNode } & MindmapRendererProps) {
+  return (
+    <div className="w-full min-w-0">
+      <MindmapMobileBranch depth={0} node={tree} {...props} />
+    </div>
+  )
+}
+
+function MindmapCanvas({
+  fullscreen,
+  setViewportRef,
+  tree,
+  useMobileLayout,
+  viewport,
+  onViewportChange,
+  ...props
+}: {
+  fullscreen: boolean
+  setViewportRef: (node: HTMLDivElement | null) => void
+  tree: MindmapNode
+  useMobileLayout: boolean
+  viewport: MindmapViewport
+  onViewportChange: (viewport: MindmapViewport) => void
+} & MindmapRendererProps) {
+  const viewportRef = useRef<HTMLDivElement | null>(null)
+  const panRef = useRef<{
+    startMouseX: number
+    startMouseY: number
+    startViewportX: number
+    startViewportY: number
+  } | null>(null)
+  const [isPanning, setIsPanning] = useState(false)
+
+  useEffect(() => {
+    if (!fullscreen) return
+
+    const frame = window.requestAnimationFrame(() => {
+      const viewport = viewportRef.current
+      if (!viewport) return
+      viewport.scrollLeft = 0
+      viewport.scrollTop = 0
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [fullscreen, tree.id, useMobileLayout])
+
+  useEffect(() => {
+    if (!isPanning || useMobileLayout) return
+
+    function handleMouseMove(event: MouseEvent) {
+      const activePan = panRef.current
+      if (!activePan) return
+      onViewportChange({
+        ...viewport,
+        x: activePan.startViewportX + event.clientX - activePan.startMouseX,
+        y: activePan.startViewportY + event.clientY - activePan.startMouseY,
+      })
+    }
+
+    function handleMouseUp() {
+      panRef.current = null
+      setIsPanning(false)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isPanning, onViewportChange, useMobileLayout, viewport])
+
+  function handleCanvasWheel(event: React.WheelEvent<HTMLDivElement>) {
+    if (useMobileLayout) return
+    event.preventDefault()
+
+    const nextZoom = clampCanvasZoom(viewport.zoom - event.deltaY * 0.0016)
+    if (nextZoom === viewport.zoom) return
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const pointerX = event.clientX - rect.left
+    const pointerY = event.clientY - rect.top
+    const scale = nextZoom / viewport.zoom
+
+    onViewportChange({
+      zoom: nextZoom,
+      x: pointerX - (pointerX - viewport.x) * scale,
+      y: pointerY - (pointerY - viewport.y) * scale,
+    })
+  }
+
+  function handleCanvasMouseDown(event: React.MouseEvent<HTMLDivElement>) {
+    if (useMobileLayout || event.button !== 0 || isTypingTarget(event.target)) return
+    if (event.target instanceof HTMLElement && event.target.closest('[data-node-id]')) return
+
+    event.preventDefault()
+    panRef.current = {
+      startMouseX: event.clientX,
+      startMouseY: event.clientY,
+      startViewportX: viewport.x,
+      startViewportY: viewport.y,
+    }
+    setIsPanning(true)
+  }
+
+  return (
+    <div
+      ref={node => {
+        viewportRef.current = node
+        setViewportRef(node)
+      }}
+      tabIndex={-1}
+      onMouseDown={handleCanvasMouseDown}
+      onWheel={handleCanvasWheel}
+      className={cn(
+        'h-full w-full min-h-0 flex-1 overscroll-contain rounded-none bg-transparent outline-none',
+        useMobileLayout ? 'overflow-auto' : 'overflow-hidden',
+        !useMobileLayout && (isPanning ? 'cursor-grabbing' : 'cursor-grab'),
+        fullscreen ? 'h-full' : 'h-[680px] lg:h-[760px]'
+      )}
+    >
+      <div
+        className={cn(
+          'flex min-h-[720px]',
+          useMobileLayout ? 'w-full min-w-0 items-start' : 'min-w-max items-center'
+        )}
+        style={{
+          padding: useMobileLayout ? '24px 16px 40px 16px' : '64px 96px 96px 96px',
+          transform: useMobileLayout ? undefined : `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
+          transformOrigin: '0 0',
+        } as CSSProperties}
+      >
+        {useMobileLayout ? (
+          <MindmapMobileLayout tree={tree} {...props} />
+        ) : (
+          <MindmapDesktopLayout tree={tree} {...props} />
+        )}
       </div>
     </div>
   )
@@ -1532,26 +1811,37 @@ export default function MindmapDetailPage() {
   const [fullscreenInspectorTab, setFullscreenInspectorTab] = useState<FullscreenInspectorTab>('node')
   const [layoutTemplateNotice, setLayoutTemplateNotice] = useState('')
   const [isFullscreenEditor, setIsFullscreenEditor] = useState(false)
-  const [useDesktopFullscreenLayout, setUseDesktopFullscreenLayout] = useState(false)
+  const [isMobileCanvasLayout, setIsMobileCanvasLayout] = useState(false)
+  const [canvasViewport, setCanvasViewport] = useState<MindmapViewport>(defaultCanvasViewport)
+  const [historyPast, setHistoryPast] = useState<MindmapHistoryEntry[]>([])
+  const [historyFuture, setHistoryFuture] = useState<MindmapHistoryEntry[]>([])
   const [scrollRequest, setScrollRequest] = useState<{ nodeId: string; token: number } | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const canvasViewportRef = useRef<HTMLDivElement | null>(null)
   const screenStateRef = useRef(screenState)
+  const titleRef = useRef(title)
   const treeRef = useRef(tree)
   const selectedNodeIdRef = useRef(selectedNodeId)
   const editingNodeIdRef = useRef(editingNodeId)
   const isFullscreenEditorRef = useRef(isFullscreenEditor)
+  const canvasViewportStateRef = useRef(canvasViewport)
   const handleSaveRef = useRef<() => Promise<void>>(async () => {})
   const handleAddChildRef = useRef<(nodeId: string) => void>(() => {})
   const handleAddSiblingRef = useRef<(nodeId: string) => void>(() => {})
   const handleDeleteNodeRef = useRef<(nodeId: string) => void>(() => {})
+  const handlePromoteNodeRef = useRef<(nodeId: string) => void>(() => {})
+  const handleNavigateNodeRef = useRef<(direction: 'previous' | 'next' | 'parent' | 'child') => void>(() => {})
   const handleToggleCollapseRef = useRef<(nodeId: string) => void>(() => {})
+  const handleUndoRef = useRef<() => void>(() => {})
+  const handleRedoRef = useRef<() => void>(() => {})
 
   screenStateRef.current = screenState
+  titleRef.current = title
   treeRef.current = tree
   selectedNodeIdRef.current = selectedNodeId
   editingNodeIdRef.current = editingNodeId
   isFullscreenEditorRef.current = isFullscreenEditor
+  canvasViewportStateRef.current = canvasViewport
 
   function focusCanvasViewport() {
     window.requestAnimationFrame(() => {
@@ -1562,49 +1852,76 @@ export default function MindmapDetailPage() {
   useEffect(() => {
     let alive = true
 
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!alive) return
+    async function loadMindmap() {
+      setScreenState('loading')
+      setLoadingError('')
 
-      if (!user) {
-        setScreenState('auth')
-        return
-      }
+      try {
+        const { data: { user } } = await runWithTimeout(
+          supabase.auth.getUser(),
+          authLoadTimeoutMs,
+          '登录状态校验超时，请刷新后重试。'
+        )
 
-      setUserId(user.id)
+        if (!alive) return
 
-      const { data, error: queryError } = await supabase
-        .from('mindmaps')
-        .select('id, user_id, title, description, source_module, content_json, updated_at')
-        .eq('id', mindmapId)
-        .eq('user_id', user.id)
-        .maybeSingle()
+        if (!user) {
+          setScreenState('auth')
+          return
+        }
 
-      if (!alive) return
+        setUserId(user.id)
 
-      if (queryError) {
-        setLoadingError(queryError.message || '加载导图失败')
+        const { data, error: queryError } = await runWithTimeout(
+          Promise.resolve(
+            supabase
+              .from('mindmaps')
+              .select('id, user_id, title, description, source_module, content_json, updated_at')
+              .eq('id', mindmapId)
+              .eq('user_id', user.id)
+              .maybeSingle()
+          ),
+          mindmapLoadTimeoutMs,
+          '导图数据加载超时，请检查网络后重试。'
+        )
+
+        if (!alive) return
+
+        if (queryError) {
+          setLoadingError(queryError.message || '加载导图失败')
+          setScreenState('error')
+          return
+        }
+
+        if (!data) {
+          setScreenState('missing')
+          return
+        }
+
+        const nextTitle = data.title || '未命名导图'
+        const nextTree = normalizeTree(data.content_json)
+        const nextSnapshot = JSON.stringify({ title: nextTitle, tree: nextTree })
+        const nextViewport = normalizeMindmapMeta(nextTree.meta).viewport ?? defaultCanvasViewport
+
+        setTitle(nextTitle)
+        setTree(nextTree)
+        setCanvasViewport(nextViewport)
+        setSelectedNodeId(nextTree.id)
+        setEditingNodeId(null)
+        setEditingNodeLabel('')
+        setHistoryPast([])
+        setHistoryFuture([])
+        setLastSavedAt(data.updated_at)
+        setSavedSnapshot(nextSnapshot)
+        setScreenState('ready')
+      } catch (error) {
+        if (!alive) return
+        setLoadingError(error instanceof Error ? error.message : '加载导图失败，请稍后重试。')
         setScreenState('error')
-        return
       }
+    }
 
-      if (!data) {
-        setScreenState('missing')
-        return
-      }
-
-      const nextTitle = data.title || '未命名导图'
-      const nextTree = normalizeTree(data.content_json)
-      const nextSnapshot = JSON.stringify({ title: nextTitle, tree: nextTree })
-
-      setTitle(nextTitle)
-      setTree(nextTree)
-      setSelectedNodeId(nextTree.id)
-      setEditingNodeId(null)
-      setEditingNodeLabel('')
-      setLastSavedAt(data.updated_at)
-      setSavedSnapshot(nextSnapshot)
-      setScreenState('ready')
-    })
+    void loadMindmap()
 
     return () => { alive = false }
   }, [mindmapId])
@@ -1624,10 +1941,12 @@ export default function MindmapDetailPage() {
     () => findNodeDepth(tree, selectedNode.id) ?? 0,
     [selectedNode.id, tree]
   )
+  const canPromoteSelectedNode = selectedNodeDepth >= 2
   const canvasMeta = useMemo(
     () => normalizeMindmapMeta(tree.meta),
     [tree.meta]
   )
+  const canvasZoom = canvasViewport.zoom
   const totalNodes = useMemo(() => countNodes(tree), [tree])
   const selectedNodeIsCollapsed = Boolean(selectedNode.collapsed)
   const searchResults = useMemo(
@@ -1672,6 +1991,49 @@ export default function MindmapDetailPage() {
     if (exportError) setExportError('')
   }
 
+  function pushHistorySnapshot() {
+    if (screenStateRef.current !== 'ready') return
+    setHistoryPast(current => [
+      ...current.slice(-(maxMindmapHistoryEntries - 1)),
+      { title: titleRef.current, tree: treeRef.current },
+    ])
+    setHistoryFuture([])
+  }
+
+  function restoreHistoryEntry(entry: MindmapHistoryEntry) {
+    const nextViewport = normalizeMindmapMeta(entry.tree.meta).viewport ?? defaultCanvasViewport
+    setTitle(entry.title)
+    setTree(entry.tree)
+    setCanvasViewport(nextViewport)
+    setSelectedNodeId(current => findNodeById(entry.tree, current)?.id ?? entry.tree.id)
+    setEditingNodeId(null)
+    setEditingNodeLabel('')
+    markEdited()
+    focusCanvasViewport()
+  }
+
+  function handleUndo() {
+    if (historyPast.length === 0 || saving) return
+    const previous = historyPast[historyPast.length - 1]
+    setHistoryPast(current => current.slice(0, -1))
+    setHistoryFuture(current => [
+      { title: titleRef.current, tree: treeRef.current },
+      ...current.slice(0, maxMindmapHistoryEntries - 1),
+    ])
+    restoreHistoryEntry(previous)
+  }
+
+  function handleRedo() {
+    if (historyFuture.length === 0 || saving) return
+    const next = historyFuture[0]
+    setHistoryFuture(current => current.slice(1))
+    setHistoryPast(current => [
+      ...current.slice(-(maxMindmapHistoryEntries - 1)),
+      { title: titleRef.current, tree: treeRef.current },
+    ])
+    restoreHistoryEntry(next)
+  }
+
   function handleSelectNode(nodeId: string) {
     setSelectedNodeId(nodeId)
     focusCanvasViewport()
@@ -1694,6 +2056,7 @@ export default function MindmapDetailPage() {
 
   function handleNodeLabelChange(value: string) {
     markEdited()
+    pushHistorySnapshot()
     if (editingNodeId === selectedNode.id) {
       setEditingNodeLabel(value)
     }
@@ -1708,6 +2071,7 @@ export default function MindmapDetailPage() {
 
   function handleNodeColorChange(color: MindmapColor) {
     markEdited()
+    pushHistorySnapshot()
     setTree(current => {
       const result = updateNodeById(current, selectedNode.id, node => ({
         ...node,
@@ -1719,6 +2083,7 @@ export default function MindmapDetailPage() {
 
   function handleCanvasMetaChange(patch: Partial<MindmapMeta>) {
     markEdited()
+    pushHistorySnapshot()
     setTree(current => ({
       ...current,
       meta: {
@@ -1728,14 +2093,54 @@ export default function MindmapDetailPage() {
     }))
   }
 
-  function handleLayoutTemplateSelect(templateId: LayoutTemplateId) {
-    if (templateId !== 'xmind-axis') {
-      setLayoutTemplateNotice('该布局将在后续版本支持。')
-      return
-    }
+  function handleCanvasViewportChange(nextViewport: MindmapViewport) {
+    const normalizedViewport = normalizeCanvasViewport(nextViewport)
+    markEdited()
+    setCanvasViewport(normalizedViewport)
+    setTree(current => ({
+      ...current,
+      meta: {
+        ...normalizeMindmapMeta(current.meta),
+        viewport: normalizedViewport,
+      },
+    }))
+  }
 
+  function handleThemeSelect(theme: MindmapTheme) {
+    const nextTheme = mindmapThemeOptions.find(option => option.id === theme)
+    if (!nextTheme) return
+    handleCanvasMetaChange(nextTheme.patch)
+  }
+
+  function handleZoomOut() {
+    handleCanvasViewportChange({
+      ...canvasViewport,
+      zoom: clampCanvasZoom(canvasViewport.zoom - canvasZoomStep),
+    })
+  }
+
+  function handleZoomIn() {
+    handleCanvasViewportChange({
+      ...canvasViewport,
+      zoom: clampCanvasZoom(canvasViewport.zoom + canvasZoomStep),
+    })
+  }
+
+  function handleZoomReset() {
+    handleCanvasViewportChange(defaultCanvasViewport)
+  }
+
+  function handleFitCanvasView() {
+    handleCanvasViewportChange({
+      x: 32,
+      y: 32,
+      zoom: canvasMeta.compact ? 0.95 : 0.9,
+    })
+  }
+
+  function handleLayoutTemplateSelect(templateId: LayoutTemplateId) {
     setLayoutTemplateNotice('')
-    handleCanvasMetaChange({ layout: 'xmind-axis' })
+    handleCanvasMetaChange({ layout: templateId })
   }
 
   function handleAddChild(nodeId: string) {
@@ -1752,6 +2157,7 @@ export default function MindmapDetailPage() {
     let added = false
 
     markEdited()
+    pushHistorySnapshot()
     setTree(current => {
       const expandedCurrent = setNodeCollapsed(current, nodeId, false).nextNode
       const result = addChildNode(expandedCurrent, nodeId, childNode)
@@ -1782,6 +2188,7 @@ export default function MindmapDetailPage() {
     setEditingNodeId(null)
     setEditingNodeLabel('')
     markEdited()
+    pushHistorySnapshot()
     setTree(current => {
       const result = addSiblingNode(current, nodeId, siblingNode)
       added = result.added
@@ -1806,6 +2213,7 @@ export default function MindmapDetailPage() {
     setEditingNodeId(null)
     setEditingNodeLabel('')
     markEdited()
+    pushHistorySnapshot()
     setTree(current => {
       const result = removeNodeById(current, nodeId)
       removed = result.removed
@@ -1816,6 +2224,52 @@ export default function MindmapDetailPage() {
       setSelectedNodeId(parentNode?.id ?? 'root')
       focusCanvasViewport()
     }
+  }
+
+  function handlePromoteNode(nodeId: string) {
+    if (nodeId === 'root') return
+
+    const parentNode = findParentNode(tree, nodeId)
+    if (!parentNode || parentNode.id === 'root') return
+
+    let promoted = false
+
+    setEditingNodeId(null)
+    setEditingNodeLabel('')
+    markEdited()
+    pushHistorySnapshot()
+    setTree(current => {
+      const result = promoteNodeById(current, nodeId)
+      promoted = result.promoted
+      return result.promoted ? result.nextNode : current
+    })
+
+    if (promoted) {
+      setSelectedNodeId(nodeId)
+      focusCanvasViewport()
+    }
+  }
+
+  function handleNavigateNode(direction: 'previous' | 'next' | 'parent' | 'child') {
+    const entries = getVisibleNavigationEntries(treeRef.current)
+    const currentIndex = entries.findIndex(entry => entry.node.id === selectedNodeIdRef.current)
+    if (currentIndex < 0) return
+
+    const currentEntry = entries[currentIndex]
+    let nextEntry: MindmapNavigationEntry | undefined
+
+    if (direction === 'previous') {
+      nextEntry = entries[Math.max(0, currentIndex - 1)]
+    } else if (direction === 'next') {
+      nextEntry = entries[Math.min(entries.length - 1, currentIndex + 1)]
+    } else if (direction === 'parent' && currentEntry.parentId) {
+      nextEntry = entries.find(entry => entry.node.id === currentEntry.parentId)
+    } else if (direction === 'child' && !currentEntry.node.collapsed && currentEntry.node.children.length > 0) {
+      nextEntry = entries.find(entry => entry.parentId === currentEntry.node.id)
+    }
+
+    if (!nextEntry || nextEntry.node.id === selectedNodeIdRef.current) return
+    locateNode(nextEntry.node.id)
   }
 
   function handleInlineEditStart(nodeId: string) {
@@ -1844,6 +2298,7 @@ export default function MindmapDetailPage() {
     if (!currentNode || currentNode.label === nextLabel) return
 
     markEdited()
+    pushHistorySnapshot()
     setTree(current => {
       const result = updateNodeById(current, nodeId, node => ({
         ...node,
@@ -1858,6 +2313,7 @@ export default function MindmapDetailPage() {
     if (!currentNode || currentNode.children.length === 0) return
 
     markEdited()
+    pushHistorySnapshot()
     setTree(current => {
       const result = setNodeCollapsed(current, nodeId, !currentNode.collapsed)
       return result.changed ? result.nextNode : current
@@ -1867,12 +2323,14 @@ export default function MindmapDetailPage() {
 
   function handleExpandAll() {
     markEdited()
+    pushHistorySnapshot()
     setTree(current => setTreeCollapsedState(current, false, true))
     focusCanvasViewport()
   }
 
   function handleCollapseAll() {
     markEdited()
+    pushHistorySnapshot()
     setSelectedNodeId('root')
     setTree(current => setTreeCollapsedState(current, true, true))
     focusCanvasViewport()
@@ -1957,7 +2415,21 @@ export default function MindmapDetailPage() {
   handleAddChildRef.current = handleAddChild
   handleAddSiblingRef.current = handleAddSibling
   handleDeleteNodeRef.current = handleDeleteNode
+  handlePromoteNodeRef.current = handlePromoteNode
+  handleNavigateNodeRef.current = handleNavigateNode
   handleToggleCollapseRef.current = handleToggleCollapse
+  handleUndoRef.current = handleUndo
+  handleRedoRef.current = handleRedo
+
+  useEffect(() => {
+    if (!userId || screenState !== 'ready' || !isDirty || saving || editingNodeId) return
+
+    const timeoutId = window.setTimeout(() => {
+      void handleSaveRef.current()
+    }, 1600)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [currentSnapshot, editingNodeId, hasPendingInlineEdit, isDirty, saving, screenState, userId])
 
   useEffect(() => {
     if (editingNodeId && !findNodeById(tree, editingNodeId)) {
@@ -1979,27 +2451,6 @@ export default function MindmapDetailPage() {
   }, [isFullscreenEditor])
 
   useEffect(() => {
-    if (!isFullscreenEditor) return
-
-    const frame = window.requestAnimationFrame(() => {
-      const viewport = canvasViewportRef.current
-      const rootNode = viewport?.querySelector<HTMLElement>('[data-node-id="root"]')
-
-      if (!viewport || !rootNode) return
-
-      viewport.scrollLeft = 0
-      viewport.scrollTop = 0
-      rootNode.scrollIntoView({
-        behavior: 'auto',
-        block: 'center',
-        inline: 'start',
-      })
-    })
-
-    return () => window.cancelAnimationFrame(frame)
-  }, [isFullscreenEditor, tree.id, useDesktopFullscreenLayout])
-
-  useEffect(() => {
     if (!layoutTemplateNotice) return
 
     const timeoutId = window.setTimeout(() => {
@@ -2010,13 +2461,8 @@ export default function MindmapDetailPage() {
   }, [layoutTemplateNotice])
 
   useEffect(() => {
-    if (!isFullscreenEditor) {
-      setUseDesktopFullscreenLayout(false)
-      return
-    }
-
     const updateLayoutMode = () => {
-      setUseDesktopFullscreenLayout(isDesktopBrowserLayout())
+      setIsMobileCanvasLayout(isMobileBrowserLayout())
     }
 
     updateLayoutMode()
@@ -2025,7 +2471,7 @@ export default function MindmapDetailPage() {
       return
     }
 
-    const mediaQuery = window.matchMedia('(hover: hover) and (pointer: fine)')
+    const mediaQuery = window.matchMedia('(max-width: 1023px)')
     mediaQuery.addEventListener('change', updateLayoutMode)
     window.addEventListener('resize', updateLayoutMode)
 
@@ -2033,7 +2479,7 @@ export default function MindmapDetailPage() {
       mediaQuery.removeEventListener('change', updateLayoutMode)
       window.removeEventListener('resize', updateLayoutMode)
     }
-  }, [isFullscreenEditor])
+  }, [])
 
   useEffect(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -2042,12 +2488,58 @@ export default function MindmapDetailPage() {
       const key = event.key
       const isSaveShortcut = (event.metaKey || event.ctrlKey) && key.toLowerCase() === 's'
       const isSearchShortcut = (event.metaKey || event.ctrlKey) && key.toLowerCase() === 'f'
+      const isUndoShortcut = (event.metaKey || event.ctrlKey) && !event.shiftKey && key.toLowerCase() === 'z'
+      const isRedoShortcut = (event.metaKey || event.ctrlKey) && (key.toLowerCase() === 'y' || (event.shiftKey && key.toLowerCase() === 'z'))
+      const isZoomShortcut = event.metaKey || event.ctrlKey
 
       if (isSaveShortcut) {
         event.preventDefault()
         event.stopPropagation()
         void handleSaveRef.current()
         return
+      }
+
+      if (isUndoShortcut && !isTypingTarget(event.target)) {
+        event.preventDefault()
+        event.stopPropagation()
+        handleUndoRef.current()
+        return
+      }
+
+      if (isRedoShortcut && !isTypingTarget(event.target)) {
+        event.preventDefault()
+        event.stopPropagation()
+        handleRedoRef.current()
+        return
+      }
+
+      if (isZoomShortcut && !isTypingTarget(event.target)) {
+        if (key === '+' || key === '=') {
+          event.preventDefault()
+          event.stopPropagation()
+          handleCanvasViewportChange({
+            ...canvasViewportStateRef.current,
+            zoom: clampCanvasZoom(canvasViewportStateRef.current.zoom + canvasZoomStep),
+          })
+          return
+        }
+
+        if (key === '-') {
+          event.preventDefault()
+          event.stopPropagation()
+          handleCanvasViewportChange({
+            ...canvasViewportStateRef.current,
+            zoom: clampCanvasZoom(canvasViewportStateRef.current.zoom - canvasZoomStep),
+          })
+          return
+        }
+
+        if (key === '0') {
+          event.preventDefault()
+          event.stopPropagation()
+          handleCanvasViewportChange(defaultCanvasViewport)
+          return
+        }
       }
 
       if (
@@ -2075,13 +2567,41 @@ export default function MindmapDetailPage() {
       if (editingNodeIdRef.current) return
       if (isTypingTarget(event.target)) return
 
-      const currentNodeId = selectedNodeIdRef.current
+	      const currentNodeId = selectedNodeIdRef.current
 
-      if (key === 'Tab') {
-        event.preventDefault()
-        handleAddChildRef.current(currentNodeId)
-        return
-      }
+	      if (key === 'Tab') {
+	        event.preventDefault()
+	        if (event.shiftKey) {
+	          handlePromoteNodeRef.current(currentNodeId)
+	        } else {
+	          handleAddChildRef.current(currentNodeId)
+	        }
+	        return
+	      }
+
+	      if (key === 'ArrowUp') {
+	        event.preventDefault()
+	        handleNavigateNodeRef.current('previous')
+	        return
+	      }
+
+	      if (key === 'ArrowDown') {
+	        event.preventDefault()
+	        handleNavigateNodeRef.current('next')
+	        return
+	      }
+
+	      if (key === 'ArrowLeft') {
+	        event.preventDefault()
+	        handleNavigateNodeRef.current('parent')
+	        return
+	      }
+
+	      if (key === 'ArrowRight') {
+	        event.preventDefault()
+	        handleNavigateNodeRef.current('child')
+	        return
+	      }
 
       if (key === ' ') {
         const currentNode = findNodeById(treeRef.current, currentNodeId)
@@ -2181,9 +2701,39 @@ export default function MindmapDetailPage() {
     }
   }
 
+  function handleExportSvg() {
+    if (screenState !== 'ready') return
+
+    try {
+      setExportError('')
+      const filename = `${sanitizeMindmapFilename(title)}.svg`
+      const content = buildMindmapSvg(tree, title, canvasMeta)
+      downloadFile(filename, content, 'image/svg+xml;charset=utf-8')
+    } catch {
+      setExportError('导出失败，请稍后重试。')
+    }
+  }
+
   function renderCanvasPanel(fullscreen = false) {
     const canvasSurfaceStyle = getCanvasSurfaceStyle(canvasMeta.background)
-    const shouldUseDesktopCanvas = fullscreen ? useDesktopFullscreenLayout : false
+    const currentTheme = mindmapThemeOptions.find(option => doesMindmapMetaMatchTheme(canvasMeta, option))
+    const zoomPercent = Math.round(canvasZoom * 100)
+    const isDarkCanvas = canvasMeta.background === 'dark'
+    const toolbarShellClass = isDarkCanvas
+      ? 'border-white/8 bg-[#171B20]/82 text-slate-300 shadow-[0_10px_32px_rgba(0,0,0,0.18)] backdrop-blur'
+      : 'border-[#E6DED1] bg-white/86 text-ink-600 shadow-[0_8px_24px_rgba(111,102,88,0.08)] backdrop-blur'
+    const toolbarPillClass = isDarkCanvas
+      ? 'border-white/10 bg-white/[0.06] text-slate-300'
+      : 'border-[#E5DED2] bg-[#FCFAF6] text-ink-600'
+    const toolbarButtonClass = isDarkCanvas
+      ? 'h-8 min-h-8 rounded-[9px] border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-slate-300 hover:border-white/18 hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:border-white/6 disabled:bg-white/[0.02] disabled:text-slate-500 disabled:opacity-100'
+      : 'h-8 min-h-8 rounded-[9px] border border-[#E0D9CD] bg-white/70 px-3 text-xs font-medium text-ink-600 hover:border-[#C9BEAE] hover:bg-white hover:text-ink-900 disabled:cursor-not-allowed disabled:border-[#E9E2D7] disabled:bg-[#F5F1E8] disabled:text-ink-300 disabled:opacity-100'
+    const toolbarStrongButtonClass = isDarkCanvas
+      ? 'h-8 min-h-8 rounded-[9px] border border-white/14 bg-white/[0.09] px-3 text-xs font-semibold text-white hover:border-white/22 hover:bg-white/[0.13]'
+      : 'h-8 min-h-8 rounded-[9px] border border-[#D8CBBA] bg-[#FAF7F1] px-3 text-xs font-semibold text-ink-800 hover:border-[#C4B49F] hover:bg-white'
+    const shortcutHintClass = isDarkCanvas
+      ? 'border-white/8 bg-[#171B20]/62 text-slate-400'
+      : 'border-[#E7DFD4] bg-white/68 text-ink-500'
 
     return (
       <Card
@@ -2204,20 +2754,67 @@ export default function MindmapDetailPage() {
             ...canvasSurfaceStyle,
           }}
         >
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-1 text-xs text-ink-500">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-[#E2DBCF] bg-[#FCFAF6] px-3 py-1 text-[11px] text-ink-600">
-                {totalNodes} 个节点
+          <div className={cn('mb-2 flex flex-wrap items-center justify-between gap-2 rounded-[12px] border px-2.5 py-2 text-xs', toolbarShellClass)}>
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <span className={cn('inline-flex h-8 items-center rounded-[9px] border px-2.5 text-xs', toolbarPillClass)}>
+                {totalNodes} 节点
               </span>
-              <span className="rounded-full border border-[#E2DBCF] bg-[#FCFAF6] px-3 py-1 text-[11px] text-ink-600">
-                {searchQuery.trim() ? `${searchResults.length} 个匹配` : '未搜索'}
+              <span className={cn('inline-flex h-8 items-center rounded-[9px] border px-2.5 text-xs', toolbarPillClass)}>
+                {searchQuery.trim() ? `${searchResults.length} 匹配` : '未搜索'}
+              </span>
+              <span className={cn('inline-flex h-8 max-w-[220px] items-center rounded-[9px] border px-2.5 text-xs', toolbarPillClass)}>
+                <span className="truncate">{selectedNode.label || '未命名节点'}</span>
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+
+            <div className="flex flex-wrap items-center gap-1.5">
               <Button
                 variant="ghost"
                 size="sm"
-                className="min-h-9 rounded-full border border-[#E0D9CD] bg-transparent px-3.5 text-[11px] uppercase tracking-[0.12em] text-ink-500 hover:border-[#C9BEAE] hover:bg-[#FBF8F2]"
+                className={toolbarButtonClass}
+                onClick={handleZoomOut}
+                disabled={canvasZoom <= minCanvasZoom}
+              >
+                缩小
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(toolbarStrongButtonClass, 'min-w-16 justify-center')}
+                onClick={handleZoomReset}
+              >
+                {zoomPercent}%
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={toolbarButtonClass}
+                onClick={handleZoomIn}
+                disabled={canvasZoom >= maxCanvasZoom}
+              >
+                放大
+              </Button>
+              <span className={cn('mx-0.5 hidden h-5 w-px sm:block', isDarkCanvas ? 'bg-white/10' : 'bg-[#E2D8CB]')} />
+              <button
+                type="button"
+                className={toolbarButtonClass}
+                onClick={() => setFullscreenInspectorTab('canvas')}
+              >
+                {currentTheme?.label ?? '自定义风格'}
+              </button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={toolbarButtonClass}
+                onClick={handleFitCanvasView}
+                disabled={screenState !== 'ready'}
+              >
+                适应
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={toolbarButtonClass}
                 onClick={handleExpandAll}
                 disabled={screenState !== 'ready'}
               >
@@ -2226,7 +2823,7 @@ export default function MindmapDetailPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="min-h-9 rounded-full border border-[#E0D9CD] bg-transparent px-3.5 text-[11px] uppercase tracking-[0.12em] text-ink-500 hover:border-[#C9BEAE] hover:bg-[#FBF8F2]"
+                className={toolbarButtonClass}
                 onClick={handleCollapseAll}
                 disabled={screenState !== 'ready'}
               >
@@ -2235,71 +2832,38 @@ export default function MindmapDetailPage() {
             </div>
           </div>
           <div className={cn(
-            'mb-4 hidden px-1 text-xs leading-6 text-ink-500',
-            shouldUseDesktopCanvas ? 'block' : 'lg:block'
+            'mb-3 hidden w-fit rounded-[9px] border px-2.5 py-1 text-[11px] leading-5',
+            shortcutHintClass,
+            !isMobileCanvasLayout && 'lg:block'
           )}>
-            快捷键：Tab 添加子节点 · Enter 添加同级节点 · Delete 删除 · Cmd/Ctrl+S 保存
+            快捷键 Tab 添加子节点 · Enter 同级 · Delete 删除 · Cmd/Ctrl+S 保存
           </div>
-          <div
-            ref={canvasViewportRef}
-            tabIndex={-1}
-            className={cn(
-              'overflow-auto overscroll-contain rounded-none bg-transparent outline-none',
-              fullscreen ? 'h-full min-h-0 flex-1' : 'lg:h-[760px]'
-            )}
-          >
-            <div
-              className={cn(
-                'min-h-full min-w-max',
-                fullscreen && 'min-h-[720px] w-max'
-              )}
-              style={{ padding: fullscreen ? '64px 96px 96px 96px' : '48px 96px 80px 96px' }}
-            >
-              <DesktopMindmapCanvas
-                tree={tree}
-                useDesktopLayout={shouldUseDesktopCanvas}
-                styleMeta={canvasMeta}
-                selectedNodeId={selectedNodeId}
-                onAddChild={handleAddChild}
-                onAddSibling={handleAddSibling}
-                onDelete={handleDeleteNode}
-                onInlineEditCancel={handleInlineEditCancel}
-                onInlineEditChange={setEditingNodeLabel}
-                onInlineEditCommit={handleInlineEditCommit}
-                onInlineEditStart={handleInlineEditStart}
-                onSelect={handleSelectNode}
-                onToggleCollapse={handleToggleCollapse}
-                activeSearchNodeId={activeSearchNodeId}
-                editingNodeId={editingNodeId}
-                editingNodeLabel={editingNodeLabel}
-                matchedNodeIds={matchedNodeIds}
-              />
-              <div className={shouldUseDesktopCanvas ? 'hidden' : 'lg:hidden'}>
-                <TreeNodeCard
-                  depth={0}
-                  node={tree}
-                  styleMeta={canvasMeta}
-                  selectedNodeId={selectedNodeId}
-                  onAddChild={handleAddChild}
-                  onAddSibling={handleAddSibling}
-                  onDelete={handleDeleteNode}
-                  onInlineEditCancel={handleInlineEditCancel}
-                  onInlineEditChange={setEditingNodeLabel}
-                  onInlineEditCommit={handleInlineEditCommit}
-                  onInlineEditStart={handleInlineEditStart}
-                  onSelect={handleSelectNode}
-                  onToggleCollapse={handleToggleCollapse}
-                  activeSearchNodeId={activeSearchNodeId}
-                  editingNodeId={editingNodeId}
-                  editingNodeLabel={editingNodeLabel}
-                  matchedNodeIds={matchedNodeIds}
-                />
-              </div>
-            </div>
-          </div>
+          <MindmapCanvas
+            fullscreen={fullscreen}
+            setViewportRef={node => { canvasViewportRef.current = node }}
+            tree={tree}
+            useMobileLayout={isMobileCanvasLayout}
+            viewport={canvasViewport}
+            onViewportChange={handleCanvasViewportChange}
+            styleMeta={canvasMeta}
+            selectedNodeId={selectedNodeId}
+            onAddChild={handleAddChild}
+            onAddSibling={handleAddSibling}
+            onDelete={handleDeleteNode}
+            onInlineEditCancel={handleInlineEditCancel}
+            onInlineEditChange={setEditingNodeLabel}
+            onInlineEditCommit={handleInlineEditCommit}
+            onInlineEditStart={handleInlineEditStart}
+            onSelect={handleSelectNode}
+            onToggleCollapse={handleToggleCollapse}
+            activeSearchNodeId={activeSearchNodeId}
+            editingNodeId={editingNodeId}
+            editingNodeLabel={editingNodeLabel}
+            matchedNodeIds={matchedNodeIds}
+          />
           {searchQuery.trim() ? (
-            <div className="mt-4 rounded-[22px] border border-[#E6DFD2] bg-[rgba(252,250,245,0.86)] px-4 py-3">
-              <div className="mb-2 flex items-center justify-between gap-3 text-xs text-ink-500">
+            <div className="mt-4 rounded-[22px] border border-[#E6DFD2] bg-[rgba(252,250,245,0.86)] px-7 py-3 text-center">
+              <div className="mb-2 flex flex-col items-center justify-center gap-1 text-xs text-ink-500">
                 <span>搜索结果</span>
                 <span>{searchResults.length} 个匹配</span>
               </div>
@@ -2314,25 +2878,25 @@ export default function MindmapDetailPage() {
                         locateNode(item.id)
                       }}
                       className={cn(
-                        'flex w-full items-center justify-between rounded-[16px] border px-3 py-2 text-left text-sm transition-colors',
+                        'flex w-full flex-col items-center justify-center gap-1 rounded-[16px] border px-6 py-2 text-center text-sm transition-colors',
                         activeSearchNodeId === item.id
                           ? 'border-[#D7CCBC] bg-[#F6F0E6] text-ink-900'
                           : 'border-[#ECE5D9] bg-[#FCFAF6] text-ink-600 hover:border-[#D8CCBC] hover:bg-[#F8F4EC] hover:text-ink-900'
                       )}
                     >
-                      <span className="truncate">{item.label}</span>
-                      <span className="ml-3 shrink-0 text-xs text-ink-400">{item.level}</span>
+                      <span className="max-w-full truncate">{item.label}</span>
+                      <span className="shrink-0 text-xs text-ink-400">{item.level}</span>
                     </button>
                   ))
                 ) : (
-                  <div className="rounded-[16px] border border-dashed border-[#E5DED2] bg-[#FCFAF6] px-3 py-2 text-sm text-ink-500">
+                  <div className="rounded-[16px] border border-dashed border-[#E5DED2] bg-[#FCFAF6] px-6 py-2 text-center text-sm text-ink-500">
                     未匹配到节点。
                   </div>
                 )}
               </div>
             </div>
           ) : (
-            <div className="mt-4 rounded-[22px] border border-dashed border-[#E1D9CC] bg-[rgba(252,250,245,0.84)] px-4 py-3 text-sm leading-6 text-ink-500">
+            <div className="mt-4 rounded-[22px] border border-dashed border-[#E1D9CC] bg-[rgba(252,250,245,0.84)] px-7 py-3 text-center text-sm leading-6 text-ink-500">
               画布优先保留横向展开空间，分支较多时会在内部滚动，不压缩脑图结构。
             </div>
           )}
@@ -2342,28 +2906,35 @@ export default function MindmapDetailPage() {
   }
 
   function renderInspectorPanel(fullscreen = false) {
+    const showingCanvasInspector = fullscreenInspectorTab === 'canvas'
+    const nodeInfoRows = [
+      ['节点 ID', selectedNode.id],
+      ['层级', formatNodeLevel(selectedNodeDepth)],
+      ['子节点', `${selectedNode.children.length}`],
+    ]
+
     const nodeInspector = (
       <>
-        <div className="rounded-[20px] border border-[#E7E0D4] bg-[#FCFAF6] p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 rounded-[12px] border border-[#E6DED2] bg-white/82 px-4 py-3.5 text-center shadow-[0_8px_20px_rgba(111,102,88,0.045)]">
+          <div className="flex min-w-0 flex-col items-center gap-2.5">
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-ink-400">{formatNodeLevel(selectedNodeDepth)}</p>
-              <h3 className="mt-2 break-words font-serif text-[1.16rem] leading-[1.22] text-ink-900 sm:text-[1.35rem] sm:leading-[1.24]">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-ink-400">{formatNodeLevel(selectedNodeDepth)}</p>
+              <h3 className="mt-1.5 max-w-full break-words text-sm font-semibold leading-5 text-ink-900">
                 {selectedNode.label || '未命名节点'}
               </h3>
-              <p className="mt-2 text-[13px] leading-6 text-ink-500 sm:text-sm">
+              <p className="mt-1.5 text-[11px] leading-5 text-ink-500">
                 {selectedNode.id === 'root'
                   ? '中心主题固定保留，用作整张导图的起点。'
                   : `当前节点下有 ${selectedNode.children.length} 个直接子节点。`}
               </p>
             </div>
-            <span className={cn('w-fit rounded-full border px-4 py-1.5 text-[10px] leading-none', colorMeta[selectedNode.color].chip)}>
+            <span className={cn('w-fit shrink-0 rounded-[8px] border px-2 py-1 text-[11px] leading-none', colorMeta[selectedNode.color].chip)}>
               {colorMeta[selectedNode.color].label}
             </span>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-4 border-b border-[#E5DED2] pb-4">
+        <div className="grid h-9 min-w-0 grid-cols-3 rounded-[10px] border border-[#E7DFD4] bg-[#F5F1EA] p-1">
           {([
             ['content', '内容'],
             ['style', '样式'],
@@ -2374,10 +2945,10 @@ export default function MindmapDetailPage() {
               type="button"
               onClick={() => setNodeInspectorTab(key)}
               className={cn(
-                'min-w-0 rounded-full border px-4 py-2 text-center text-[13px] transition-colors',
+                'min-w-0 rounded-[7px] px-2 text-center text-xs font-medium transition-colors',
                 nodeInspectorTab === key
-                  ? 'border-[#D9CDBD] bg-white text-ink-900 shadow-[0_6px_14px_rgba(130,120,103,0.06)]'
-                  : 'border-transparent text-ink-500 hover:border-[#E5DED2] hover:text-ink-900'
+                  ? 'bg-white text-ink-900 shadow-[0_4px_10px_rgba(111,102,88,0.08)]'
+                  : 'text-ink-500 hover:text-ink-900'
               )}
             >
               {label}
@@ -2387,47 +2958,41 @@ export default function MindmapDetailPage() {
 
         {nodeInspectorTab === 'content' && (
           <>
-            <div className="space-y-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-ink-400">节点名称</p>
-              <div className="rounded-[18px] border border-[#DDD4C6] bg-white/70 px-4 py-3 transition-colors focus-within:border-[#BFAF99]">
-                <input
-                  id="mindmap-node-label"
-                  value={selectedNode.label}
-                  onChange={event => handleNodeLabelChange(event.target.value)}
-                  className="w-full border-0 bg-transparent px-4 text-[16px] leading-8 text-ink-900 outline-none placeholder:text-ink-400"
-                  placeholder="请输入节点文本"
-                />
-              </div>
+            <div className="space-y-2">
+              <label htmlFor="mindmap-node-label" className="block text-[11px] font-medium uppercase tracking-[0.08em] text-ink-400">
+                节点名称
+              </label>
+              <input
+                id="mindmap-node-label"
+                value={selectedNode.label}
+                onChange={event => handleNodeLabelChange(event.target.value)}
+                className="h-10 w-full min-w-0 rounded-[10px] border border-[#DDD4C6] bg-white px-3 text-center text-sm leading-5 text-ink-900 outline-none transition-colors placeholder:text-ink-400 focus:border-[#BFAF99] focus:bg-white"
+                placeholder="请输入节点文本"
+              />
             </div>
-            <div className="space-y-4 text-sm text-ink-600">
-              <div className="flex items-start justify-between gap-6 rounded-[18px] border border-[#E8E0D4] bg-white/55 p-4">
-                <span className="shrink-0 text-xs uppercase tracking-[0.16em] text-ink-400">节点 ID</span>
-                <span className="min-w-0 break-all text-right text-sm leading-6 text-ink-700">{selectedNode.id}</span>
-              </div>
-              <div className="flex items-center justify-between gap-6 rounded-[18px] border border-[#E8E0D4] bg-white/55 p-4">
-                <span>层级</span>
-                <span className="font-medium text-ink-900">{formatNodeLevel(selectedNodeDepth)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-6 rounded-[18px] border border-[#E8E0D4] bg-white/55 p-4">
-                <span>子节点数量</span>
-                <span className="font-medium text-ink-900">{selectedNode.children.length}</span>
-              </div>
+            <div className="min-w-0 divide-y divide-[#ECE4D8] rounded-[10px] border border-[#E8E0D4] bg-white/68 text-sm">
+              {nodeInfoRows.map(([label, value]) => (
+                <div key={label} className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] items-center gap-3 px-3.5 py-2.5">
+                  <span className="text-[11px] text-ink-400">{label}</span>
+                  <span className="min-w-0 break-words text-left text-xs font-medium leading-5 text-ink-800" title={value}>{value}</span>
+                </div>
+              ))}
             </div>
           </>
         )}
 
         {nodeInspectorTab === 'style' && (
-          <div className="rounded-[20px] border border-[#E7E0D4] bg-[#FCFAF6] px-5 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-ink-400">节点颜色</p>
-                <p className="mt-2 text-sm leading-6 text-ink-500">保留低饱和 Morandi 配色，用于区分主题层次。</p>
+          <div className="space-y-3">
+            <div className="flex min-w-0 flex-col gap-2.5">
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-400">节点颜色</p>
+                <p className="mt-1 text-xs leading-5 text-ink-500">用低饱和配色区分主题层次。</p>
               </div>
-              <span className={cn('rounded-full border px-3 py-1 text-[10px] leading-none', colorMeta[selectedNode.color].chip)}>
+              <span className={cn('w-fit shrink-0 rounded-[8px] border px-2 py-1 text-[11px] leading-none', colorMeta[selectedNode.color].chip)}>
                 当前色: {colorMeta[selectedNode.color].label}
               </span>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               {colorOrder.map(color => {
                 const tone = colorMeta[color]
                 const active = selectedNode.color === color
@@ -2437,7 +3002,7 @@ export default function MindmapDetailPage() {
                     type="button"
                     onClick={() => handleNodeColorChange(color)}
                     className={cn(
-                      'min-h-[46px] rounded-[14px] border px-4 py-2 text-sm transition-colors',
+                      'min-h-9 rounded-[10px] border px-3 py-2 text-xs font-medium transition-colors',
                       tone.button,
                       active && cn(tone.selected, 'shadow-sm')
                     )}
@@ -2452,13 +3017,13 @@ export default function MindmapDetailPage() {
 
         {nodeInspectorTab === 'structure' && (
           <>
-            <div className="rounded-[20px] border border-[#E7E0D4] bg-[#FCFAF6] px-5 py-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-ink-400">结构操作</p>
-              <div className="mt-4 grid gap-3">
+            <div className="space-y-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-400">结构操作</p>
+              <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant="primary"
                   size="sm"
-                  className="min-h-10 rounded-full bg-[#26231F] px-5 text-white hover:bg-[#1D1B18]"
+                  className="h-9 min-h-9 rounded-[10px] bg-[#26231F] px-3 text-xs text-white hover:bg-[#1D1B18]"
                   onClick={() => handleAddChild(selectedNode.id)}
                 >
                   添加子主题
@@ -2466,7 +3031,7 @@ export default function MindmapDetailPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="min-h-10 rounded-full border border-[#D6CFC2] bg-white px-5 text-ink-700 hover:border-[#BFB5A3] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
+                  className="h-9 min-h-9 rounded-[10px] border border-[#D6CFC2] bg-white px-3 text-xs text-ink-700 hover:border-[#BFB5A3] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
                   onClick={() => handleAddSibling(selectedNode.id)}
                   disabled={selectedNode.id === 'root'}
                 >
@@ -2475,16 +3040,16 @@ export default function MindmapDetailPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="min-h-10 rounded-full border border-[#D6CFC2] bg-white px-5 text-ink-700 hover:border-[#BFB5A3] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
+                  className="h-9 min-h-9 rounded-[10px] border border-[#D6CFC2] bg-white px-3 text-xs text-ink-700 hover:border-[#BFB5A3] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
                   onClick={() => handleToggleCollapse(selectedNode.id)}
                   disabled={selectedNode.children.length === 0}
                 >
-                  {selectedNodeIsCollapsed ? '展开当前分支' : '折叠当前分支'}
+                  {selectedNodeIsCollapsed ? '展开分支' : '折叠分支'}
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="min-h-10 rounded-full border border-[#E5D3D3] bg-[#FBF3F3] px-5 text-[#9E6B6B] hover:border-[#D6BBBB] hover:bg-[#F7E9E9] disabled:cursor-not-allowed disabled:opacity-45"
+                  className="h-9 min-h-9 rounded-[10px] border border-[#E5D3D3] bg-[#FBF3F3] px-3 text-xs text-[#9E6B6B] hover:border-[#D6BBBB] hover:bg-[#F7E9E9] disabled:cursor-not-allowed disabled:opacity-45"
                   onClick={() => handleDeleteNode(selectedNode.id)}
                   disabled={selectedNode.id === 'root'}
                 >
@@ -2493,7 +3058,7 @@ export default function MindmapDetailPage() {
               </div>
             </div>
             {selectedNode.id === 'root' && (
-              <p className="rounded-[18px] border border-[#E7E0D4] bg-[#F8F5EE] px-4 py-3 text-xs leading-6 text-ink-500">
+              <p className="rounded-[10px] bg-[#F8F5EE] px-3 py-2 text-xs leading-5 text-ink-500">
                 中心主题不能删除，也不能创建同级节点；可继续添加一级主题来扩展主轴。
               </p>
             )}
@@ -2504,30 +3069,71 @@ export default function MindmapDetailPage() {
 
     const canvasInspector = (
       <>
-        <div className="rounded-[22px] border border-[#E5DED2] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,241,233,0.94))] px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+        <div className="rounded-[22px] border border-[#E5DED2] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,241,233,0.94))] px-8 py-5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
           <p className="text-[10px] uppercase tracking-[0.18em] text-ink-400">画布样式</p>
           <h3 className="mt-2 font-serif text-[1.3rem] leading-[1.2] text-ink-900">全局格式</h3>
           <p className="mt-2 text-sm leading-6 text-ink-500">这些设置会写入 root.meta，并在保存后随导图一起保留。</p>
         </div>
 
-        <div className="rounded-[20px] border border-[#E7E0D4] bg-[#FCFAF6] px-5 py-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
+        <div className="px-1 py-1 text-center">
+          <p className="text-xs uppercase tracking-[0.18em] text-ink-400">导图风格</p>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            {mindmapThemeOptions.map(option => {
+              const active = doesMindmapMetaMatchTheme(canvasMeta, option)
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => handleThemeSelect(option.id)}
+                  className={cn(
+                    'rounded-[18px] border px-4 py-4 text-center transition-colors',
+                    active
+                      ? 'border-[#D7CCBC] bg-[#F6F0E6] text-ink-900 shadow-sm'
+                      : 'border-[#E5DED2] bg-white text-ink-700 hover:border-[#D4C9B9] hover:bg-[#FBF7F0]'
+                  )}
+                >
+                  <div className="relative mx-auto h-16 w-full max-w-[150px] overflow-hidden rounded-[14px] border border-[#ECE4D8] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,244,237,0.9))]">
+                    <div className="absolute left-[18%] top-1/2 h-px w-[64%] -translate-y-1/2 rounded-full bg-[#D8CDBF]" />
+                    <div
+                      className="absolute left-1/2 top-1/2 h-5 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                      style={{ backgroundColor: option.colors[0] }}
+                    />
+                    <div
+                      className="absolute left-[14%] top-[18%] h-4 w-9 rounded-full"
+                      style={{ backgroundColor: option.colors[1] }}
+                    />
+                    <div
+                      className="absolute right-[14%] bottom-[18%] h-4 w-9 rounded-full"
+                      style={{ backgroundColor: option.colors[2] }}
+                    />
+                  </div>
+                  <span className="mt-3 block text-sm font-medium">{option.label}</span>
+                  <span className="mt-1 block text-xs leading-5 text-ink-400">{option.description}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="px-1 py-1 text-center">
+          <div className="flex flex-col items-center justify-center gap-3">
+            <div className="text-center">
               <p className="text-xs uppercase tracking-[0.18em] text-ink-400">导图结构</p>
-              <p className="mt-2 text-sm leading-6 text-ink-500">像 XMind 一样先选结构模板。当前只有主轴结构可用，其余入口先做预览和占位。</p>
+              <p className="mt-2 text-sm leading-6 text-ink-500">像 XMind 一样切换结构模板，保存后会跟随导图保留。</p>
             </div>
-            <span className="rounded-full border border-[#E4DDD2] bg-white px-3 py-1 text-[10px] text-ink-500">布局</span>
+            <span className="rounded-full border border-[#E4DDD2] bg-white px-5 py-1 text-[10px] text-ink-500">布局</span>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
             {([
-              ['xmind-axis', '主轴结构', true],
-              ['right', '向右结构', false],
-              ['logic', '逻辑图', false],
-              ['organization', '组织结构图', false],
-              ['timeline', '时间轴', false],
-              ['fishbone', '鱼骨图', false],
-            ] as const).map(([templateId, label, supported]) => {
-              const isSelected = supported && canvasMeta.layout === 'xmind-axis'
+              ['xmind-axis', '主轴结构'],
+              ['right', '向右结构'],
+              ['logic', '逻辑图'],
+              ['organization', '组织结构图'],
+              ['timeline', '时间轴'],
+              ['fishbone', '鱼骨图'],
+            ] as const).map(([templateId, label]) => {
+              const isSelected = canvasMeta.layout === templateId
 
               return (
                 <button
@@ -2535,29 +3141,25 @@ export default function MindmapDetailPage() {
                   type="button"
                   onClick={() => handleLayoutTemplateSelect(templateId)}
                   className={cn(
-                    'rounded-[18px] border p-2 text-left transition-colors',
+                    'rounded-[18px] p-2 text-center transition-colors',
                     isSelected
-                      ? 'border-[#D7CCBC] bg-[#F6F0E6] shadow-sm'
-                      : supported
-                        ? 'border-[#E5DED2] bg-white hover:border-[#D4C9B9] hover:bg-[#FBF7F0]'
-                        : 'border-dashed border-[#E6DFD4] bg-[#F7F4EE] hover:border-[#D7CCBC] hover:bg-[#F4EFE7]'
+                      ? 'bg-[#F6F0E6] shadow-sm'
+                      : 'bg-white hover:bg-[#FBF7F0]'
                   )}
                 >
                   {renderLayoutTemplatePreview(templateId)}
-                  <div className="mt-3 flex items-start justify-between gap-3 px-1 pb-1">
-                    <div>
+                  <div className="mt-3 flex flex-col items-center justify-center gap-3 px-1 pb-1 text-center">
+                    <div className="text-center">
                       <p className="text-sm text-ink-900">{label}</p>
-                      <p className="mt-1 text-xs text-ink-400">{supported ? '可用' : '即将支持'}</p>
+                      <p className="mt-1 text-xs text-ink-400">可用</p>
                     </div>
                     <span
                       className={cn(
-                        'rounded-full border px-2.5 py-1 text-[10px]',
-                        supported
-                          ? 'border-[#DCCFBD] bg-white text-ink-600'
-                          : 'border-[#E5DED2] bg-[#FBF7F0] text-ink-400'
+                        'rounded-full border px-4 py-1 text-[10px]',
+                        'border-[#DCCFBD] bg-white text-ink-600'
                       )}
                     >
-                      {isSelected ? '当前结构' : supported ? '可用' : '预览'}
+                      {isSelected ? '当前结构' : '切换'}
                     </span>
                   </div>
                 </button>
@@ -2565,13 +3167,13 @@ export default function MindmapDetailPage() {
             })}
           </div>
           {layoutTemplateNotice ? (
-            <p className="mt-4 rounded-[14px] border border-[#E7D9C8] bg-[#FBF5EC] px-3 py-2 text-sm text-[#9A7650]">
+            <p className="mt-4 rounded-[14px] border border-[#E7D9C8] bg-[#FBF5EC] px-6 py-2 text-sm text-[#9A7650]">
               {layoutTemplateNotice}
             </p>
           ) : null}
         </div>
 
-        <div className="rounded-[20px] border border-[#E7E0D4] bg-[#FCFAF6] px-5 py-4">
+        <div className="px-1 py-1 text-center">
           <p className="text-xs uppercase tracking-[0.18em] text-ink-400">背景</p>
           <div className="mt-4 grid grid-cols-2 gap-3">
             {[
@@ -2585,7 +3187,7 @@ export default function MindmapDetailPage() {
                 type="button"
                 onClick={() => handleCanvasMetaChange({ background: value as MindmapBackground })}
                 className={cn(
-                  'min-h-[46px] rounded-[14px] border px-4 py-2 text-sm transition-colors',
+                  'min-h-[46px] rounded-[14px] border px-6 py-2 text-sm transition-colors',
                   canvasMeta.background === value
                     ? 'border-[#D7CCBC] bg-[#F6F0E6] text-ink-900 shadow-sm'
                     : 'border-[#E5DED2] bg-white text-ink-700 hover:border-[#D4C9B9] hover:bg-[#FBF7F0]'
@@ -2597,7 +3199,7 @@ export default function MindmapDetailPage() {
           </div>
         </div>
 
-        <div className="rounded-[20px] border border-[#E7E0D4] bg-[#FCFAF6] px-5 py-4">
+        <div className="px-1 py-1 text-center">
           <p className="text-xs uppercase tracking-[0.18em] text-ink-400">全局字体</p>
           <div className="mt-4 grid grid-cols-2 gap-3">
             {[
@@ -2610,7 +3212,7 @@ export default function MindmapDetailPage() {
                 type="button"
                 onClick={() => handleCanvasMetaChange({ fontFamily: value as MindmapFontFamily })}
                 className={cn(
-                  'min-h-[46px] rounded-[14px] border px-4 py-2 text-sm transition-colors',
+                  'min-h-[46px] rounded-[14px] border px-6 py-2 text-sm transition-colors',
                   canvasMeta.fontFamily === value
                     ? 'border-[#D7CCBC] bg-[#F6F0E6] text-ink-900 shadow-sm'
                     : 'border-[#E5DED2] bg-white text-ink-700 hover:border-[#D4C9B9] hover:bg-[#FBF7F0]'
@@ -2622,7 +3224,7 @@ export default function MindmapDetailPage() {
           </div>
         </div>
 
-        <div className="rounded-[20px] border border-[#E7E0D4] bg-[#FCFAF6] px-5 py-4">
+        <div className="px-1 py-1 text-center">
           <p className="text-xs uppercase tracking-[0.18em] text-ink-400">分支线粗细</p>
           <div className="mt-4 grid grid-cols-3 gap-3">
             {[
@@ -2635,7 +3237,7 @@ export default function MindmapDetailPage() {
                 type="button"
                 onClick={() => handleCanvasMetaChange({ branchLine: value as MindmapBranchLine })}
                 className={cn(
-                  'min-h-[46px] rounded-[14px] border px-3 py-2 text-sm transition-colors',
+                  'min-h-[46px] rounded-[14px] border px-5 py-2 text-sm transition-colors',
                   canvasMeta.branchLine === value
                     ? 'border-[#D7CCBC] bg-[#F6F0E6] text-ink-900 shadow-sm'
                     : 'border-[#E5DED2] bg-white text-ink-700 hover:border-[#D4C9B9] hover:bg-[#FBF7F0]'
@@ -2647,14 +3249,14 @@ export default function MindmapDetailPage() {
           </div>
         </div>
 
-        <div className="rounded-[20px] border border-[#E7E0D4] bg-[#FCFAF6] px-5 py-4">
+        <div className="px-1 py-1 text-center">
           <p className="text-xs uppercase tracking-[0.18em] text-ink-400">布局细节</p>
           <div className="mt-4 space-y-3">
             <button
               type="button"
               onClick={() => handleCanvasMetaChange({ rainbowBranches: !canvasMeta.rainbowBranches })}
               className={cn(
-                'flex w-full items-center justify-between rounded-[14px] border px-4 py-3 text-left text-sm transition-colors',
+                'flex w-full flex-col items-center justify-center gap-1 rounded-[14px] border px-6 py-3 text-center text-sm transition-colors',
                 canvasMeta.rainbowBranches
                   ? 'border-[#D7CCBC] bg-[#F6F0E6] text-ink-900'
                   : 'border-[#E5DED2] bg-white text-ink-700 hover:border-[#D4C9B9] hover:bg-[#FBF7F0]'
@@ -2667,7 +3269,7 @@ export default function MindmapDetailPage() {
               type="button"
               onClick={() => handleCanvasMetaChange({ compact: !canvasMeta.compact })}
               className={cn(
-                'flex w-full items-center justify-between rounded-[14px] border px-4 py-3 text-left text-sm transition-colors',
+                'flex w-full flex-col items-center justify-center gap-1 rounded-[14px] border px-6 py-3 text-center text-sm transition-colors',
                 canvasMeta.compact
                   ? 'border-[#D7CCBC] bg-[#F6F0E6] text-ink-900'
                   : 'border-[#E5DED2] bg-white text-ink-700 hover:border-[#D4C9B9] hover:bg-[#FBF7F0]'
@@ -2684,51 +3286,49 @@ export default function MindmapDetailPage() {
     return (
       <Card
         variant="flat"
-        padding="lg"
+        padding="none"
         className={cn(
-          '!rounded-none !border-0 !bg-transparent !shadow-none',
+          'min-w-0 overflow-hidden !rounded-none !border-0 !bg-transparent !shadow-none',
           fullscreen ? 'flex h-full min-h-0 flex-col overflow-hidden' : 'xl:sticky xl:top-6 xl:self-start'
         )}
         as="section"
       >
-        <div className={cn('flex flex-col', fullscreen && 'min-h-0 flex-1')}>
-          <div className="mb-5 border-b border-[#E7E0D4] pb-4">
-            <p className="text-xs uppercase tracking-[0.24em] text-ink-400">Inspector</p>
-            <h2 id="mindmap-node-editor" className="mt-2 break-words font-serif text-[1.2rem] leading-[1.16] text-ink-900 sm:text-[1.55rem] sm:leading-[1.2]">
-              {fullscreen && fullscreenInspectorTab === 'canvas' ? '画布样式' : '当前节点'}
+        <div className={cn('flex min-w-0 flex-col px-6 py-5 sm:px-7', fullscreen && 'min-h-0 flex-1')}>
+          <div className="mb-4 min-w-0 border-b border-[#E7E0D4] pb-3">
+            <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-ink-400">Inspector</p>
+            <h2 id="mindmap-node-editor" className="mt-1.5 max-w-full break-words text-[15px] font-semibold leading-6 text-ink-900">
+              {showingCanvasInspector ? '画布样式' : '当前节点'}
             </h2>
-            <p className="mt-2 text-[13px] leading-6 text-ink-500 sm:text-sm">
-              {fullscreen
-                ? '全屏模式下可在节点和画布之间切换，像 XMind 的格式面板一样管理局部和全局设置。'
-                : '右侧只保留内容、样式和结构检查，不再与画布平分视觉重心。'}
+            <p className="mt-1 max-w-full text-[11px] leading-5 text-ink-500">
+              {showingCanvasInspector
+                ? '像 XMind 的格式面板一样管理整张导图的风格、结构、背景和线条。'
+                : '编辑当前选中节点的内容、颜色和结构操作。'}
             </p>
           </div>
 
-          <div className={cn('space-y-4', fullscreen && 'min-h-0 flex-1 overflow-y-auto pr-1')}>
-            {fullscreen && (
-              <div className="grid grid-cols-2 gap-1.5 rounded-[18px] bg-[#F5EFE5] p-1.5 ring-1 ring-[#E4DBCE]/85 sm:flex sm:flex-wrap sm:gap-2">
-                {([
-                  ['node', '节点'],
-                  ['canvas', '画布'],
-                ] as const).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setFullscreenInspectorTab(key)}
-                    className={cn(
-                      'min-w-0 rounded-[14px] border border-transparent px-2.5 py-2 text-center text-[13px] transition-colors sm:px-3 sm:text-sm',
-                      fullscreenInspectorTab === key
-                        ? 'border-[#E3D7C7] bg-white text-ink-900 shadow-[0_6px_14px_rgba(130,120,103,0.08)]'
-                        : 'text-ink-500 hover:text-ink-900'
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className={cn('min-w-0 space-y-3.5', fullscreen && 'min-h-0 flex-1 overflow-y-auto pr-3')}>
+            <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:gap-2">
+              {([
+                ['node', '节点'],
+                ['canvas', '画布'],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFullscreenInspectorTab(key)}
+                  className={cn(
+                    'min-w-0 rounded-[10px] border border-transparent px-2.5 py-1.5 text-center text-xs font-medium transition-colors sm:px-3',
+                    fullscreenInspectorTab === key
+                      ? 'border-[#E3D7C7] bg-white text-ink-900 shadow-[0_6px_14px_rgba(130,120,103,0.08)]'
+                      : 'text-ink-500 hover:text-ink-900'
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
-            {fullscreen ? (fullscreenInspectorTab === 'node' ? nodeInspector : canvasInspector) : nodeInspector}
+            {showingCanvasInspector ? canvasInspector : nodeInspector}
           </div>
         </div>
       </Card>
@@ -2738,10 +3338,10 @@ export default function MindmapDetailPage() {
   function renderReadyWorkspace(fullscreen = false) {
     return (
       <div className={cn(
-        'grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_420px]',
+        'grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_460px]',
         fullscreen && 'h-full min-h-0 gap-4',
-        fullscreen && useDesktopFullscreenLayout && 'grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_460px]',
-        fullscreen && !useDesktopFullscreenLayout && 'md:grid-cols-[minmax(0,1fr)_380px]'
+        fullscreen && !isMobileCanvasLayout && 'grid-cols-[minmax(0,1fr)_460px] 2xl:grid-cols-[minmax(0,1fr)_500px]',
+        fullscreen && isMobileCanvasLayout && 'md:grid-cols-[minmax(0,1fr)_420px]'
       )}>
         {renderCanvasPanel(fullscreen)}
         {renderInspectorPanel(fullscreen)}
@@ -2770,13 +3370,13 @@ export default function MindmapDetailPage() {
                   >
                     返回列表
                   </Button>
-                  <div className="min-w-[240px] flex-1 rounded-[22px] border border-[#E4DDD1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,243,236,0.92))] px-5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-colors focus-within:border-[#CDBDA6] focus-within:bg-white">
+                  <div className="min-w-[240px] flex-1 rounded-[22px] border border-[#E4DDD1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,243,236,0.92))] px-8 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-colors focus-within:border-[#CDBDA6] focus-within:bg-white">
                     <input
                       value={title}
                       onChange={event => handleTitleChange(event.target.value)}
                       placeholder="请输入导图标题"
                       disabled={screenState !== 'ready'}
-                      className="w-full border-0 bg-transparent font-serif text-[1.12rem] leading-[1.25] text-ink-900 outline-none placeholder:text-ink-400 sm:text-[1.22rem]"
+                      className="w-full border-0 bg-transparent text-center font-serif text-[1.12rem] leading-[1.25] text-ink-900 outline-none placeholder:text-ink-400 sm:text-[1.22rem]"
                     />
                   </div>
                   <span className={cn(
@@ -2793,7 +3393,7 @@ export default function MindmapDetailPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <div className="flex flex-wrap items-center gap-2 rounded-[20px] border border-[#E3DCCF] bg-[rgba(255,255,255,0.9)] px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -2812,23 +3412,50 @@ export default function MindmapDetailPage() {
                     >
                       添加子主题
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-700 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
-                      onClick={() => handleAddSibling(selectedNode.id)}
+	                    <Button
+	                      variant="ghost"
+	                      size="sm"
+	                      className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-700 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
+	                      onClick={() => handleAddSibling(selectedNode.id)}
+	                      disabled={screenState !== 'ready' || selectedNode.id === 'root'}
+	                    >
+	                      添加同级
+	                    </Button>
+	                    <Button
+	                      variant="ghost"
+	                      size="sm"
+	                      className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-700 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
+	                      onClick={() => handlePromoteNode(selectedNode.id)}
+	                      disabled={screenState !== 'ready' || !canPromoteSelectedNode}
+	                    >
+	                      提升层级
+	                    </Button>
+	                    <Button
+	                      variant="ghost"
+	                      size="sm"
+	                      className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-700 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
+	                      onClick={() => handleDeleteNode(selectedNode.id)}
                       disabled={screenState !== 'ready' || selectedNode.id === 'root'}
                     >
-                      添加同级
+                      删除
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-700 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
-                      onClick={() => handleDeleteNode(selectedNode.id)}
-                      disabled={screenState !== 'ready' || selectedNode.id === 'root'}
+                      onClick={handleUndo}
+                      disabled={screenState !== 'ready' || historyPast.length === 0}
                     >
-                      删除
+                      撤销
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-700 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
+                      onClick={handleRedo}
+                      disabled={screenState !== 'ready' || historyFuture.length === 0}
+                    >
+                      重做
                     </Button>
                     <Button
                       variant="ghost"
@@ -2840,12 +3467,12 @@ export default function MindmapDetailPage() {
                       {selectedNodeIsCollapsed ? '展开' : '折叠'}
                     </Button>
                   </div>
-                  <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-[20px] border border-[#E3DCCF] bg-[#FCFAF6] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                  <div className="flex min-w-[240px] flex-1 items-center gap-2">
                     <input
                       ref={searchInputRef}
                       value={searchQuery}
                       onChange={event => handleSearchQueryChange(event.target.value)}
-                      className="min-w-[120px] flex-1 border-0 bg-transparent text-sm leading-6 text-ink-900 outline-none placeholder:text-ink-400"
+                      className="min-w-[120px] flex-1 rounded-full border border-[#E3DCCF] bg-[#FCFAF6] px-7 py-1.5 text-center text-sm leading-6 text-ink-900 outline-none placeholder:text-ink-400 focus:border-[#CDBDA6]"
                       placeholder="搜索节点..."
                     />
                     <Button
@@ -2867,7 +3494,7 @@ export default function MindmapDetailPage() {
                       下一项
                     </Button>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 rounded-[20px] border border-[#E3DCCF] bg-[rgba(255,255,255,0.9)] px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -2885,6 +3512,15 @@ export default function MindmapDetailPage() {
                       disabled={screenState !== 'ready'}
                     >
                       导出 JSON
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-600 hover:border-[#C9BEAE] hover:bg-[#FBF8F2]"
+                      onClick={handleExportSvg}
+                      disabled={screenState !== 'ready'}
+                    >
+                      导出 SVG
                     </Button>
                     <Button
                       variant="ghost"
@@ -2950,13 +3586,13 @@ export default function MindmapDetailPage() {
                   >
                     退出全屏
                   </Button>
-                  <div className="min-w-[220px] flex-1 rounded-[20px] border border-[#E4DDD1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,243,236,0.92))] px-4 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-colors focus-within:border-[#CDBDA6] focus-within:bg-white">
+                  <div className="min-w-[220px] flex-1 rounded-[20px] border border-[#E4DDD1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,243,236,0.92))] px-8 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-colors focus-within:border-[#CDBDA6] focus-within:bg-white">
                     <input
                       value={title}
                       onChange={event => handleTitleChange(event.target.value)}
                       placeholder="请输入导图标题"
                       disabled={screenState !== 'ready'}
-                      className="w-full border-0 bg-transparent font-serif text-[1.02rem] leading-[1.2] text-ink-900 outline-none placeholder:text-ink-400 sm:text-[1.12rem]"
+                      className="w-full border-0 bg-transparent text-center font-serif text-[1.02rem] leading-[1.2] text-ink-900 outline-none placeholder:text-ink-400 sm:text-[1.12rem]"
                     />
                   </div>
                   <span className={cn(
@@ -2973,7 +3609,7 @@ export default function MindmapDetailPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex flex-wrap items-center gap-2 rounded-[18px] border border-[#E3DCCF] bg-[rgba(255,255,255,0.9)] px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -2992,23 +3628,50 @@ export default function MindmapDetailPage() {
                     >
                       添加子主题
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-700 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
-                      onClick={() => handleAddSibling(selectedNode.id)}
+	                    <Button
+	                      variant="ghost"
+	                      size="sm"
+	                      className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-700 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
+	                      onClick={() => handleAddSibling(selectedNode.id)}
+	                      disabled={screenState !== 'ready' || selectedNode.id === 'root'}
+	                    >
+	                      添加同级
+	                    </Button>
+	                    <Button
+	                      variant="ghost"
+	                      size="sm"
+	                      className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-700 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
+	                      onClick={() => handlePromoteNode(selectedNode.id)}
+	                      disabled={screenState !== 'ready' || !canPromoteSelectedNode}
+	                    >
+	                      提升层级
+	                    </Button>
+	                    <Button
+	                      variant="ghost"
+	                      size="sm"
+	                      className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-700 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
+                      onClick={() => handleDeleteNode(selectedNode.id)}
                       disabled={screenState !== 'ready' || selectedNode.id === 'root'}
                     >
-                      添加同级
+                      删除
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-700 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
-                      onClick={() => handleDeleteNode(selectedNode.id)}
-                      disabled={screenState !== 'ready' || selectedNode.id === 'root'}
+                      onClick={handleUndo}
+                      disabled={screenState !== 'ready' || historyPast.length === 0}
                     >
-                      删除
+                      撤销
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-700 hover:border-[#C9BEAE] hover:bg-[#FBF8F2] disabled:cursor-not-allowed disabled:opacity-45"
+                      onClick={handleRedo}
+                      disabled={screenState !== 'ready' || historyFuture.length === 0}
+                    >
+                      重做
                     </Button>
                     <Button
                       variant="ghost"
@@ -3020,12 +3683,12 @@ export default function MindmapDetailPage() {
                       {selectedNodeIsCollapsed ? '展开' : '折叠'}
                     </Button>
                   </div>
-                  <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-[18px] border border-[#E3DCCF] bg-[#FCFAF6] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                  <div className="flex min-w-[240px] flex-1 items-center gap-2">
                     <input
                       ref={searchInputRef}
                       value={searchQuery}
                       onChange={event => handleSearchQueryChange(event.target.value)}
-                      className="min-w-[120px] flex-1 border-0 bg-transparent text-sm leading-6 text-ink-900 outline-none placeholder:text-ink-400"
+                      className="min-w-[120px] flex-1 rounded-full border border-[#E3DCCF] bg-[#FCFAF6] px-7 py-1.5 text-center text-sm leading-6 text-ink-900 outline-none placeholder:text-ink-400 focus:border-[#CDBDA6]"
                       placeholder="搜索节点..."
                     />
                     <Button
@@ -3047,7 +3710,7 @@ export default function MindmapDetailPage() {
                       下一项
                     </Button>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 rounded-[18px] border border-[#E3DCCF] bg-[rgba(255,255,255,0.9)] px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -3065,6 +3728,15 @@ export default function MindmapDetailPage() {
                       disabled={screenState !== 'ready'}
                     >
                       导出 JSON
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="min-h-8 rounded-full border border-[#E0D9CD] bg-transparent px-3 text-[11px] text-ink-600 hover:border-[#C9BEAE] hover:bg-[#FBF8F2]"
+                      onClick={handleExportSvg}
+                      disabled={screenState !== 'ready'}
+                    >
+                      导出 SVG
                     </Button>
                     <Button
                       variant="primary"
