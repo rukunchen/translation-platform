@@ -21,7 +21,6 @@ type WorkspaceNavItem = {
   icon: React.ReactNode
   activeMatcher: (pathname: string) => boolean
   adminOnly: boolean
-  prefetchHrefs?: string[]
 }
 
 const isParallelPage = (pathname: string) => pathname.includes('/parallel')
@@ -91,7 +90,6 @@ const workspaceNavItems: WorkspaceNavItem[] = [
     icon: <WritingIcon />,
     activeMatcher: pathname => pathname.startsWith('/writing'),
     adminOnly: false,
-    prefetchHrefs: ['/writing/templates', '/writing/library'],
   },
   {
     href: '/admin',
@@ -103,12 +101,8 @@ const workspaceNavItems: WorkspaceNavItem[] = [
   },
 ]
 
-const workspaceHrefs = Array.from(
-  new Set(workspaceNavItems.flatMap(item => [item.href, ...(item.prefetchHrefs ?? [])]))
-)
 const mobilePrimaryHrefs = ['/dashboard', '/projects', '/practice', '/reading']
 
-let workspacePrefetched = false
 let cachedUser: User | null | undefined
 let cachedUserId: string | null | undefined
 const cachedAdminByUser = new Map<string, boolean>()
@@ -165,24 +159,12 @@ export default function Sidebar() {
   }, [])
 
   useEffect(() => {
-    if (workspacePrefetched) return
-    workspacePrefetched = true
-    const prefetch = () => {
-      workspaceHrefs.forEach(href => router.prefetch(href))
-    }
-    const requestIdle = (window as Window & {
-      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
-    }).requestIdleCallback
-    if (requestIdle) {
-      requestIdle(prefetch, { timeout: 1500 })
-    } else {
-      globalThis.setTimeout(prefetch, 300)
-    }
-  }, [router])
-
-  useEffect(() => {
     setMobileOpen(false)
   }, [pathname])
+
+  const prefetchRoute = (href: string) => {
+    router.prefetch(href)
+  }
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -205,7 +187,7 @@ export default function Sidebar() {
       <span className="yijing-mobile-nav-shell" aria-hidden="true" />
 
       <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-line bg-surface-2/95 px-4 shadow-sm backdrop-blur md:hidden">
-        <Link href="/dashboard" className="flex items-center gap-1.5" onClick={closeMobile}>
+        <Link href="/dashboard" prefetch={false} className="flex items-center gap-1.5" onClick={closeMobile}>
           <Logo size={30} priority className="flex-shrink-0" />
           <span className="brand-wordmark text-[28px] leading-none text-ink-900">译境</span>
         </Link>
@@ -253,11 +235,15 @@ export default function Sidebar() {
                   item={item}
                   active={item.activeMatcher(pathname)}
                   onNavigate={closeMobile}
+                  onPrefetch={prefetchRoute}
                 />
               ))}
               <Link
                 href="/account/password"
+                prefetch={false}
                 onClick={closeMobile}
+                onPointerEnter={() => prefetchRoute('/account/password')}
+                onFocus={() => prefetchRoute('/account/password')}
                 className={cn(
                   'flex min-h-12 items-center gap-3 rounded-xl border px-3 text-sm transition-colors',
                   pathname.startsWith('/account')
@@ -295,6 +281,7 @@ export default function Sidebar() {
             item={item}
             active={item.activeMatcher(pathname)}
             onNavigate={closeMobile}
+            onPrefetch={prefetchRoute}
           />
         ))}
         <MobileBottomButton
@@ -313,6 +300,7 @@ export default function Sidebar() {
           userEmail={user?.email}
           initial={initial}
           onLogout={logout}
+          onPrefetch={prefetchRoute}
         />
       </aside>
     </>
@@ -320,16 +308,21 @@ export default function Sidebar() {
 }
 
 function MobileBottomItem({
-  item, active, onNavigate,
+  item, active, onNavigate, onPrefetch,
 }: {
   item: WorkspaceNavItem
   active: boolean
   onNavigate: () => void
+  onPrefetch: (href: string) => void
 }) {
   return (
     <Link
       href={item.href}
+      prefetch={false}
       onClick={onNavigate}
+      onPointerEnter={() => onPrefetch(item.href)}
+      onTouchStart={() => onPrefetch(item.href)}
+      onFocus={() => onPrefetch(item.href)}
       aria-current={active ? 'page' : undefined}
       className={cn(
         'flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[11px] font-medium transition-colors',
@@ -371,16 +364,21 @@ function MobileBottomButton({
 }
 
 function MobileMoreLink({
-  item, active, onNavigate,
+  item, active, onNavigate, onPrefetch,
 }: {
   item: WorkspaceNavItem
   active: boolean
   onNavigate: () => void
+  onPrefetch: (href: string) => void
 }) {
   return (
     <Link
       href={item.href}
+      prefetch={false}
       onClick={onNavigate}
+      onPointerEnter={() => onPrefetch(item.href)}
+      onTouchStart={() => onPrefetch(item.href)}
+      onFocus={() => onPrefetch(item.href)}
       aria-current={active ? 'page' : undefined}
       className={cn(
         'flex min-h-12 items-center gap-3 rounded-xl border px-3 text-sm transition-colors',
@@ -408,6 +406,7 @@ function SidebarContent({
   initial,
   onLogout,
   onNavigate,
+  onPrefetch,
 }: {
   visibleWorkspaceItems: WorkspaceNavItem[]
   pathname: string
@@ -416,13 +415,17 @@ function SidebarContent({
   initial: string
   onLogout: () => void
   onNavigate?: () => void
+  onPrefetch: (href: string) => void
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div style={{ padding: '28px 24px' }}>
         <Link
           href="/dashboard"
+          prefetch={false}
           onClick={onNavigate}
+          onPointerEnter={() => onPrefetch('/dashboard')}
+          onFocus={() => onPrefetch('/dashboard')}
           className="flex items-center gap-[6.5px] cursor-pointer group"
         >
           <Logo size={42} priority className="flex-shrink-0 group-hover:scale-105 transition-transform" />
@@ -449,6 +452,7 @@ function SidebarContent({
               label={item.label}
               detail={item.detail}
               onNavigate={onNavigate}
+              onPrefetch={onPrefetch}
             />
           ))}
         </div>
@@ -484,7 +488,7 @@ function SidebarContent({
 }
 
 function WorkspaceItem({
-  active, href, icon, label, detail, onNavigate,
+  active, href, icon, label, detail, onNavigate, onPrefetch,
 }: {
   active?: boolean
   href: string
@@ -492,11 +496,15 @@ function WorkspaceItem({
   label: string
   detail: string
   onNavigate?: () => void
+  onPrefetch: (href: string) => void
 }) {
   return (
     <Link
       href={href}
+      prefetch={false}
       onClick={onNavigate}
+      onPointerEnter={() => onPrefetch(href)}
+      onFocus={() => onPrefetch(href)}
       className={cn(
         'group relative block w-full overflow-hidden rounded-xl border text-left transition-all duration-200',
         active

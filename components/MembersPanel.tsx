@@ -84,7 +84,7 @@ export default function MembersPanel({ projectId, currentUserId, onRoleChanged }
               成员 <span className="text-xs text-ink-400 font-sans font-normal ml-1">{members.length} 人</span>
             </h3>
           </div>
-          {isAdmin && canManage(myRole) && (
+          {canManage(myRole) && (
             <Button size="sm" variant="primary" onClick={() => setShowInvite(true)} leftIcon={<span className="text-base leading-none">+</span>}>
               邀请
             </Button>

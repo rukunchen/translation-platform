@@ -1,5 +1,5 @@
 // GET /api/projects/[id]/members          列成员（project members）
-// POST /api/projects/[id]/members         发送邀请（platform admin + manager）
+// POST /api/projects/[id]/members         发送邀请（manager）
 
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
@@ -43,7 +43,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { client, user } = await supabaseFromRequest(req)
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   const admin = supabaseAdmin()
-  if (!(await isPlatformAdmin(user, admin))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const role = await getMyRole(client, projectId, user.id)
   if (!canManage(role)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
