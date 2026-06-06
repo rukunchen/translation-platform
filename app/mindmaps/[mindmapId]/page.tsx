@@ -158,6 +158,7 @@ function buildThemeConfig(themeId: string) {
 /* ---------- Helpers ---------- */
 
 type ScreenState = 'loading' | 'ready' | 'auth' | 'missing' | 'error'
+type ResizableMindMap = MindMap & { resize: () => void }
 
 function createInitialTree(): MindmapNode {
   return {
@@ -650,11 +651,34 @@ export default function MindmapDetailPage() {
     function onFullscreenChange() {
       const active = document.fullscreenElement === workspaceRef.current
       setIsFullscreen(active)
-      window.setTimeout(() => mindMapRef.current?.view.fit(), 120)
+      window.setTimeout(() => {
+        const mm = mindMapRef.current
+        if (!mm) return
+        ;(mm as ResizableMindMap).resize()
+        window.setTimeout(() => mm.view.fit(), 120)
+      }, 120)
     }
     document.addEventListener('fullscreenchange', onFullscreenChange)
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
   }, [])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || typeof ResizeObserver === 'undefined') return
+    let resizeTimer: number | undefined
+    const observer = new ResizeObserver(() => {
+      window.clearTimeout(resizeTimer)
+      resizeTimer = window.setTimeout(() => {
+        const mm = mindMapRef.current
+        if (mm) (mm as ResizableMindMap).resize()
+      }, 80)
+    })
+    observer.observe(container)
+    return () => {
+      window.clearTimeout(resizeTimer)
+      observer.disconnect()
+    }
+  }, [screenState])
 
   // Add child node to the currently active node (or root if none selected)
   const handleAddTopic = useCallback(() => {
