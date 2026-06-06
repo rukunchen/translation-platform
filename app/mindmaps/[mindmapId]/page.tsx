@@ -73,14 +73,22 @@ const defaultNode: MindmapNode = {
 }
 
 const layoutOptions = [
-  { id: 'logicalStructure', label: '逻辑结构图', icon: 'LR' },
-  { id: 'mindMap', label: '思维导图', icon: 'MM' },
-  { id: 'organizationStructure', label: '组织结构图', icon: 'OG' },
-  { id: 'catalogOrganization', label: '目录组织图', icon: 'CT' },
-  { id: 'timeline', label: '时间轴(横)', icon: 'TH' },
-  { id: 'timeline2', label: '时间轴(交替)', icon: 'TA' },
-  { id: 'fishbone', label: '鱼骨图', icon: 'FB' },
+  { id: 'mindMap', label: '双向思维导图', group: '思维导图' },
+  { id: 'logicalStructure', label: '向右逻辑图', group: '逻辑图' },
+  { id: 'logicalStructureLeft', label: '向左逻辑图', group: '逻辑图' },
+  { id: 'catalogOrganization', label: '目录组织图', group: '逻辑图' },
+  { id: 'organizationStructure', label: '组织结构图', group: '组织结构图' },
+  { id: 'timeline', label: '水平时间轴', group: '时间轴' },
+  { id: 'timeline2', label: '交替时间轴', group: '时间轴' },
+  { id: 'verticalTimeline', label: '竖向时间轴', group: '时间轴' },
+  { id: 'verticalTimeline2', label: '竖向时间轴（左）', group: '时间轴' },
+  { id: 'verticalTimeline3', label: '竖向时间轴（右）', group: '时间轴' },
+  { id: 'fishbone', label: '鱼骨图', group: '鱼骨图' },
+  { id: 'fishbone2', label: '鱼骨图（交替）', group: '鱼骨图' },
+  { id: 'rightFishbone', label: '向右鱼骨图', group: '鱼骨图' },
+  { id: 'rightFishbone2', label: '向右鱼骨图（交替）', group: '鱼骨图' },
 ]
+const layoutGroups = ['思维导图', '逻辑图', '组织结构图', '时间轴', '鱼骨图']
 
 const fontOptions = [
   { id: 'sans', label: '黑体', family: '"Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif' },
@@ -392,6 +400,7 @@ export default function MindmapDetailPage() {
   const [canvasBg, setCanvasBg] = useState<MindmapBackground>(defaultMeta.background)
   const [currentThemeId, setCurrentThemeId] = useState(defaultMeta.theme)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isLayoutPickerOpen, setIsLayoutPickerOpen] = useState(false)
 
   const workspaceRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -683,6 +692,7 @@ export default function MindmapDetailPage() {
     try {
       mm.setLayout(layoutId)
       setTree(prev => mergeMeta(prev, { layout: layoutId }))
+      setIsLayoutPickerOpen(false)
     } catch { /* ignore */ }
   }, [])
 
@@ -1232,21 +1242,46 @@ export default function MindmapDetailPage() {
 
             {/* Layout */}
             <InspectorSection title="结构" isDark={isDarkBg}>
-              <div className="grid grid-cols-2 gap-2">
-                {layoutOptions.map(l => (
-                  <button
-                    key={l.id}
-                    className={cn(
-                      'min-w-0 rounded-lg border text-xs font-medium transition-all',
-                      meta.layout === l.id ? chipActive : chipBase
-                    )}
-                    style={{ padding: '8px 10px' }}
-                    onClick={() => handleLayoutChange(l.id)}
-                  >
-                    {l.label}
-                  </button>
-                ))}
-              </div>
+              <button
+                className={cn('flex w-full items-center gap-3 rounded-xl border text-left transition-all', chipBase)}
+                style={{ padding: '10px 12px' }}
+                onClick={() => setIsLayoutPickerOpen(open => !open)}
+              >
+                <LayoutThumbnail layout={meta.layout} compact />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] text-ink-400">当前结构</span>
+                  <span className="block truncate text-xs font-semibold text-ink-700">
+                    {layoutOptions.find(option => option.id === meta.layout)?.label || '选择结构'}
+                  </span>
+                </span>
+                <ChevronDownIcon />
+              </button>
+              {isLayoutPickerOpen && (
+                <div className={cn('flex flex-col gap-4 rounded-xl border', panelBg, panelBorder)} style={{ padding: '12px' }}>
+                  {layoutGroups.map(group => (
+                    <div key={group} className="flex flex-col gap-2">
+                      <div className="text-xs font-semibold text-ink-500">{group}</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {layoutOptions.filter(option => option.group === group).map(option => (
+                          <button
+                            key={option.id}
+                            className={cn(
+                              'min-w-0 rounded-xl border text-left transition-all',
+                              meta.layout === option.id ? chipActive : chipBase
+                            )}
+                            style={{ padding: '7px' }}
+                            onClick={() => handleLayoutChange(option.id)}
+                            title={option.label}
+                          >
+                            <LayoutThumbnail layout={option.id} />
+                            <span className="mt-1.5 block truncate text-[11px] font-medium">{option.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </InspectorSection>
 
             {/* Background */}
@@ -1357,6 +1392,58 @@ export default function MindmapDetailPage() {
 }
 
 /* ===== Sub-components for the redesigned UI ===== */
+
+function LayoutThumbnail({ layout, compact = false }: { layout: string; compact?: boolean }) {
+  const stroke = '#68716f'
+  const fill = '#dfe4e2'
+  const isLeft = layout === 'logicalStructureLeft'
+  const isOrg = layout === 'organizationStructure'
+  const isTimeline = layout.includes('Timeline') || layout.startsWith('timeline')
+  const isFishbone = layout.toLowerCase().includes('fishbone')
+  const isCatalog = layout === 'catalogOrganization'
+  return (
+    <svg
+      viewBox="0 0 120 62"
+      className={cn('block rounded-lg bg-white', compact ? 'h-11 w-20 shrink-0' : 'h-16 w-full')}
+      fill="none"
+      stroke={stroke}
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {layout === 'mindMap' && <>
+        <rect x="46" y="25" width="28" height="13" rx="4" fill={fill} />
+        <path d="M46 31H35C29 31 29 18 22 18H11M46 31H35C29 31 29 44 22 44H11M74 31H85C91 31 91 18 98 18H109M74 31H85C91 31 91 44 98 44H109" />
+        <path d="M11 14h12M11 22h12M97 14h12M97 22h12M11 40h12M11 48h12M97 40h12M97 48h12" />
+      </>}
+      {(layout === 'logicalStructure' || isLeft || isCatalog) && <>
+        <rect x={isLeft ? 86 : 7} y="25" width="27" height="13" rx="3" fill={fill} />
+        <path d={isLeft ? 'M86 31H70V13M70 31V49M70 13H50M70 31H50M70 49H50' : 'M34 31H50V13M50 31V49M50 13H70M50 31H70M50 49H70'} />
+        <path d={isLeft ? 'M50 9h-22M50 13h-17M50 27h-22M50 31h-17M50 45h-22M50 49h-17' : 'M70 9h22M70 13h17M70 27h22M70 31h17M70 45h22M70 49h17'} />
+      </>}
+      {isOrg && <>
+        <rect x="48" y="7" width="24" height="10" rx="2" fill={fill} />
+        <path d="M60 17v10M22 27h76M22 27v9M60 27v9M98 27v9" />
+        <rect x="10" y="36" width="24" height="9" rx="2" fill={fill} /><rect x="48" y="36" width="24" height="9" rx="2" fill={fill} /><rect x="86" y="36" width="24" height="9" rx="2" fill={fill} />
+        <path d="M16 51h12M54 51h12M92 51h12" />
+      </>}
+      {isTimeline && <>
+        <path d={layout.startsWith('vertical') ? 'M60 7v48' : 'M8 31h104'} />
+        {layout.startsWith('vertical') ? <>
+          <circle cx="60" cy="16" r="3" fill={fill} /><circle cx="60" cy="31" r="3" fill={fill} /><circle cx="60" cy="46" r="3" fill={fill} />
+          <path d="M57 16H29M63 31h28M57 46H29M21 13h8M91 28h8M21 43h8" />
+        </> : <>
+          <circle cx="28" cy="31" r="4" fill={fill} /><circle cx="60" cy="31" r="4" fill={fill} /><circle cx="92" cy="31" r="4" fill={fill} />
+          <path d="M28 27V15M60 35v12M92 27V15M20 15h16M52 47h16M84 15h16" />
+        </>}
+      </>}
+      {isFishbone && <>
+        <path d="M12 31h96M28 31l14-17M46 31l14 17M64 31l14-17M82 31l14 17" />
+        <path d="M34 14h15M52 48h15M70 14h15M88 48h15M108 31l-7-5M108 31l-7 5" />
+      </>}
+    </svg>
+  )
+}
 
 function ToolbarBtn({ onClick, icon, label, isDark, title }: {
   onClick?: () => void
