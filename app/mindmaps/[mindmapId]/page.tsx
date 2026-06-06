@@ -266,7 +266,9 @@ export default function MindmapDetailPage() {
   const [saving, setSaving] = useState(false)
   const [canvasBg, setCanvasBg] = useState<MindmapBackground>(defaultMeta.background)
   const [currentThemeId, setCurrentThemeId] = useState(defaultMeta.theme)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
+  const workspaceRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const mindMapRef = useRef<MindMap | null>(null)
   const treeRef = useRef(tree)
@@ -632,6 +634,27 @@ export default function MindmapDetailPage() {
   const handleFit = useCallback(() => {
     mindMapRef.current?.view.fit()
   }, [])
+  const handleFullscreen = useCallback(async () => {
+    const workspace = workspaceRef.current
+    if (!workspace) return
+    try {
+      if (document.fullscreenElement === workspace) {
+        await document.exitFullscreen()
+      } else {
+        await workspace.requestFullscreen()
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => {
+    function onFullscreenChange() {
+      const active = document.fullscreenElement === workspaceRef.current
+      setIsFullscreen(active)
+      window.setTimeout(() => mindMapRef.current?.view.fit(), 120)
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
 
   // Add child node to the currently active node (or root if none selected)
   const handleAddTopic = useCallback(() => {
@@ -789,7 +812,11 @@ export default function MindmapDetailPage() {
         {/* ====== Toolbar + Canvas + Sidebar ====== */}
         <div className="flex min-h-0 flex-1 gap-3">
           {/* ===== Left: Canvas Area ===== */}
-          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+          <div
+            ref={workspaceRef}
+            className="flex min-w-0 flex-1 flex-col gap-2.5"
+            style={isFullscreen ? { background: 'var(--color-canvas)', padding: '16px' } : undefined}
+          >
             {/* Toolbar */}
             <div className={cn(
               'flex flex-wrap items-center gap-1.5 rounded-2xl border shadow-[var(--shadow-card)]',
@@ -808,6 +835,12 @@ export default function MindmapDetailPage() {
               <ToolbarBtn onClick={handleZoomReset} label="100%" isDark={isDarkBg} />
               <ToolbarBtn onClick={handleZoomIn} icon={<ZoomInIcon />} isDark={isDarkBg} title="放大" />
               <ToolbarBtn onClick={handleFit} icon={<FitIcon />} label="适应" isDark={isDarkBg} />
+              <ToolbarBtn
+                onClick={() => { void handleFullscreen() }}
+                icon={isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
+                label={isFullscreen ? '退出全屏' : '全屏'}
+                isDark={isDarkBg}
+              />
 
               <div className="flex-1" />
 
@@ -1113,6 +1146,12 @@ function ZoomInIcon() {
 }
 function FitIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+}
+function FullscreenIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>
+}
+function ExitFullscreenIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5"/></svg>
 }
 function ChevronUpIcon() {
   return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m18 15-6-6-6 6"/></svg>
