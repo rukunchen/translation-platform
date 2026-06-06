@@ -5,6 +5,7 @@ export type MindmapBackground = 'paper' | 'white' | 'warm-gray' | 'dark'
 export type MindmapFontFamily = 'serif' | 'sans' | 'mono'
 export type MindmapBranchLine = 'thin' | 'default' | 'thick'
 export type MindmapTheme = 'classic' | 'business' | 'rainbow' | 'compact' | 'dark' | 'minimal'
+export type MindmapPaletteId = string
 
 export type MindmapViewport = {
   x: number
@@ -18,6 +19,7 @@ export type MindmapMeta = {
   background: MindmapBackground
   fontFamily: MindmapFontFamily
   branchLine: MindmapBranchLine
+  palette?: MindmapPaletteId
   rainbowBranches: boolean
   compact: boolean
   viewport?: MindmapViewport

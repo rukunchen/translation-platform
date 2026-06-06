@@ -56,6 +56,7 @@ const defaultMeta: MindmapMeta = {
   background: 'paper',
   fontFamily: 'sans',
   branchLine: 'thin',
+  palette: 'morning',
   rainbowBranches: false,
   compact: false,
 }
@@ -113,17 +114,41 @@ const themeLabelMap: Record<string, string> = {
 }
 const themeOptions = Object.keys(themeConfigs).map(id => ({ id, label: themeLabelMap[id] || id }))
 
-function buildThemeConfig(themeId: string) {
+const paletteOptions = [
+  { id: 'morning', label: '晨曦', colors: ['#ff6b72', '#ff9d68', '#9dd7be', '#7fd7d2', '#69c4e8', '#cf7bdb'] },
+  { id: 'rainbow', label: '彩虹', colors: ['#ffcf16', '#c9df45', '#f1c7c3', '#7db89c', '#ff8d61', '#356ba5'] },
+  { id: 'vitality', label: '活力', colors: ['#f7f7f7', '#ef2922', '#f7b900', '#2945d8', '#111111', '#ffffff'] },
+  { id: 'japanese', label: '和风', colors: ['#ffffff', '#f49a9a', '#ff7434', '#80a9ed', '#4d51d9', '#24226d'] },
+  { id: 'island', label: '岛屿', colors: ['#ffe5d0', '#dbbca6', '#cb9a80', '#b5b4a1', '#a6a88d', '#6f7963'] },
+  { id: 'rose', label: '玫瑰', colors: ['#fff1f4', '#ffc6d1', '#f9a6b8', '#fa6d89', '#c91e52', '#b81449'] },
+  { id: 'mint', label: '薄荷', colors: ['#ffffff', '#c4f5f1', '#8fdde3', '#5bc9ca', '#13aaa6', '#0b6b69'] },
+  { id: 'forest', label: '绿茶', colors: ['#d9d9c6', '#b6ad91', '#5f9b68', '#687a51', '#285c35', '#19331f'] },
+  { id: 'cosmos', label: '宇宙', colors: ['#d6d8d3', '#83bfd0', '#3d7da7', '#174b69', '#10384b', '#152f3d'] },
+  { id: 'macaron', label: '马卡龙', colors: ['#d1b99d', '#ffae83', '#a9d0c0', '#e7f1f1', '#fbe38c', '#484d50'] },
+  { id: 'cream', label: '奶油', colors: ['#d8ead1', '#fafafa', '#c3d8e9', '#d6beb9', '#81748a', '#ffffff'] },
+  { id: 'watercolor', label: '水粉', colors: ['#f7f7f7', '#f4bdca', '#f1dc6b', '#61aa89', '#b092d2', '#4780b4'] },
+  { id: 'ornate', label: '华丽', colors: ['#e7eef8', '#b8e94b', '#ffab3b', '#c77bc8', '#1d93cc', '#191247'] },
+  { id: 'retro', label: '复古', colors: ['#e7c263', '#f3a35e', '#ad7562', '#2f9a8e', '#2d5666', '#ffffff'] },
+  { id: 'candy', label: '糖果', colors: ['#ffffff', '#ff956e', '#f4c966', '#efa137', '#96bfdd', '#55a5d1'] },
+  { id: 'classic', label: '经典', colors: ['#3e51b5', '#ed352f', '#c5d626', '#008f78', '#2889df', '#982aaa'] },
+] as const
+
+function getPalette(paletteId?: string) {
+  return paletteOptions.find(item => item.id === paletteId) || paletteOptions[0]
+}
+
+function buildThemeConfig(themeId: string, paletteId?: string) {
   const c = themeConfigs[themeId] || themeConfigs.classic
+  const palette = getPalette(paletteId)
   return {
     paddingX: 12,
     paddingY: 6,
-    lineColor: c.lineColor,
-    generalizationLineColor: c.lineColor,
+    lineColor: palette.colors[1],
+    generalizationLineColor: palette.colors[1],
     // Background is controlled separately by the canvas background picker.
     backgroundColor: 'transparent',
     root: {
-      fillColor: c.rootFill,
+      fillColor: palette.colors[0],
       color: c.rootColor,
       borderColor: 'transparent',
       borderRadius: 9,
@@ -133,7 +158,7 @@ function buildThemeConfig(themeId: string) {
     second: {
       fillColor: c.secondFill,
       color: c.secondColor,
-      borderColor: c.secondBorder,
+      borderColor: palette.colors[2],
       borderRadius: 8,
       paddingX: 15,
       paddingY: 7,
@@ -148,7 +173,7 @@ function buildThemeConfig(themeId: string) {
     generalization: {
       fillColor: c.secondFill,
       color: c.secondColor,
-      borderColor: c.secondBorder,
+      borderColor: palette.colors[2],
       borderRadius: 8,
       paddingX: 15,
       paddingY: 7,
@@ -320,8 +345,8 @@ export default function MindmapDetailPage() {
       data,
       layout: meta.layout,
       theme: 'default',
-      themeConfig: buildThemeConfig(meta.theme),
-      rainbowLinesConfig: { open: meta.rainbowBranches, colorsList: [] },
+      themeConfig: buildThemeConfig(meta.theme, meta.palette),
+      rainbowLinesConfig: { open: meta.rainbowBranches, colorsList: [...getPalette(meta.palette).colors] },
       readonly: false,
       enableFreeDrag: false,
       mousewheelAction: 'zoom',
@@ -348,12 +373,15 @@ export default function MindmapDetailPage() {
 
     // Theme (via setThemeConfig)
     try {
-      mm.setThemeConfig(buildThemeConfig(meta.theme))
+      mm.setThemeConfig(buildThemeConfig(meta.theme, meta.palette))
     } catch { /* ignore */ }
 
     // Rainbow lines
     if (mm.rainbowLines) {
-      mm.rainbowLines.updateRainLinesConfig({ open: meta.rainbowBranches })
+      mm.rainbowLines.updateRainLinesConfig({
+        open: meta.rainbowBranches,
+        colorsList: [...getPalette(meta.palette).colors],
+      })
     }
   }, [])
 
@@ -506,9 +534,24 @@ export default function MindmapDetailPage() {
     const mm = mindMapRef.current
     if (!mm) return
     try {
-      mm.setThemeConfig(buildThemeConfig(themeId))
+      mm.setThemeConfig(buildThemeConfig(themeId, getNodeMeta(treeRef.current).palette))
       setCurrentThemeId(themeId as MindmapMeta['theme'])
       setTree(prev => mergeMeta(prev, { theme: themeId as MindmapMeta['theme'] }))
+    } catch { /* ignore */ }
+  }, [])
+
+  const handlePaletteChange = useCallback((paletteId: string) => {
+    const mm = mindMapRef.current
+    if (!mm) return
+    const palette = getPalette(paletteId)
+    const currentMeta = getNodeMeta(treeRef.current)
+    try {
+      mm.setThemeConfig(buildThemeConfig(currentMeta.theme, paletteId))
+      mm.rainbowLines?.updateRainLinesConfig({
+        open: true,
+        colorsList: [...palette.colors],
+      })
+      setTree(prev => mergeMeta(prev, { palette: paletteId, rainbowBranches: true }))
     } catch { /* ignore */ }
   }, [])
 
@@ -532,7 +575,10 @@ export default function MindmapDetailPage() {
     setTree(prev => {
       const newVal = !getNodeMeta(prev).rainbowBranches
       if (mm.rainbowLines) {
-        mm.rainbowLines.updateRainLinesConfig({ open: newVal })
+        mm.rainbowLines.updateRainLinesConfig({
+          open: newVal,
+          colorsList: [...getPalette(getNodeMeta(prev).palette).colors],
+        })
       }
       return mergeMeta(prev, { rainbowBranches: newVal })
     })
@@ -968,6 +1014,31 @@ export default function MindmapDetailPage() {
                     onClick={() => handleThemeChange(t.id)}
                   >
                     {t.label}
+                  </button>
+                ))}
+              </div>
+            </InspectorSection>
+
+            {/* Palette */}
+            <InspectorSection title="配色方案" isDark={isDarkBg}>
+              <div className="grid grid-cols-2 gap-2">
+                {paletteOptions.map(palette => (
+                  <button
+                    key={palette.id}
+                    className={cn(
+                      'flex min-w-0 flex-col gap-1.5 rounded-xl border text-left transition-all',
+                      meta.palette === palette.id ? chipActive : chipBase
+                    )}
+                    style={{ padding: '8px' }}
+                    onClick={() => handlePaletteChange(palette.id)}
+                    title={palette.label}
+                  >
+                    <span className="block truncate text-[11px] font-medium">{palette.label}</span>
+                    <span className="flex h-4 overflow-hidden rounded-md border border-black/5">
+                      {palette.colors.map((color, index) => (
+                        <span key={`${palette.id}-${index}`} className="h-full flex-1" style={{ backgroundColor: color }} />
+                      ))}
+                    </span>
                   </button>
                 ))}
               </div>
