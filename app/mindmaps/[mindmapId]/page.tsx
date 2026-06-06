@@ -763,7 +763,7 @@ export default function MindmapDetailPage() {
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             {/* Toolbar */}
             <div className={cn(
-              'flex flex-wrap items-center gap-2.5 rounded-2xl border px-8 py-4 shadow-[var(--shadow-card)]',
+              'flex flex-wrap items-center gap-3 rounded-2xl border px-10 py-5 shadow-[var(--shadow-card)]',
               panelBg, panelBorder
             )}>
               {/* Node ops */}
@@ -784,7 +784,7 @@ export default function MindmapDetailPage() {
 
               {/* Search */}
               <div className={cn(
-                'flex items-center gap-1 rounded-xl border px-3.5 h-9',
+                'flex items-center gap-1.5 rounded-xl border px-4.5 h-10',
                 isDarkBg ? 'border-white/[0.08] bg-white/[0.03]' : 'border-line bg-surface'
               )}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={textMuted}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -862,17 +862,17 @@ export default function MindmapDetailPage() {
 
           {/* ===== Right: Inspector Panel ===== */}
           <div className={cn(
-            'flex w-[320px] flex-col gap-5 overflow-auto rounded-2xl border px-8 py-7 shadow-[var(--shadow-card)]',
+            'flex w-[340px] flex-col gap-6 overflow-auto rounded-2xl border px-10 py-8 shadow-[var(--shadow-card)]',
             panelBg, panelBorder
           )}>
             {/* Theme */}
             <InspectorSection title="主题" isDark={isDarkBg}>
-              <div className="flex flex-wrap gap-2.5">
+              <div className="flex flex-wrap gap-3">
                 {themeOptions.map(t => (
                   <button
                     key={t.id}
                     className={cn(
-                      'rounded-lg border px-7 py-3 text-sm font-medium transition-all',
+                      'rounded-lg border px-9 py-3.5 text-sm font-medium transition-all',
                       currentThemeId === t.id ? chipActive : chipBase
                     )}
                     onClick={() => handleThemeChange(t.id)}
@@ -885,12 +885,12 @@ export default function MindmapDetailPage() {
 
             {/* Layout */}
             <InspectorSection title="结构" isDark={isDarkBg}>
-              <div className="flex flex-wrap gap-2.5">
+              <div className="flex flex-wrap gap-3">
                 {layoutOptions.map(l => (
                   <button
                     key={l.id}
                     className={cn(
-                      'rounded-lg border px-7 py-3 text-sm font-medium transition-all',
+                      'rounded-lg border px-9 py-3.5 text-sm font-medium transition-all',
                       meta.layout === l.id ? chipActive : chipBase
                     )}
                     onClick={() => handleLayoutChange(l.id)}
@@ -903,7 +903,7 @@ export default function MindmapDetailPage() {
 
             {/* Background */}
             <InspectorSection title="背景" isDark={isDarkBg}>
-              <div className="flex flex-wrap gap-2.5">
+              <div className="flex flex-wrap gap-3">
                 {[
                   { id: 'paper' as const, label: '纸张', color: '#f8f4ec' },
                   { id: 'white' as const, label: '纯白', color: '#fff' },
@@ -913,7 +913,7 @@ export default function MindmapDetailPage() {
                   <button
                     key={b.id}
                     className={cn(
-                      'flex items-center gap-2.5 rounded-xl border px-8 py-3.5 text-sm font-medium transition-all',
+                      'flex items-center gap-3 rounded-xl border px-10 py-4 text-sm font-medium transition-all',
                       canvasBg === b.id ? chipActive : chipBase
                     )}
                     onClick={() => handleBgChange(b.id)}
@@ -1018,7 +1018,7 @@ function ToolbarBtn({ onClick, icon, label, isDark, title }: {
       onClick={onClick}
       title={title || label}
       className={cn(
-        'inline-flex items-center gap-2.5 rounded-xl px-6 h-11 text-sm font-medium transition-colors',
+        'inline-flex items-center gap-3 rounded-xl px-8 h-11 text-sm font-medium transition-colors',
         isDark
           ? 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.06]'
           : 'text-ink-500 hover:text-ink-900 hover:bg-canvas-2'
