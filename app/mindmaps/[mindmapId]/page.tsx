@@ -763,7 +763,7 @@ export default function MindmapDetailPage() {
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             {/* Toolbar */}
             <div className={cn(
-              'flex flex-wrap items-center gap-2 rounded-2xl border px-6 py-3.5 shadow-[var(--shadow-card)]',
+              'flex flex-wrap items-center gap-2.5 rounded-2xl border px-8 py-4 shadow-[var(--shadow-card)]',
               panelBg, panelBorder
             )}>
               {/* Node ops */}
@@ -784,7 +784,7 @@ export default function MindmapDetailPage() {
 
               {/* Search */}
               <div className={cn(
-                'flex items-center gap-1 rounded-xl border px-2.5 h-8',
+                'flex items-center gap-1 rounded-xl border px-3.5 h-9',
                 isDarkBg ? 'border-white/[0.08] bg-white/[0.03]' : 'border-line bg-surface'
               )}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={textMuted}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -862,7 +862,7 @@ export default function MindmapDetailPage() {
 
           {/* ===== Right: Inspector Panel ===== */}
           <div className={cn(
-            'flex w-[304px] flex-col gap-4 overflow-auto rounded-2xl border p-6 shadow-[var(--shadow-card)]',
+            'flex w-[320px] flex-col gap-5 overflow-auto rounded-2xl border px-8 py-7 shadow-[var(--shadow-card)]',
             panelBg, panelBorder
           )}>
             {/* Theme */}
