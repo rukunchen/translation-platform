@@ -9,6 +9,7 @@ import { MainContent } from '@/components/ui/MainContent'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { cn } from '@/components/ui/cn'
 import { supabase } from '@/lib/supabase'
+import { countNodes } from './[mindmapId]/mindmap-types'
 
 type MindmapRow = {
   id: string
@@ -33,15 +34,6 @@ const sourceModuleLabel: Record<string, string> = {
   frontier: '前沿文献',
   writing: '论文写作',
   terms: '术语学习',
-}
-
-function countNodes(node: unknown): number {
-  if (!node || typeof node !== 'object') return 0
-  const current = node as { children?: unknown[] }
-  const children: unknown[] = Array.isArray(current.children) ? current.children : []
-  let total = 1
-  for (const child of children) total += countNodes(child)
-  return total
 }
 
 function formatDateTime(value: string | null) {

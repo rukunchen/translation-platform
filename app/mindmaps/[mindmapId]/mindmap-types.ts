@@ -1,11 +1,10 @@
 export type MindmapColor = 'blue' | 'green' | 'orange' | 'purple' | 'rose' | 'gray'
 export const mindmapColorOrder: MindmapColor[] = ['blue', 'green', 'orange', 'purple', 'rose', 'gray']
-export type MindmapLayout = 'xmind-axis' | 'right' | 'logic' | 'organization' | 'timeline' | 'fishbone'
+
 export type MindmapBackground = 'paper' | 'white' | 'warm-gray' | 'dark'
 export type MindmapFontFamily = 'serif' | 'sans' | 'mono'
 export type MindmapBranchLine = 'thin' | 'default' | 'thick'
 export type MindmapTheme = 'classic' | 'business' | 'rainbow' | 'compact' | 'dark' | 'minimal'
-export type LayoutTemplateId = 'xmind-axis' | 'right' | 'logic' | 'organization' | 'timeline' | 'fishbone'
 
 export type MindmapViewport = {
   x: number
@@ -14,7 +13,7 @@ export type MindmapViewport = {
 }
 
 export type MindmapMeta = {
-  layout: MindmapLayout
+  layout: string
   theme: MindmapTheme
   background: MindmapBackground
   fontFamily: MindmapFontFamily
@@ -39,4 +38,78 @@ export type MindmapNavigationEntry = {
   depth: number
   node: MindmapNode
   parentId: string | null
+}
+
+/* ---------- SMM (simple-mind-map) compatible data types ---------- */
+
+export type SmmNodeData = {
+  text: string
+  uid: string
+  expand: boolean
+  note?: string
+  tag?: string[]
+  generalization?: {
+    text: string
+  } | null
+  // preserve our custom meta
+  _mindmapColor?: string
+  _mindmapMeta?: Partial<MindmapMeta>
+}
+
+export type SmmNode = {
+  data: SmmNodeData
+  children: SmmNode[]
+}
+
+/* ---------- Conversion between legacy tree and SMM tree ---------- */
+
+export function legacyNodeToSmm(node: MindmapNode): SmmNode {
+  return {
+    data: {
+      text: node.label,
+      uid: node.id,
+      expand: !node.collapsed,
+      note: node.note || undefined,
+      tag: Array.isArray(node.tags) ? node.tags.filter(Boolean) : undefined,
+      _mindmapColor: node.color || undefined,
+      _mindmapMeta: node.meta || undefined,
+    },
+    children: node.children.map(legacyNodeToSmm),
+  }
+}
+
+export function smmNodeToLegacy(node: SmmNode): MindmapNode {
+  const data = node.data
+  return {
+    id: data.uid,
+    label: data.text || '新节点',
+    color: (data._mindmapColor as MindmapColor) || 'gray',
+    collapsed: !data.expand,
+    meta: data._mindmapMeta as Partial<MindmapMeta> | undefined,
+    note: data.note || '',
+    tags: Array.isArray(data.tag) ? data.tag.filter(Boolean) : [],
+    children: node.children.map(smmNodeToLegacy),
+  }
+}
+
+/* ---------- Helpers for counting nodes in either format ---------- */
+
+export function countNodes(node: unknown): number {
+  if (!node || typeof node !== 'object') return 0
+
+  // SMM format: { data: {...}, children: [...] }
+  const smm = node as { data?: unknown; children?: unknown[] }
+  if (smm.data && typeof smm.data === 'object') {
+    const children = Array.isArray(smm.children) ? smm.children : []
+    let total = 1
+    for (const child of children) total += countNodes(child)
+    return total
+  }
+
+  // Legacy format: { id, label, children: [...] }
+  const legacy = node as { children?: unknown[] }
+  const children = Array.isArray(legacy.children) ? legacy.children : []
+  let total = 1
+  for (const child of children) total += countNodes(child)
+  return total
 }

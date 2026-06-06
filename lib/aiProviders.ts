@@ -45,11 +45,22 @@ function redactSecrets(message: string): string {
 }
 
 // ============ Anthropic (Claude) ============
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+let anthropicClient: Anthropic | null = null
+
+function getAnthropic(): Anthropic | null {
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
+  if (!apiKey || apiKey === '""' || apiKey === "''") return null
+  if (!anthropicClient) {
+    anthropicClient = new Anthropic({ apiKey })
+  }
+  return anthropicClient
+}
 
 async function callClaude(opts: TranslateOpts): Promise<TranslateResult> {
+  const client = getAnthropic()
+  if (!client) return { text: '', error: 'Claude 尚未配置：请在运行环境中设置 ANTHROPIC_API_KEY' }
   try {
-    const res = await anthropic.messages.create({
+    const res = await client.messages.create({
       model: opts.model,
       max_tokens: 4096,
       temperature: opts.temperature,
@@ -64,14 +75,22 @@ async function callClaude(opts: TranslateOpts): Promise<TranslateResult> {
 }
 
 // ============ DeepSeek（OpenAI 兼容协议）============
-const deepseek = new OpenAI({
-  apiKey: process.env.DEEPSEEK_API_KEY,
-  baseURL: 'https://api.deepseek.com',
-})
+let deepseekClient: OpenAI | null = null
+
+function getDeepSeek(): OpenAI | null {
+  const apiKey = process.env.DEEPSEEK_API_KEY?.trim()
+  if (!apiKey || apiKey === '""' || apiKey === "''") return null
+  if (!deepseekClient) {
+    deepseekClient = new OpenAI({ apiKey, baseURL: 'https://api.deepseek.com' })
+  }
+  return deepseekClient
+}
 
 async function callDeepseek(opts: TranslateOpts): Promise<TranslateResult> {
+  const client = getDeepSeek()
+  if (!client) return { text: '', error: 'DeepSeek 尚未配置：请在运行环境中设置 DEEPSEEK_API_KEY' }
   try {
-    const res = await deepseek.chat.completions.create({
+    const res = await client.chat.completions.create({
       model: opts.model,
       temperature: opts.temperature,
       messages: [{ role: 'user', content: composePrompt(opts) }],
@@ -243,7 +262,9 @@ export async function generateWith(provider: ProviderId, opts: GenerateOpts): Pr
   try {
     switch (provider) {
       case 'claude': {
-        const res = await anthropic.messages.create({
+        const claude = getAnthropic()
+        if (!claude) return { text: '', error: 'Claude 尚未配置' }
+        const res = await claude.messages.create({
           model: opts.model,
           max_tokens: maxTokens,
           temperature,
@@ -253,7 +274,9 @@ export async function generateWith(provider: ProviderId, opts: GenerateOpts): Pr
         return { text: block.type === 'text' ? block.text : '' }
       }
       case 'deepseek': {
-        const res = await deepseek.chat.completions.create({
+        const dsk = getDeepSeek()
+        if (!dsk) return { text: '', error: 'DeepSeek 尚未配置' }
+        const res = await dsk.chat.completions.create({
           model: opts.model,
           temperature,
           max_tokens: maxTokens,

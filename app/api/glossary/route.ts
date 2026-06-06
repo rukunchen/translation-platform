@@ -6,10 +6,11 @@ import OpenAI from 'openai'
 import { supabaseFromRequest } from '@/lib/supabaseServer'
 import { getMyRole } from '@/lib/permissions'
 
-const deepseek = new OpenAI({
-  apiKey: process.env.DEEPSEEK_API_KEY,
-  baseURL: 'https://api.deepseek.com'
-})
+function getDeepSeekClient(): OpenAI | null {
+  const apiKey = process.env.DEEPSEEK_API_KEY?.trim()
+  if (!apiKey || apiKey === '""' || apiKey === "''") return null
+  return new OpenAI({ apiKey, baseURL: 'https://api.deepseek.com' })
+}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -32,6 +33,11 @@ export async function POST(req: NextRequest) {
     if (!myRole) return NextResponse.json({ error: '你不是该项目的成员' }, { status: 403 })
 
     const prompt = `从以下原文和译文中提取重要的专业术语对照表。\n\n原文（${sourceLang}）：\n${sourceText.slice(0, 1000)}\n\n译文（${targetLang}）：\n${translatedText.slice(0, 1000)}\n\n请提取5-8个最重要的专业术语，严格按照以下JSON格式返回，不要有任何其他文字：\n[{"source_term":"原文术语","translated_term":"译文术语","definition":"简短说明"}]`
+
+    const deepseek = getDeepSeekClient()
+    if (!deepseek) {
+      return NextResponse.json({ error: 'AI 服务未配置（缺少 DEEPSEEK_API_KEY 环境变量）' }, { status: 500 })
+    }
 
     const res = await deepseek.chat.completions.create({
       model: 'deepseek-chat',

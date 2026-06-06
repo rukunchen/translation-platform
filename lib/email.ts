@@ -2,7 +2,11 @@
 import { Resend } from 'resend'
 import { getInviteUrl } from '@/lib/siteUrl'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function getResendClient(): Resend | null {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) return null
+  return new Resend(apiKey)
+}
 
 type ResendSendResult = { data?: { id?: string | null } | null }
 
@@ -66,8 +70,13 @@ export async function sendInviteEmail(params: InviteEmailParams) {
 </body>
 </html>`
 
+  const client = getResendClient()
+  if (!client) {
+    return { ok: false, id: null, error: '邮件服务未配置（缺少 RESEND_API_KEY 环境变量）' }
+  }
+
   try {
-    const result = await resend.emails.send({
+    const result = await client.emails.send({
       from: '译境 <onboarding@resend.dev>',
       to,
       subject: `${inviterName} 邀请你加入翻译项目「${projectName}」`,
