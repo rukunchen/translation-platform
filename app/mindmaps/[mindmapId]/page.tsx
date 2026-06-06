@@ -120,7 +120,8 @@ function buildThemeConfig(themeId: string) {
     paddingY: 6,
     lineColor: c.lineColor,
     generalizationLineColor: c.lineColor,
-    backgroundColor: c.bgColor,
+    // Background is controlled separately by the canvas background picker.
+    backgroundColor: 'transparent',
     root: {
       fillColor: c.rootFill,
       color: c.rootColor,
@@ -745,7 +746,8 @@ export default function MindmapDetailPage() {
   /* ---------- Render ---------- */
 
   const meta = getNodeMeta(tree)
-  const isDarkBg = canvasBg === 'dark'
+  // Canvas background choices must not change the surrounding controls.
+  const isDarkBg = false
 
   // Shared styles matching site design system
   const panelBg = isDarkBg ? 'bg-[#16181d]' : 'bg-white'
