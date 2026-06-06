@@ -82,6 +82,12 @@ const layoutOptions = [
   { id: 'fishbone', label: '鱼骨图', icon: 'FB' },
 ]
 
+const fontOptions = [
+  { id: 'sans', label: '黑体', family: '"Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif' },
+  { id: 'serif', label: '宋体', family: 'SimSun, "Songti SC", serif' },
+  { id: 'mono', label: '等宽', family: '"SFMono-Regular", Consolas, "Liberation Mono", monospace' },
+] as const
+
 // Theme configs for simple-mind-map (uses setThemeConfig, not setTheme)
 // Each theme defines: lineColor, root fillColor, second fillColor/borderColor, node color, backgroundColor
 const themeConfigs: Record<string, { lineColor: string; rootFill: string; rootColor: string; secondFill: string; secondBorder: string; secondColor: string; nodeColor: string; bgColor: string }> = {
@@ -137,9 +143,14 @@ function getPalette(paletteId?: string) {
   return paletteOptions.find(item => item.id === paletteId) || paletteOptions[0]
 }
 
-function buildThemeConfig(themeId: string, paletteId?: string) {
+function getFontFamily(fontId?: MindmapMeta['fontFamily']) {
+  return fontOptions.find(item => item.id === fontId)?.family || fontOptions[0].family
+}
+
+function buildThemeConfig(themeId: string, paletteId?: string, fontId?: MindmapMeta['fontFamily']) {
   const c = themeConfigs[themeId] || themeConfigs.classic
   const palette = getPalette(paletteId)
+  const fontFamily = getFontFamily(fontId)
   return {
     paddingX: 12,
     paddingY: 6,
@@ -148,6 +159,7 @@ function buildThemeConfig(themeId: string, paletteId?: string) {
     // Background is controlled separately by the canvas background picker.
     backgroundColor: 'transparent',
     root: {
+      fontFamily,
       fillColor: palette.colors[0],
       color: c.rootColor,
       borderColor: 'transparent',
@@ -156,6 +168,7 @@ function buildThemeConfig(themeId: string, paletteId?: string) {
       paddingY: 9,
     },
     second: {
+      fontFamily,
       fillColor: c.secondFill,
       color: c.secondColor,
       borderColor: palette.colors[2],
@@ -164,6 +177,7 @@ function buildThemeConfig(themeId: string, paletteId?: string) {
       paddingY: 7,
     },
     node: {
+      fontFamily,
       color: c.nodeColor,
       borderColor: 'transparent',
       borderRadius: 7,
@@ -171,6 +185,7 @@ function buildThemeConfig(themeId: string, paletteId?: string) {
       paddingY: 6,
     },
     generalization: {
+      fontFamily,
       fillColor: c.secondFill,
       color: c.secondColor,
       borderColor: palette.colors[2],
@@ -345,7 +360,7 @@ export default function MindmapDetailPage() {
       data,
       layout: meta.layout,
       theme: 'default',
-      themeConfig: buildThemeConfig(meta.theme, meta.palette),
+      themeConfig: buildThemeConfig(meta.theme, meta.palette, meta.fontFamily),
       rainbowLinesConfig: { open: meta.rainbowBranches, colorsList: [...getPalette(meta.palette).colors] },
       readonly: false,
       enableFreeDrag: false,
@@ -373,7 +388,7 @@ export default function MindmapDetailPage() {
 
     // Theme (via setThemeConfig)
     try {
-      mm.setThemeConfig(buildThemeConfig(meta.theme, meta.palette))
+      mm.setThemeConfig(buildThemeConfig(meta.theme, meta.palette, meta.fontFamily))
     } catch { /* ignore */ }
 
     // Rainbow lines
@@ -533,8 +548,9 @@ export default function MindmapDetailPage() {
   const handleThemeChange = useCallback((themeId: string) => {
     const mm = mindMapRef.current
     if (!mm) return
+    const currentMeta = getNodeMeta(treeRef.current)
     try {
-      mm.setThemeConfig(buildThemeConfig(themeId, getNodeMeta(treeRef.current).palette))
+      mm.setThemeConfig(buildThemeConfig(themeId, currentMeta.palette, currentMeta.fontFamily))
       setCurrentThemeId(themeId as MindmapMeta['theme'])
       setTree(prev => mergeMeta(prev, { theme: themeId as MindmapMeta['theme'] }))
     } catch { /* ignore */ }
@@ -546,12 +562,22 @@ export default function MindmapDetailPage() {
     const palette = getPalette(paletteId)
     const currentMeta = getNodeMeta(treeRef.current)
     try {
-      mm.setThemeConfig(buildThemeConfig(currentMeta.theme, paletteId))
+      mm.setThemeConfig(buildThemeConfig(currentMeta.theme, paletteId, currentMeta.fontFamily))
       mm.rainbowLines?.updateRainLinesConfig({
         open: true,
         colorsList: [...palette.colors],
       })
       setTree(prev => mergeMeta(prev, { palette: paletteId, rainbowBranches: true }))
+    } catch { /* ignore */ }
+  }, [])
+
+  const handleFontChange = useCallback((fontFamily: MindmapMeta['fontFamily']) => {
+    const mm = mindMapRef.current
+    if (!mm) return
+    const currentMeta = getNodeMeta(treeRef.current)
+    try {
+      mm.setThemeConfig(buildThemeConfig(currentMeta.theme, currentMeta.palette, fontFamily))
+      setTree(prev => mergeMeta(prev, { fontFamily }))
     } catch { /* ignore */ }
   }, [])
 
@@ -744,6 +770,17 @@ export default function MindmapDetailPage() {
     }
   }, [])
 
+  const handleDeleteTopic = useCallback(() => {
+    const mm = mindMapRef.current
+    if (!mm) return
+    const activeNodes = mm.renderer.activeNodeList as Array<{ parent?: unknown }>
+    const deletableNodes = activeNodes.filter(node => node.parent)
+    if (deletableNodes.length === 0) return
+    try {
+      mm.execCommand('REMOVE_NODE', deletableNodes)
+    } catch { /* ignore */ }
+  }, [])
+
   // Expand/collapse all
   const handleExpandAll = useCallback(() => {
     const mm = mindMapRef.current
@@ -896,6 +933,7 @@ export default function MindmapDetailPage() {
             )} style={{ minHeight: '58px', padding: '10px 14px' }}>
               {/* Node ops */}
               <ToolbarBtn onClick={handleAddTopic} icon={<PlusIcon />} label="子主题" isDark={isDarkBg} />
+              <ToolbarBtn onClick={handleDeleteTopic} icon={<TrashIcon />} label="删除" isDark={isDarkBg} />
               <ToolbarDivider isDark={isDarkBg} />
               <ToolbarBtn onClick={handleExpandAll} icon={<ExpandIcon />} label="展开" isDark={isDarkBg} />
               <ToolbarBtn onClick={handleCollapseAll} icon={<CollapseIcon />} label="收起" isDark={isDarkBg} />
@@ -1039,6 +1077,25 @@ export default function MindmapDetailPage() {
                         <span key={`${palette.id}-${index}`} className="h-full flex-1" style={{ backgroundColor: color }} />
                       ))}
                     </span>
+                  </button>
+                ))}
+              </div>
+            </InspectorSection>
+
+            {/* Font */}
+            <InspectorSection title="字体" isDark={isDarkBg}>
+              <div className="grid grid-cols-3 gap-2">
+                {fontOptions.map(font => (
+                  <button
+                    key={font.id}
+                    className={cn(
+                      'min-w-0 rounded-lg border text-xs font-medium transition-all',
+                      meta.fontFamily === font.id ? chipActive : chipBase
+                    )}
+                    style={{ padding: '9px 8px', fontFamily: font.family }}
+                    onClick={() => handleFontChange(font.id)}
+                  >
+                    {font.label}
                   </button>
                 ))}
               </div>
@@ -1228,6 +1285,9 @@ function ShortcutRow({ keys, desc }: { keys: string; desc: string }) {
 /* ===== Icons ===== */
 function PlusIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+}
+function TrashIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14M10 11v5M14 11v5"/></svg>
 }
 function ExpandIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
