@@ -61,12 +61,34 @@ export type SmmNode = {
   children: SmmNode[]
 }
 
+/* ---------- HTML tag cleanup ---------- */
+
+/**
+ * Strip HTML tags from text. simple-mind-map's RichText plugin may have
+ * wrapped node text in <p> tags. This function removes them so the UI
+ * doesn't display raw HTML like "<p>text</p>".
+ */
+function stripHtmlTags(text: string): string {
+  if (!text) return text
+  // Remove <p>...</p> and any other HTML tags
+  return text
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<p[^>]*>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&')
+    .trim()
+}
+
 /* ---------- Conversion between legacy tree and SMM tree ---------- */
 
 export function legacyNodeToSmm(node: MindmapNode): SmmNode {
   return {
     data: {
-      text: node.label,
+      text: stripHtmlTags(node.label),
       uid: node.id,
       expand: !node.collapsed,
       note: node.note || undefined,
@@ -82,7 +104,7 @@ export function smmNodeToLegacy(node: SmmNode): MindmapNode {
   const data = node.data
   return {
     id: data.uid,
-    label: data.text || '新节点',
+    label: stripHtmlTags(data.text) || '新节点',
     color: (data._mindmapColor as MindmapColor) || 'gray',
     collapsed: !data.expand,
     meta: data._mindmapMeta as Partial<MindmapMeta> | undefined,
