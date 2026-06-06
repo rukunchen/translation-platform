@@ -143,6 +143,40 @@ function getPalette(paletteId?: string) {
   return paletteOptions.find(item => item.id === paletteId) || paletteOptions[0]
 }
 
+type PaletteNode = SmmNode & {
+  data: SmmNode['data'] & {
+    fillColor?: string
+    borderColor?: string
+    borderWidth?: number
+    color?: string
+  }
+  children: PaletteNode[]
+}
+
+function mixWithWhite(hex: string, whiteRatio: number) {
+  const value = hex.replace('#', '')
+  if (value.length !== 6) return hex
+  const channels = [0, 2, 4].map(index => parseInt(value.slice(index, index + 2), 16))
+  return `rgb(${channels.map(channel => Math.round(channel + (255 - channel) * whiteRatio)).join(', ')})`
+}
+
+function applyPaletteToData(data: SmmNode, paletteId?: string) {
+  const palette = getPalette(paletteId)
+  const root = data as PaletteNode
+  root.children.forEach((branch, index) => {
+    const branchColor = palette.colors[index % palette.colors.length]
+    const applyBranchColor = (node: PaletteNode, depth: number) => {
+      node.data.fillColor = mixWithWhite(branchColor, depth === 0 ? 0.72 : 0.88)
+      node.data.borderColor = depth === 0 ? branchColor : 'transparent'
+      node.data.borderWidth = depth === 0 ? 1 : 0
+      node.data.color = '#41484d'
+      node.children.forEach(child => applyBranchColor(child, depth + 1))
+    }
+    applyBranchColor(branch, 0)
+  })
+  return data
+}
+
 function getFontFamily(fontId?: MindmapMeta['fontFamily']) {
   return fontOptions.find(item => item.id === fontId)?.family || fontOptions[0].family
 }
@@ -200,6 +234,7 @@ function buildThemeConfig(themeId: string, paletteId?: string, fontId?: MindmapM
 
 type ScreenState = 'loading' | 'ready' | 'auth' | 'missing' | 'error'
 type ResizableMindMap = MindMap & { resize: () => void }
+type PaletteMindMap = MindMap & { renderer: MindMap['renderer'] & { renderTree: SmmNode } }
 
 function createInitialTree(): MindmapNode {
   return {
@@ -357,7 +392,7 @@ export default function MindmapDetailPage() {
 
     const mm = new MindMap({
       el: container,
-      data,
+      data: applyPaletteToData(data, meta.palette),
       layout: meta.layout,
       theme: 'default',
       themeConfig: buildThemeConfig(meta.theme, meta.palette, meta.fontFamily),
@@ -380,6 +415,8 @@ export default function MindmapDetailPage() {
 
   const updateStyleFromMeta = useCallback((mm: MindMap | null, meta: MindmapMeta) => {
     if (!mm) return
+
+    applyPaletteToData((mm as PaletteMindMap).renderer.renderTree, meta.palette)
 
     // Layout
     try {
@@ -562,6 +599,7 @@ export default function MindmapDetailPage() {
     const palette = getPalette(paletteId)
     const currentMeta = getNodeMeta(treeRef.current)
     try {
+      applyPaletteToData((mm as PaletteMindMap).renderer.renderTree, paletteId)
       mm.setThemeConfig(buildThemeConfig(currentMeta.theme, paletteId, currentMeta.fontFamily))
       mm.rainbowLines?.updateRainLinesConfig({
         open: true,
@@ -818,11 +856,19 @@ export default function MindmapDetailPage() {
       }
     }
 
+    const refreshBranchColors = (...args: unknown[]) => {
+      const commandName = String(args[0] || '')
+      if (!['BACK', 'FORWARD', 'INSERT_NODE', 'INSERT_MULTI_NODE', 'INSERT_CHILD_NODE', 'INSERT_MULTI_CHILD_NODE', 'INSERT_PARENT_NODE', 'INSERT_AFTER', 'INSERT_BEFORE', 'REMOVE_NODE'].includes(commandName)) return
+      applyPaletteToData((mm as PaletteMindMap).renderer.renderTree, getNodeMeta(treeRef.current).palette)
+      mm.render()
+    }
+
     mm.on('data_change', updateFromMm)
     mm.on('node_tree_render_end', updateFromMm)
+    mm.on('afterExecCommand', refreshBranchColors)
 
     return () => {
-      // cleanup handled by destroy in load effect
+      mm.off('afterExecCommand', refreshBranchColors)
     }
   }, [getCurrentData])
 
