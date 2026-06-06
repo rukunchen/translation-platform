@@ -867,12 +867,12 @@ export default function MindmapDetailPage() {
           )}>
             {/* Theme */}
             <InspectorSection title="主题" isDark={isDarkBg}>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2.5">
                 {themeOptions.map(t => (
                   <button
                     key={t.id}
                     className={cn(
-                      'rounded-lg border px-5 py-2.5 text-[12px] font-medium transition-all',
+                      'rounded-lg border px-7 py-3 text-sm font-medium transition-all',
                       currentThemeId === t.id ? chipActive : chipBase
                     )}
                     onClick={() => handleThemeChange(t.id)}
@@ -885,12 +885,12 @@ export default function MindmapDetailPage() {
 
             {/* Layout */}
             <InspectorSection title="结构" isDark={isDarkBg}>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2.5">
                 {layoutOptions.map(l => (
                   <button
                     key={l.id}
                     className={cn(
-                      'rounded-lg border px-5 py-2.5 text-[12px] font-medium transition-all',
+                      'rounded-lg border px-7 py-3 text-sm font-medium transition-all',
                       meta.layout === l.id ? chipActive : chipBase
                     )}
                     onClick={() => handleLayoutChange(l.id)}
@@ -903,7 +903,7 @@ export default function MindmapDetailPage() {
 
             {/* Background */}
             <InspectorSection title="背景" isDark={isDarkBg}>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2.5">
                 {[
                   { id: 'paper' as const, label: '纸张', color: '#f8f4ec' },
                   { id: 'white' as const, label: '纯白', color: '#fff' },
@@ -913,13 +913,13 @@ export default function MindmapDetailPage() {
                   <button
                     key={b.id}
                     className={cn(
-                      'flex items-center gap-2 rounded-xl border px-6 py-3 text-xs font-medium transition-all',
+                      'flex items-center gap-2.5 rounded-xl border px-8 py-3.5 text-sm font-medium transition-all',
                       canvasBg === b.id ? chipActive : chipBase
                     )}
                     onClick={() => handleBgChange(b.id)}
                   >
                     <span
-                      className="inline-block h-3.5 w-3.5 rounded-full border border-black/10"
+                      className="inline-block h-4 w-4 rounded-full border border-black/10"
                       style={{ background: b.color }}
                     />
                     {b.label}
@@ -1018,7 +1018,7 @@ function ToolbarBtn({ onClick, icon, label, isDark, title }: {
       onClick={onClick}
       title={title || label}
       className={cn(
-        'inline-flex items-center gap-2 rounded-xl px-4.5 h-10 text-sm font-medium transition-colors',
+        'inline-flex items-center gap-2.5 rounded-xl px-6 h-11 text-sm font-medium transition-colors',
         isDark
           ? 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.06]'
           : 'text-ink-500 hover:text-ink-900 hover:bg-canvas-2'
