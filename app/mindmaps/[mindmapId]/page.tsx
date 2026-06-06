@@ -891,9 +891,9 @@ export default function MindmapDetailPage() {
 
           {/* ===== Right: Inspector Panel ===== */}
           <div className={cn(
-            'flex w-[320px] shrink-0 flex-col gap-5 overflow-auto rounded-2xl border px-4 py-5 shadow-[var(--shadow-card)]',
+            'flex w-[340px] shrink-0 flex-col gap-5 overflow-auto rounded-2xl border shadow-[var(--shadow-card)]',
             panelBg, panelBorder
-          )}>
+          )} style={{ padding: '24px 22px' }}>
             {/* Theme */}
             <InspectorSection title="主题" isDark={isDarkBg}>
               <div className="grid grid-cols-3 gap-2">
@@ -901,9 +901,10 @@ export default function MindmapDetailPage() {
                   <button
                     key={t.id}
                     className={cn(
-                      'min-w-0 rounded-lg border px-2 py-2 text-xs font-medium transition-all',
+                      'min-w-0 rounded-lg border text-xs font-medium transition-all',
                       currentThemeId === t.id ? chipActive : chipBase
                     )}
+                    style={{ padding: '8px 10px' }}
                     onClick={() => handleThemeChange(t.id)}
                   >
                     {t.label}
@@ -919,9 +920,10 @@ export default function MindmapDetailPage() {
                   <button
                     key={l.id}
                     className={cn(
-                      'min-w-0 rounded-lg border px-2.5 py-2 text-xs font-medium transition-all',
+                      'min-w-0 rounded-lg border text-xs font-medium transition-all',
                       meta.layout === l.id ? chipActive : chipBase
                     )}
+                    style={{ padding: '8px 10px' }}
                     onClick={() => handleLayoutChange(l.id)}
                   >
                     {l.label}
@@ -942,9 +944,10 @@ export default function MindmapDetailPage() {
                   <button
                     key={b.id}
                     className={cn(
-                      'flex min-w-0 items-center justify-center gap-2 rounded-xl border px-2.5 py-2 text-xs font-medium transition-all',
+                      'flex min-w-0 items-center justify-center gap-2 rounded-xl border text-xs font-medium transition-all',
                       canvasBg === b.id ? chipActive : chipBase
                     )}
+                    style={{ padding: '8px 10px' }}
                     onClick={() => handleBgChange(b.id)}
                   >
                     <span
@@ -994,7 +997,10 @@ export default function MindmapDetailPage() {
             </InspectorSection>
 
             {/* Last saved */}
-            <div className={cn('mt-auto pt-2 text-[10px] border-t', isDarkBg ? 'border-white/[0.06] text-slate-600' : 'border-line text-ink-400')}>
+            <div
+              className={cn('mt-auto text-[10px] border-t', isDarkBg ? 'border-white/[0.06] text-slate-600' : 'border-line text-ink-400')}
+              style={{ paddingTop: '10px' }}
+            >
               {lastSavedAt ? `上次保存 ${new Date(lastSavedAt).toLocaleString('zh-CN')}` : '尚未保存'}
             </div>
           </div>
@@ -1069,8 +1075,8 @@ function InspectorSection({ title, children, isDark }: {
   isDark: boolean
 }) {
   return (
-    <section>
-      <h3 className={cn('mb-3.5 text-[11px] font-semibold uppercase tracking-[0.12em]', isDark ? 'text-slate-500' : 'text-ink-400')}>
+    <section className="flex flex-col gap-3">
+      <h3 className={cn('text-[11px] font-semibold uppercase tracking-[0.12em]', isDark ? 'text-slate-500' : 'text-ink-400')}>
         {title}
       </h3>
       {children}
