@@ -55,7 +55,7 @@ const defaultMeta: MindmapMeta = {
   theme: 'classic',
   background: 'paper',
   fontFamily: 'sans',
-  branchLine: 'thin',
+  branchLine: 'default',
   palette: 'morning',
   rainbowBranches: false,
   compact: false,
@@ -86,6 +86,20 @@ const fontOptions = [
   { id: 'sans', label: '黑体', family: '"Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif' },
   { id: 'serif', label: '宋体', family: 'SimSun, "Songti SC", serif' },
   { id: 'mono', label: '等宽', family: '"SFMono-Regular", Consolas, "Liberation Mono", monospace' },
+] as const
+
+const branchLineOptions = [
+  { id: 'default', label: '默认', width: 1, taper: false },
+  { id: 'ultraFine', label: '极细', width: 0.5, taper: false },
+  { id: 'thin', label: '细', width: 1, taper: false },
+  { id: 'medium', label: '中等', width: 2, taper: false },
+  { id: 'thick', label: '粗', width: 3, taper: false },
+  { id: 'ultraThick', label: '极粗', width: 4, taper: false },
+  { id: 'ultraFineTaper', label: '极细 - 线条渐细', width: 0.5, taper: true },
+  { id: 'thinTaper', label: '细 - 线条渐细', width: 1, taper: true },
+  { id: 'mediumTaper', label: '中等 - 线条渐细', width: 2, taper: true },
+  { id: 'thickTaper', label: '粗 - 线条渐细', width: 3, taper: true },
+  { id: 'ultraThickTaper', label: '极粗 - 线条渐细', width: 4, taper: true },
 ] as const
 
 // Theme configs for simple-mind-map (uses setThemeConfig, not setTheme)
@@ -164,6 +178,7 @@ type PaletteNode = SmmNode & {
     borderColor?: string
     borderWidth?: number
     color?: string
+    lineWidth?: number
   }
   children: PaletteNode[]
 }
@@ -182,8 +197,13 @@ function getContrastTextColor(hex: string) {
   return (r * 299 + g * 587 + b * 114) / 1000 < 145 ? '#ffffff' : '#25292d'
 }
 
-function applyPaletteToData(data: SmmNode, paletteId?: string) {
+function getBranchLineOption(branchLine?: MindmapMeta['branchLine']) {
+  return branchLineOptions.find(item => item.id === branchLine) || branchLineOptions[0]
+}
+
+function applyPaletteToData(data: SmmNode, paletteId?: string, branchLine?: MindmapMeta['branchLine']) {
   const branchColors = getBranchColors(paletteId)
+  const lineOption = getBranchLineOption(branchLine)
   const root = data as PaletteNode
   root.children.forEach((branch, index) => {
     const branchColor = branchColors[index % branchColors.length]
@@ -194,6 +214,9 @@ function applyPaletteToData(data: SmmNode, paletteId?: string) {
       node.data.borderColor = 'transparent'
       node.data.borderWidth = 0
       node.data.color = depth === 0 ? getContrastTextColor(branchColor) : '#41484d'
+      node.data.lineWidth = lineOption.taper
+        ? Math.max(0.5, lineOption.width + 0.75 - depth * 0.5)
+        : lineOption.width
       node.children.forEach(child => applyBranchColor(child, depth + 1))
     }
     applyBranchColor(branch, 0)
@@ -205,13 +228,14 @@ function getFontFamily(fontId?: MindmapMeta['fontFamily']) {
   return fontOptions.find(item => item.id === fontId)?.family || fontOptions[0].family
 }
 
-function buildThemeConfig(themeId: string, paletteId?: string, fontId?: MindmapMeta['fontFamily']) {
+function buildThemeConfig(themeId: string, paletteId?: string, fontId?: MindmapMeta['fontFamily'], branchLine?: MindmapMeta['branchLine']) {
   const c = themeConfigs[themeId] || themeConfigs.classic
   const palette = getPalette(paletteId)
   const fontFamily = getFontFamily(fontId)
   return {
     paddingX: 12,
     paddingY: 6,
+    lineWidth: getBranchLineOption(branchLine).width,
     lineColor: palette.colors[1],
     generalizationLineColor: palette.colors[1],
     // Background is controlled separately by the canvas background picker.
@@ -416,10 +440,10 @@ export default function MindmapDetailPage() {
 
     const mm = new MindMap({
       el: container,
-      data: applyPaletteToData(data, meta.palette),
+      data: applyPaletteToData(data, meta.palette, meta.branchLine),
       layout: meta.layout,
       theme: 'default',
-      themeConfig: buildThemeConfig(meta.theme, meta.palette, meta.fontFamily),
+      themeConfig: buildThemeConfig(meta.theme, meta.palette, meta.fontFamily, meta.branchLine),
       rainbowLinesConfig: { open: meta.rainbowBranches, colorsList: getBranchColors(meta.palette) },
       readonly: false,
       enableFreeDrag: false,
@@ -440,7 +464,7 @@ export default function MindmapDetailPage() {
   const updateStyleFromMeta = useCallback((mm: MindMap | null, meta: MindmapMeta) => {
     if (!mm) return
 
-    applyPaletteToData((mm as PaletteMindMap).renderer.renderTree, meta.palette)
+    applyPaletteToData((mm as PaletteMindMap).renderer.renderTree, meta.palette, meta.branchLine)
 
     // Layout
     try {
@@ -449,7 +473,7 @@ export default function MindmapDetailPage() {
 
     // Theme (via setThemeConfig)
     try {
-      mm.setThemeConfig(buildThemeConfig(meta.theme, meta.palette, meta.fontFamily))
+      mm.setThemeConfig(buildThemeConfig(meta.theme, meta.palette, meta.fontFamily, meta.branchLine))
     } catch { /* ignore */ }
 
     // Rainbow lines
@@ -611,7 +635,7 @@ export default function MindmapDetailPage() {
     if (!mm) return
     const currentMeta = getNodeMeta(treeRef.current)
     try {
-      mm.setThemeConfig(buildThemeConfig(themeId, currentMeta.palette, currentMeta.fontFamily))
+      mm.setThemeConfig(buildThemeConfig(themeId, currentMeta.palette, currentMeta.fontFamily, currentMeta.branchLine))
       setCurrentThemeId(themeId as MindmapMeta['theme'])
       setTree(prev => mergeMeta(prev, { theme: themeId as MindmapMeta['theme'] }))
     } catch { /* ignore */ }
@@ -622,8 +646,8 @@ export default function MindmapDetailPage() {
     if (!mm) return
     const currentMeta = getNodeMeta(treeRef.current)
     try {
-      applyPaletteToData((mm as PaletteMindMap).renderer.renderTree, paletteId)
-      mm.setThemeConfig(buildThemeConfig(currentMeta.theme, paletteId, currentMeta.fontFamily))
+      applyPaletteToData((mm as PaletteMindMap).renderer.renderTree, paletteId, currentMeta.branchLine)
+      mm.setThemeConfig(buildThemeConfig(currentMeta.theme, paletteId, currentMeta.fontFamily, currentMeta.branchLine))
       mm.rainbowLines?.updateRainLinesConfig({
         open: true,
         colorsList: getBranchColors(paletteId),
@@ -637,8 +661,19 @@ export default function MindmapDetailPage() {
     if (!mm) return
     const currentMeta = getNodeMeta(treeRef.current)
     try {
-      mm.setThemeConfig(buildThemeConfig(currentMeta.theme, currentMeta.palette, fontFamily))
+      mm.setThemeConfig(buildThemeConfig(currentMeta.theme, currentMeta.palette, fontFamily, currentMeta.branchLine))
       setTree(prev => mergeMeta(prev, { fontFamily }))
+    } catch { /* ignore */ }
+  }, [])
+
+  const handleBranchLineChange = useCallback((branchLine: MindmapMeta['branchLine']) => {
+    const mm = mindMapRef.current
+    if (!mm) return
+    const currentMeta = getNodeMeta(treeRef.current)
+    try {
+      applyPaletteToData((mm as PaletteMindMap).renderer.renderTree, currentMeta.palette, branchLine)
+      mm.setThemeConfig(buildThemeConfig(currentMeta.theme, currentMeta.palette, currentMeta.fontFamily, branchLine))
+      setTree(prev => mergeMeta(prev, { branchLine }))
     } catch { /* ignore */ }
   }, [])
 
@@ -882,7 +917,8 @@ export default function MindmapDetailPage() {
     const refreshBranchColors = (...args: unknown[]) => {
       const commandName = String(args[0] || '')
       if (!['BACK', 'FORWARD', 'INSERT_NODE', 'INSERT_MULTI_NODE', 'INSERT_CHILD_NODE', 'INSERT_MULTI_CHILD_NODE', 'INSERT_PARENT_NODE', 'INSERT_AFTER', 'INSERT_BEFORE', 'REMOVE_NODE'].includes(commandName)) return
-      applyPaletteToData((mm as PaletteMindMap).renderer.renderTree, getNodeMeta(treeRef.current).palette)
+      const currentMeta = getNodeMeta(treeRef.current)
+      applyPaletteToData((mm as PaletteMindMap).renderer.renderTree, currentMeta.palette, currentMeta.branchLine)
       mm.render()
     }
 
@@ -1168,6 +1204,30 @@ export default function MindmapDetailPage() {
                   </button>
                 ))}
               </div>
+            </InspectorSection>
+
+            {/* Branch line width */}
+            <InspectorSection title="分支线粗细" isDark={isDarkBg}>
+              <select
+                value={meta.branchLine}
+                onChange={event => handleBranchLineChange(event.target.value as MindmapMeta['branchLine'])}
+                className={cn(
+                  'h-11 w-full cursor-pointer rounded-xl border text-sm font-medium outline-none transition-colors',
+                  isDarkBg ? 'border-white/10 bg-white/[0.04] text-slate-200' : 'border-line bg-surface text-ink-700'
+                )}
+                style={{ padding: '0 12px' }}
+              >
+                <optgroup label="固定粗细">
+                  {branchLineOptions.slice(0, 6).map(option => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="线条渐细">
+                  {branchLineOptions.slice(6).map(option => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </optgroup>
+              </select>
             </InspectorSection>
 
             {/* Layout */}

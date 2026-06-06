@@ -3,7 +3,9 @@ export const mindmapColorOrder: MindmapColor[] = ['blue', 'green', 'orange', 'pu
 
 export type MindmapBackground = 'paper' | 'white' | 'warm-gray' | 'dark'
 export type MindmapFontFamily = 'serif' | 'sans' | 'mono'
-export type MindmapBranchLine = 'thin' | 'default' | 'thick'
+export type MindmapBranchLine =
+  | 'default' | 'ultraFine' | 'thin' | 'medium' | 'thick' | 'ultraThick'
+  | 'ultraFineTaper' | 'thinTaper' | 'mediumTaper' | 'thickTaper' | 'ultraThickTaper'
 export type MindmapTheme = 'classic' | 'business' | 'rainbow' | 'compact' | 'dark' | 'minimal'
 export type MindmapPaletteId = string
 
