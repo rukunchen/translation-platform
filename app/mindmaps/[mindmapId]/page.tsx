@@ -763,7 +763,7 @@ export default function MindmapDetailPage() {
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             {/* Toolbar */}
             <div className={cn(
-              'flex flex-wrap items-center gap-1.5 rounded-2xl border px-4 py-2.5 shadow-[var(--shadow-card)]',
+              'flex flex-wrap items-center gap-1.5 rounded-2xl border px-5 py-3 shadow-[var(--shadow-card)]',
               panelBg, panelBorder
             )}>
               {/* Node ops */}
@@ -862,12 +862,12 @@ export default function MindmapDetailPage() {
 
           {/* ===== Right: Inspector Panel ===== */}
           <div className={cn(
-            'flex w-[280px] flex-col gap-3 overflow-auto rounded-2xl border p-4 shadow-[var(--shadow-card)]',
+            'flex w-[280px] flex-col gap-3 overflow-auto rounded-2xl border p-5 shadow-[var(--shadow-card)]',
             panelBg, panelBorder
           )}>
             {/* Theme */}
             <InspectorSection title="主题" isDark={isDarkBg}>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {themeOptions.map(t => (
                   <button
                     key={t.id}
@@ -885,7 +885,7 @@ export default function MindmapDetailPage() {
 
             {/* Layout */}
             <InspectorSection title="结构" isDark={isDarkBg}>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {layoutOptions.map(l => (
                   <button
                     key={l.id}
