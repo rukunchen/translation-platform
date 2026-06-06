@@ -738,9 +738,9 @@ export default function MindmapDetailPage() {
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden p-4 gap-3">
         {/* ====== Title Card ====== */}
         <div className={cn(
-          'flex items-center gap-3 rounded-2xl border px-5 py-3 shadow-[var(--shadow-card)]',
+          'flex items-center gap-3 rounded-2xl border shadow-[var(--shadow-card)]',
           panelBg, panelBorder
-        )}>
+        )} style={{ minHeight: '58px', padding: '12px 20px' }}>
           {/* Back */}
           <button
             className={cn('flex h-8 w-8 items-center justify-center rounded-xl transition-colors', iconBtnBase)}
@@ -763,13 +763,13 @@ export default function MindmapDetailPage() {
 
           {/* Status */}
           <span className={cn(
-            'inline-flex h-7 items-center rounded-full border px-3 text-[11px] font-medium',
+            'inline-flex h-7 items-center rounded-full border text-[11px] font-medium',
             saveError
               ? 'border-red-200 bg-red-50 text-red-600'
               : isDarkBg
                 ? 'border-white/[0.08] bg-white/[0.04] text-slate-400'
                 : 'border-line bg-surface text-ink-500'
-          )}>
+          )} style={{ padding: '0 12px' }}>
             {statusText}
           </span>
 
@@ -792,9 +792,9 @@ export default function MindmapDetailPage() {
           <div className="flex min-w-0 flex-1 flex-col gap-2.5">
             {/* Toolbar */}
             <div className={cn(
-              'flex flex-wrap items-center gap-1.5 rounded-2xl border px-3 py-2.5 shadow-[var(--shadow-card)]',
+              'flex flex-wrap items-center gap-1.5 rounded-2xl border shadow-[var(--shadow-card)]',
               panelBg, panelBorder
-            )}>
+            )} style={{ minHeight: '58px', padding: '10px 14px' }}>
               {/* Node ops */}
               <ToolbarBtn onClick={handleAddTopic} icon={<PlusIcon />} label="子主题" isDark={isDarkBg} />
               <ToolbarDivider isDark={isDarkBg} />
@@ -813,9 +813,9 @@ export default function MindmapDetailPage() {
 
               {/* Search */}
               <div className={cn(
-                'flex h-9 items-center gap-1.5 rounded-xl border px-3',
+                'flex h-9 items-center gap-1.5 rounded-xl border',
                 isDarkBg ? 'border-white/[0.08] bg-white/[0.03]' : 'border-line bg-surface'
-              )}>
+              )} style={{ padding: '0 12px' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={textMuted}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                 <input
                   ref={searchInputRef}
@@ -840,9 +840,9 @@ export default function MindmapDetailPage() {
               <div className="relative group">
                 <ToolbarBtn icon={<ExportIcon />} label="导出" isDark={isDarkBg} />
                 <div className={cn(
-                  'absolute right-0 top-full z-50 mt-2 hidden w-40 rounded-xl border py-1.5 shadow-[var(--shadow-modal)] group-hover:block',
+                  'absolute right-0 top-full z-50 mt-2 hidden w-40 rounded-xl border shadow-[var(--shadow-modal)] group-hover:block',
                   isDarkBg ? 'border-white/[0.08] bg-[#1e2028]' : 'border-line bg-white'
-                )}>
+                )} style={{ padding: '6px 0' }}>
                   {([
                     ['PNG 图片', handleExportPng],
                     ['SVG 矢量', handleExportSvg],
@@ -854,9 +854,10 @@ export default function MindmapDetailPage() {
                     <button
                       key={label}
                       className={cn(
-                        'block w-full px-4 py-1.5 text-left text-xs transition-colors',
+                        'block w-full text-left text-xs transition-colors',
                         isDarkBg ? 'text-slate-300 hover:bg-white/[0.05]' : 'text-ink-600 hover:bg-canvas-2'
                       )}
+                      style={{ padding: '7px 16px' }}
                       onClick={() => { void fn() }}
                     >
                       {label}
@@ -1053,11 +1054,12 @@ function ToolbarBtn({ onClick, icon, label, isDark, title }: {
       onClick={onClick}
       title={title || label}
       className={cn(
-        'inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors',
+        'inline-flex h-9 items-center gap-1.5 rounded-lg text-xs font-medium transition-colors',
         isDark
           ? 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.06]'
           : 'text-ink-500 hover:text-ink-900 hover:bg-canvas-2'
       )}
+      style={{ padding: '0 10px' }}
     >
       {icon && <span className="flex items-center">{icon}</span>}
       {label}
