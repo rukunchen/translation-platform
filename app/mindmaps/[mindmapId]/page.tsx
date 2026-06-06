@@ -143,6 +143,21 @@ function getPalette(paletteId?: string) {
   return paletteOptions.find(item => item.id === paletteId) || paletteOptions[0]
 }
 
+function getBranchColors(paletteId?: string) {
+  const colors = [...getPalette(paletteId).colors]
+  const accents = colors.filter(hex => {
+    const value = hex.replace('#', '')
+    if (value.length !== 6) return false
+    const [r, g, b] = [0, 2, 4].map(index => parseInt(value.slice(index, index + 2), 16) / 255)
+    const max = Math.max(r, g, b)
+    const min = Math.min(r, g, b)
+    const lightness = (max + min) / 2
+    const saturation = max === min ? 0 : (max - min) / (1 - Math.abs(2 * lightness - 1))
+    return saturation > 0.32 && lightness > 0.18 && lightness < 0.84
+  })
+  return accents.length >= 3 ? accents : colors
+}
+
 type PaletteNode = SmmNode & {
   data: SmmNode['data'] & {
     fillColor?: string
@@ -160,16 +175,25 @@ function mixWithWhite(hex: string, whiteRatio: number) {
   return `rgb(${channels.map(channel => Math.round(channel + (255 - channel) * whiteRatio)).join(', ')})`
 }
 
+function getContrastTextColor(hex: string) {
+  const value = hex.replace('#', '')
+  if (value.length !== 6) return '#25292d'
+  const [r, g, b] = [0, 2, 4].map(index => parseInt(value.slice(index, index + 2), 16))
+  return (r * 299 + g * 587 + b * 114) / 1000 < 145 ? '#ffffff' : '#25292d'
+}
+
 function applyPaletteToData(data: SmmNode, paletteId?: string) {
-  const palette = getPalette(paletteId)
+  const branchColors = getBranchColors(paletteId)
   const root = data as PaletteNode
   root.children.forEach((branch, index) => {
-    const branchColor = palette.colors[index % palette.colors.length]
+    const branchColor = branchColors[index % branchColors.length]
     const applyBranchColor = (node: PaletteNode, depth: number) => {
-      node.data.fillColor = mixWithWhite(branchColor, depth === 0 ? 0.72 : 0.88)
-      node.data.borderColor = depth === 0 ? branchColor : 'transparent'
-      node.data.borderWidth = depth === 0 ? 1 : 0
-      node.data.color = '#41484d'
+      node.data.fillColor = depth === 0
+        ? branchColor
+        : mixWithWhite(branchColor, depth === 1 ? 0.72 : 0.84)
+      node.data.borderColor = 'transparent'
+      node.data.borderWidth = 0
+      node.data.color = depth === 0 ? getContrastTextColor(branchColor) : '#41484d'
       node.children.forEach(child => applyBranchColor(child, depth + 1))
     }
     applyBranchColor(branch, 0)
@@ -194,7 +218,7 @@ function buildThemeConfig(themeId: string, paletteId?: string, fontId?: MindmapM
     backgroundColor: 'transparent',
     root: {
       fontFamily,
-      fillColor: palette.colors[0],
+      fillColor: c.rootFill,
       color: c.rootColor,
       borderColor: 'transparent',
       borderRadius: 9,
@@ -396,7 +420,7 @@ export default function MindmapDetailPage() {
       layout: meta.layout,
       theme: 'default',
       themeConfig: buildThemeConfig(meta.theme, meta.palette, meta.fontFamily),
-      rainbowLinesConfig: { open: meta.rainbowBranches, colorsList: [...getPalette(meta.palette).colors] },
+      rainbowLinesConfig: { open: meta.rainbowBranches, colorsList: getBranchColors(meta.palette) },
       readonly: false,
       enableFreeDrag: false,
       mousewheelAction: 'zoom',
@@ -432,7 +456,7 @@ export default function MindmapDetailPage() {
     if (mm.rainbowLines) {
       mm.rainbowLines.updateRainLinesConfig({
         open: meta.rainbowBranches,
-        colorsList: [...getPalette(meta.palette).colors],
+        colorsList: getBranchColors(meta.palette),
       })
     }
   }, [])
@@ -596,14 +620,13 @@ export default function MindmapDetailPage() {
   const handlePaletteChange = useCallback((paletteId: string) => {
     const mm = mindMapRef.current
     if (!mm) return
-    const palette = getPalette(paletteId)
     const currentMeta = getNodeMeta(treeRef.current)
     try {
       applyPaletteToData((mm as PaletteMindMap).renderer.renderTree, paletteId)
       mm.setThemeConfig(buildThemeConfig(currentMeta.theme, paletteId, currentMeta.fontFamily))
       mm.rainbowLines?.updateRainLinesConfig({
         open: true,
-        colorsList: [...palette.colors],
+        colorsList: getBranchColors(paletteId),
       })
       setTree(prev => mergeMeta(prev, { palette: paletteId, rainbowBranches: true }))
     } catch { /* ignore */ }
@@ -641,7 +664,7 @@ export default function MindmapDetailPage() {
       if (mm.rainbowLines) {
         mm.rainbowLines.updateRainLinesConfig({
           open: newVal,
-          colorsList: [...getPalette(getNodeMeta(prev).palette).colors],
+          colorsList: getBranchColors(getNodeMeta(prev).palette),
         })
       }
       return mergeMeta(prev, { rainbowBranches: newVal })
