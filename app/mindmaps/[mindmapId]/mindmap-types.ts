@@ -68,7 +68,7 @@ export type SmmNode = {
  * wrapped node text in <p> tags. This function removes them so the UI
  * doesn't display raw HTML like "<p>text</p>".
  */
-function stripHtmlTags(text: string): string {
+export function stripHtmlTags(text: string): string {
   if (!text) return text
   // Remove <p>...</p> and any other HTML tags
   return text

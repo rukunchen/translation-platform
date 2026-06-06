@@ -25,6 +25,7 @@ import { supabase } from '@/lib/supabase'
 import {
   legacyNodeToSmm,
   smmNodeToLegacy,
+  stripHtmlTags,
   countNodes,
   type MindmapBackground,
   type MindmapMeta,
@@ -152,9 +153,10 @@ function normalizeNode(value: unknown, fallbackId: string): MindmapNode {
 
   const record = value as Record<string, unknown>
   const id = typeof record.id === 'string' && record.id ? record.id : fallbackId
-  const label = typeof record.label === 'string' && record.label.trim()
+  const rawLabel = typeof record.label === 'string' && record.label.trim()
     ? record.label
     : id === 'root' ? '中心主题' : '新节点'
+  const label = stripHtmlTags(rawLabel)
   const note = typeof record.note === 'string' ? record.note : ''
   const tags = Array.isArray(record.tags) ? record.tags.filter((t): t is string => typeof t === 'string') : []
   const childrenSource = Array.isArray(record.children) ? record.children : []
