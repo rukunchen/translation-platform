@@ -872,7 +872,7 @@ export default function MindmapDetailPage() {
                   <button
                     key={t.id}
                     className={cn(
-                      'rounded-lg border px-3.5 py-1.5 text-[11px] font-medium transition-all',
+                      'rounded-lg border px-5 py-2.5 text-[12px] font-medium transition-all',
                       currentThemeId === t.id ? chipActive : chipBase
                     )}
                     onClick={() => handleThemeChange(t.id)}
@@ -890,7 +890,7 @@ export default function MindmapDetailPage() {
                   <button
                     key={l.id}
                     className={cn(
-                      'rounded-lg border px-3.5 py-1.5 text-[11px] font-medium transition-all',
+                      'rounded-lg border px-5 py-2.5 text-[12px] font-medium transition-all',
                       meta.layout === l.id ? chipActive : chipBase
                     )}
                     onClick={() => handleLayoutChange(l.id)}
@@ -913,7 +913,7 @@ export default function MindmapDetailPage() {
                   <button
                     key={b.id}
                     className={cn(
-                      'flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-medium transition-all',
+                      'flex items-center gap-2 rounded-xl border px-6 py-3 text-xs font-medium transition-all',
                       canvasBg === b.id ? chipActive : chipBase
                     )}
                     onClick={() => handleBgChange(b.id)}
@@ -930,7 +930,7 @@ export default function MindmapDetailPage() {
 
             {/* Options */}
             <InspectorSection title="选项" isDark={isDarkBg}>
-              <label className={cn('flex items-center gap-2.5 text-sm cursor-pointer select-none', textSecondary)}>
+              <label className={cn('flex items-center gap-3.5 text-sm cursor-pointer select-none px-1', textSecondary)}>
                 <span className={cn(
                   'flex h-5 w-9 items-center rounded-full transition-colors',
                   meta.rainbowBranches ? 'bg-brand' : isDarkBg ? 'bg-white/10' : 'bg-ink-200'
@@ -952,7 +952,7 @@ export default function MindmapDetailPage() {
 
             {/* Shortcuts */}
             <InspectorSection title="快捷键" isDark={isDarkBg}>
-              <div className={cn('text-[11px] leading-[1.8] space-y-0.5', textMuted)}>
+              <div className={cn('text-[12px] leading-[1.9] space-y-1 px-1.5', textMuted)}>
                 <ShortcutRow keys="Tab / Enter" desc="新建子节点" />
                 <ShortcutRow keys="Shift + Enter" desc="新建同级节点" />
                 <ShortcutRow keys="Delete" desc="删除节点" />
@@ -1018,7 +1018,7 @@ function ToolbarBtn({ onClick, icon, label, isDark, title }: {
       onClick={onClick}
       title={title || label}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-xl px-3.5 h-8 text-xs font-medium transition-colors',
+        'inline-flex items-center gap-2 rounded-xl px-4.5 h-10 text-sm font-medium transition-colors',
         isDark
           ? 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.06]'
           : 'text-ink-500 hover:text-ink-900 hover:bg-canvas-2'
@@ -1041,7 +1041,7 @@ function InspectorSection({ title, children, isDark }: {
 }) {
   return (
     <section>
-      <h3 className={cn('mb-2.5 text-[11px] font-semibold uppercase tracking-[0.12em]', isDark ? 'text-slate-500' : 'text-ink-400')}>
+      <h3 className={cn('mb-3.5 text-[11px] font-semibold uppercase tracking-[0.12em]', isDark ? 'text-slate-500' : 'text-ink-400')}>
         {title}
       </h3>
       {children}
