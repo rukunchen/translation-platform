@@ -872,7 +872,7 @@ export default function MindmapDetailPage() {
                   <button
                     key={t.id}
                     className={cn(
-                      'rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-all',
+                      'rounded-lg border px-3.5 py-1.5 text-[11px] font-medium transition-all',
                       currentThemeId === t.id ? chipActive : chipBase
                     )}
                     onClick={() => handleThemeChange(t.id)}
@@ -890,7 +890,7 @@ export default function MindmapDetailPage() {
                   <button
                     key={l.id}
                     className={cn(
-                      'rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-all',
+                      'rounded-lg border px-3.5 py-1.5 text-[11px] font-medium transition-all',
                       meta.layout === l.id ? chipActive : chipBase
                     )}
                     onClick={() => handleLayoutChange(l.id)}
@@ -913,7 +913,7 @@ export default function MindmapDetailPage() {
                   <button
                     key={b.id}
                     className={cn(
-                      'flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium transition-all',
+                      'flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-medium transition-all',
                       canvasBg === b.id ? chipActive : chipBase
                     )}
                     onClick={() => handleBgChange(b.id)}
@@ -1018,7 +1018,7 @@ function ToolbarBtn({ onClick, icon, label, isDark, title }: {
       onClick={onClick}
       title={title || label}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-xl px-2.5 h-8 text-xs font-medium transition-colors',
+        'inline-flex items-center gap-1.5 rounded-xl px-3.5 h-8 text-xs font-medium transition-colors',
         isDark
           ? 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.06]'
           : 'text-ink-500 hover:text-ink-900 hover:bg-canvas-2'
