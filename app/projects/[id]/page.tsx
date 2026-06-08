@@ -361,6 +361,7 @@ export default function ProjectPage() {
   useEffect(() => {
     router.prefetch('/dashboard')
     router.prefetch(`/projects/${projectId}/glossary`)
+    router.prefetch(`/projects/${projectId}/search`)
   }, [projectId, router])
 
   function openCreateModal() {
@@ -942,6 +943,15 @@ export default function ProjectPage() {
             }
             actions={
               <div className="flex items-center gap-2">
+                <Button size="sm" variant="ghost"
+                  onClick={() => router.push(`/projects/${projectId}/search`)}
+                  leftIcon={
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="m21 21-4.35-4.35m1.35-5.15a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" />
+                    </svg>
+                  }>
+                  项目搜索
+                </Button>
                 <Button size="sm" variant="ghost"
                   onClick={() => router.push(`/projects/${projectId}/glossary`)}
                   leftIcon={
