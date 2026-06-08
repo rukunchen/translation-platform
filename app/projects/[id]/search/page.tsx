@@ -237,15 +237,20 @@ export default function ProjectSearchPage() {
               eyebrow="Project Search"
               title="项目搜索"
               description={`在「${project?.name || '当前项目'}」的全部文档中搜索原文、初译和审校译文。`}
-              className="mb-12"
+              className="mb-0"
             />
 
-            <section className="mb-12 rounded-2xl border border-line bg-gradient-to-br from-surface to-brand-50/40 p-5 shadow-[var(--shadow-card)] sm:p-7">
-              <div className="mb-5">
+            <section
+              className="rounded-2xl border border-line bg-gradient-to-br from-surface to-brand-50/40 shadow-[var(--shadow-card)]"
+              style={{ marginTop: 48, marginBottom: 56, padding: 28 }}
+            >
+              <div style={{ marginBottom: 20 }}>
                 <p className="text-sm font-medium text-ink-900">搜索项目内容</p>
-                <p className="mt-2 text-xs leading-relaxed text-ink-500">输入关键词或完整句子，同时匹配项目中的原文、初译与审校译文。</p>
+                <p className="text-xs leading-relaxed text-ink-500" style={{ marginTop: 8 }}>
+                  输入关键词或完整句子，同时匹配项目中的原文、初译与审校译文。
+                </p>
               </div>
-              <div className="relative">
+              <div className="relative" style={{ marginBottom: 20 }}>
                 <svg className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-400 sm:left-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="m21 21-4.35-4.35m1.35-5.15a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" />
                 </svg>
@@ -254,7 +259,8 @@ export default function ProjectSearchPage() {
                   value={query}
                   onChange={event => setQuery(event.target.value)}
                   placeholder="输入关键词或句子，搜索整个项目..."
-                  className="w-full rounded-xl border-2 border-line bg-white py-3.5 pl-12 pr-20 text-sm text-ink-900 shadow-sm placeholder:text-ink-300 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 sm:py-4 sm:pl-14 sm:pr-28 sm:text-base"
+                  className="w-full rounded-xl border-2 border-line bg-white text-sm text-ink-900 shadow-sm placeholder:text-ink-300 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 sm:text-base"
+                  style={{ padding: '15px 96px 15px 56px' }}
                 />
                 {query && (
                   <button
@@ -265,10 +271,10 @@ export default function ProjectSearchPage() {
                   </button>
                 )}
               </div>
-              <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-ink-500">
-                <span className="rounded-full border border-line bg-white px-3 py-1.5">{documents.length} 个文档</span>
-                <span className="rounded-full border border-line bg-white px-3 py-1.5">{segments.length} 个句段</span>
-                {query.trim() && <span className="ml-auto rounded-full bg-ink-900 px-3 py-1.5 font-medium text-white">找到 {results.length} 条结果</span>}
+              <div className="flex flex-wrap items-center text-xs text-ink-500" style={{ gap: 12 }}>
+                <span className="rounded-full border border-line bg-white" style={{ padding: '8px 18px' }}>{documents.length} 个文档</span>
+                <span className="rounded-full border border-line bg-white" style={{ padding: '8px 18px' }}>{segments.length} 个句段</span>
+                {query.trim() && <span className="ml-auto rounded-full bg-ink-900 font-medium text-white" style={{ padding: '8px 18px' }}>找到 {results.length} 条结果</span>}
               </div>
             </section>
 
@@ -288,14 +294,14 @@ export default function ProjectSearchPage() {
               />
             ) : (
               <section>
-                <div className="mb-6 flex items-end justify-between gap-4">
+                <div className="flex items-end justify-between gap-4" style={{ marginBottom: 28 }}>
                   <div>
                     <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-400">Search Results</p>
                     <h2 className="mt-1 font-serif text-xl text-ink-900">匹配结果</h2>
                   </div>
                   <p className="text-xs text-ink-500">共 {results.length} 条</p>
                 </div>
-                <div className="space-y-4">
+                <div className="flex flex-col" style={{ gap: 20 }}>
                   {results.map((result, index) => (
                     <SearchResultCard
                       key={result.id}
@@ -328,7 +334,10 @@ function SearchResultCard({
 }) {
   return (
     <article className="overflow-hidden rounded-2xl border border-line bg-white shadow-[var(--shadow-card)] transition-all hover:border-brand/30 hover:shadow-[var(--shadow-card-hover)]">
-      <header className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-4 py-3 sm:px-5">
+      <header
+        className="flex flex-wrap items-center gap-3 border-b border-line bg-surface"
+        style={{ padding: '14px 20px' }}
+      >
         <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-ink-900 px-2 font-mono text-[11px] text-white">
           {String(index + 1).padStart(2, '0')}
         </span>
@@ -338,7 +347,7 @@ function SearchResultCard({
         </div>
         <Button size="sm" variant="secondary" onClick={onOpen}>打开文档</Button>
       </header>
-      <div className="grid gap-3 p-3 sm:p-4 lg:grid-cols-3">
+      <div className="grid lg:grid-cols-3" style={{ gap: 16, padding: 20 }}>
         <ResultText label="原文" text={result.source} query={query} tone="source" />
         <ResultText label="初译" text={result.initialTranslation} query={query} tone="draft" />
         <ResultText label="审校译文" text={result.reviewedTranslation} query={query} tone="review" />
@@ -365,8 +374,8 @@ function ResultText({
   }[tone]
 
   return (
-    <div className={`min-w-0 rounded-xl border p-4 sm:p-5 ${toneClass}`}>
-      <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-400">{label}</p>
+    <div className={`min-w-0 rounded-xl border ${toneClass}`} style={{ padding: 20 }}>
+      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ink-400" style={{ marginBottom: 12 }}>{label}</p>
       <p className="whitespace-pre-wrap break-words font-serif text-sm leading-7 text-ink-700">
         <HighlightedText text={text} query={query} />
       </p>
