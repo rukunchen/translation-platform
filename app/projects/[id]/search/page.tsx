@@ -237,13 +237,13 @@ export default function ProjectSearchPage() {
               eyebrow="Project Search"
               title="项目搜索"
               description={`在「${project?.name || '当前项目'}」的全部文档中搜索原文、初译和审校译文。`}
-              className="mb-8"
+              className="mb-12"
             />
 
-            <section className="mb-8 rounded-2xl border border-line bg-gradient-to-br from-surface to-brand-50/40 p-4 shadow-[var(--shadow-card)] sm:p-6">
-              <div className="mb-4">
+            <section className="mb-12 rounded-2xl border border-line bg-gradient-to-br from-surface to-brand-50/40 p-5 shadow-[var(--shadow-card)] sm:p-7">
+              <div className="mb-5">
                 <p className="text-sm font-medium text-ink-900">搜索项目内容</p>
-                <p className="mt-1 text-xs leading-relaxed text-ink-500">输入关键词或完整句子，同时匹配项目中的原文、初译与审校译文。</p>
+                <p className="mt-2 text-xs leading-relaxed text-ink-500">输入关键词或完整句子，同时匹配项目中的原文、初译与审校译文。</p>
               </div>
               <div className="relative">
                 <svg className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-400 sm:left-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -265,7 +265,7 @@ export default function ProjectSearchPage() {
                   </button>
                 )}
               </div>
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-ink-500">
+              <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-ink-500">
                 <span className="rounded-full border border-line bg-white px-3 py-1.5">{documents.length} 个文档</span>
                 <span className="rounded-full border border-line bg-white px-3 py-1.5">{segments.length} 个句段</span>
                 {query.trim() && <span className="ml-auto rounded-full bg-ink-900 px-3 py-1.5 font-medium text-white">找到 {results.length} 条结果</span>}
@@ -288,7 +288,7 @@ export default function ProjectSearchPage() {
               />
             ) : (
               <section>
-                <div className="mb-4 flex items-end justify-between gap-4">
+                <div className="mb-6 flex items-end justify-between gap-4">
                   <div>
                     <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-400">Search Results</p>
                     <h2 className="mt-1 font-serif text-xl text-ink-900">匹配结果</h2>
