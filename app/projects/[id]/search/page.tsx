@@ -222,9 +222,9 @@ export default function ProjectSearchPage() {
   return (
     <div className="flex h-screen overflow-hidden bg-canvas">
       <Sidebar />
-      <main className="min-w-0 flex-1 overflow-auto p-3 sm:p-5">
+      <main className="min-w-0 flex-1 overflow-auto px-5 py-3 sm:px-7 sm:py-5 lg:px-9">
         <div className="min-h-full overflow-hidden rounded-2xl border border-line bg-white">
-          <div className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 sm:py-10 lg:px-12 xl:px-16 xl:py-14">
+          <div className="mx-auto w-full max-w-7xl px-6 py-8 sm:px-10 sm:py-10 lg:px-14 xl:px-20 xl:py-14">
             <PageHeader
               backHref={`/projects/${projectId}`}
               backLabel="返回项目"
@@ -234,7 +234,7 @@ export default function ProjectSearchPage() {
               className="mb-8"
             />
 
-            <section className="mb-8 rounded-2xl border border-line bg-gradient-to-br from-surface to-brand-50/40 p-4 shadow-[var(--shadow-card)] sm:p-6">
+            <section className="mx-1 mb-8 rounded-2xl border border-line bg-gradient-to-br from-surface to-brand-50/40 p-4 shadow-[var(--shadow-card)] sm:mx-2 sm:p-6 lg:mx-3">
               <div className="mb-4">
                 <p className="text-sm font-medium text-ink-900">搜索项目内容</p>
                 <p className="mt-1 text-xs leading-relaxed text-ink-500">输入关键词或完整句子，同时匹配项目中的原文、初译与审校译文。</p>
@@ -281,7 +281,7 @@ export default function ProjectSearchPage() {
                 description="请尝试缩短句子、更换关键词，或检查输入内容。"
               />
             ) : (
-              <section>
+              <section className="mx-1 sm:mx-2 lg:mx-3">
                 <div className="mb-4 flex items-end justify-between gap-4">
                   <div>
                     <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-400">Search Results</p>
