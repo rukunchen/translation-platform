@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import { Button } from '@/components/ui/Button'
-import { MainContent } from '@/components/ui/MainContent'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { supabase } from '@/lib/supabase'
 
@@ -221,22 +220,27 @@ export default function ProjectSearchPage() {
   }
 
   return (
-    <div className="flex h-screen bg-canvas">
+    <div className="flex h-screen overflow-hidden bg-canvas">
       <Sidebar />
-      <main className="flex-1 overflow-auto p-5">
-        <div className="min-h-[calc(100vh-40px)] rounded-2xl border border-line bg-white">
-          <MainContent size="wide">
+      <main className="min-w-0 flex-1 overflow-auto p-3 sm:p-5">
+        <div className="min-h-full overflow-hidden rounded-2xl border border-line bg-white">
+          <div className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 sm:py-10 lg:px-12 xl:px-16 xl:py-14">
             <PageHeader
               backHref={`/projects/${projectId}`}
               backLabel="返回项目"
               eyebrow="Project Search"
               title="项目搜索"
               description={`在「${project?.name || '当前项目'}」的全部文档中搜索原文、初译和审校译文。`}
+              className="mb-8"
             />
 
-            <section className="mb-10 rounded-2xl border border-line bg-surface p-6">
+            <section className="mb-8 rounded-2xl border border-line bg-gradient-to-br from-surface to-brand-50/40 p-4 shadow-[var(--shadow-card)] sm:p-6">
+              <div className="mb-4">
+                <p className="text-sm font-medium text-ink-900">搜索项目内容</p>
+                <p className="mt-1 text-xs leading-relaxed text-ink-500">输入关键词或完整句子，同时匹配项目中的原文、初译与审校译文。</p>
+              </div>
               <div className="relative">
-                <svg className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-400 sm:left-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="m21 21-4.35-4.35m1.35-5.15a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" />
                 </svg>
                 <input
@@ -244,20 +248,21 @@ export default function ProjectSearchPage() {
                   value={query}
                   onChange={event => setQuery(event.target.value)}
                   placeholder="输入关键词或句子，搜索整个项目..."
-                  className="w-full rounded-xl border-2 border-line bg-white py-4 pl-14 pr-28 text-base text-ink-900 placeholder:text-ink-300 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
+                  className="w-full rounded-xl border-2 border-line bg-white py-3.5 pl-12 pr-20 text-sm text-ink-900 shadow-sm placeholder:text-ink-300 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 sm:py-4 sm:pl-14 sm:pr-28 sm:text-base"
                 />
                 {query && (
                   <button
                     onClick={() => setQuery('')}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 rounded-lg px-3 py-1.5 text-xs text-ink-500 transition-colors hover:bg-canvas hover:text-ink-900"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg px-2.5 py-1.5 text-xs text-ink-500 transition-colors hover:bg-canvas hover:text-ink-900 sm:right-4 sm:px-3"
                   >
                     清空
                   </button>
                 )}
               </div>
-              <div className="mt-3 flex items-center justify-between text-xs text-ink-500">
-                <span>搜索范围：{documents.length} 个文档 · {segments.length} 个句段</span>
-                {query.trim() && <span>找到 {results.length} 条结果</span>}
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-ink-500">
+                <span className="rounded-full border border-line bg-white px-3 py-1.5">{documents.length} 个文档</span>
+                <span className="rounded-full border border-line bg-white px-3 py-1.5">{segments.length} 个句段</span>
+                {query.trim() && <span className="ml-auto rounded-full bg-ink-900 px-3 py-1.5 font-medium text-white">找到 {results.length} 条结果</span>}
               </div>
             </section>
 
@@ -276,51 +281,90 @@ export default function ProjectSearchPage() {
                 description="请尝试缩短句子、更换关键词，或检查输入内容。"
               />
             ) : (
-              <section className="overflow-hidden rounded-2xl border border-line">
-                <div className="overflow-x-auto">
-                  <div className="grid min-w-[980px] grid-cols-[64px_minmax(180px,0.8fr)_minmax(240px,1.2fr)_minmax(240px,1.2fr)_minmax(240px,1.2fr)_100px] gap-4 border-b border-line bg-canvas-2 px-5 py-3 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-500">
-                    <div>#</div>
-                    <div>文档</div>
-                    <div>原文</div>
-                    <div>初译</div>
-                    <div>审校译文</div>
-                    <div className="text-center">操作</div>
+              <section>
+                <div className="mb-4 flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-400">Search Results</p>
+                    <h2 className="mt-1 font-serif text-xl text-ink-900">匹配结果</h2>
                   </div>
+                  <p className="text-xs text-ink-500">共 {results.length} 条</p>
+                </div>
+                <div className="space-y-4">
                   {results.map((result, index) => (
-                    <article
+                    <SearchResultCard
                       key={result.id}
-                      className="grid min-w-[980px] grid-cols-[64px_minmax(180px,0.8fr)_minmax(240px,1.2fr)_minmax(240px,1.2fr)_minmax(240px,1.2fr)_100px] gap-4 border-b border-line px-5 py-5 last:border-b-0 hover:bg-brand-50/30"
-                    >
-                      <div className="font-mono text-xs text-ink-400">{String(index + 1).padStart(2, '0')}</div>
-                      <div>
-                        <p className="font-medium leading-relaxed text-ink-900">{result.documentTitle}</p>
-                        <p className="mt-1 font-mono text-[11px] text-ink-400">句段 {result.position + 1}</p>
-                      </div>
-                      <ResultText text={result.source} query={query} />
-                      <ResultText text={result.initialTranslation} query={query} />
-                      <ResultText text={result.reviewedTranslation} query={query} />
-                      <div className="flex justify-center">
-                        <Button size="sm" variant="secondary" onClick={() => router.push(`/documents/${result.document_id}`)}>
-                          打开文档
-                        </Button>
-                      </div>
-                    </article>
+                      index={index}
+                      query={query}
+                      result={result}
+                      onOpen={() => router.push(`/documents/${result.document_id}`)}
+                    />
                   ))}
                 </div>
               </section>
             )}
-          </MainContent>
+          </div>
         </div>
       </main>
     </div>
   )
 }
 
-function ResultText({ text, query }: { text: string; query: string }) {
+function SearchResultCard({
+  index,
+  query,
+  result,
+  onOpen,
+}: {
+  index: number
+  query: string
+  result: SearchResult
+  onOpen: () => void
+}) {
   return (
-    <p className="whitespace-pre-wrap break-words font-serif text-sm leading-7 text-ink-700">
-      <HighlightedText text={text} query={query} />
-    </p>
+    <article className="overflow-hidden rounded-2xl border border-line bg-white shadow-[var(--shadow-card)] transition-all hover:border-brand/30 hover:shadow-[var(--shadow-card-hover)]">
+      <header className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-4 py-3 sm:px-5">
+        <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-ink-900 px-2 font-mono text-[11px] text-white">
+          {String(index + 1).padStart(2, '0')}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-ink-900">{result.documentTitle}</p>
+          <p className="mt-0.5 font-mono text-[10px] text-ink-400">句段 {result.position + 1}</p>
+        </div>
+        <Button size="sm" variant="secondary" onClick={onOpen}>打开文档</Button>
+      </header>
+      <div className="grid gap-3 p-3 sm:p-4 lg:grid-cols-3">
+        <ResultText label="原文" text={result.source} query={query} tone="source" />
+        <ResultText label="初译" text={result.initialTranslation} query={query} tone="draft" />
+        <ResultText label="审校译文" text={result.reviewedTranslation} query={query} tone="review" />
+      </div>
+    </article>
+  )
+}
+
+function ResultText({
+  label,
+  text,
+  query,
+  tone,
+}: {
+  label: string
+  text: string
+  query: string
+  tone: 'source' | 'draft' | 'review'
+}) {
+  const toneClass = {
+    source: 'border-line bg-canvas-2',
+    draft: 'border-brand-200/70 bg-brand-50/55',
+    review: 'border-blue-200/70 bg-blue-50/55',
+  }[tone]
+
+  return (
+    <div className={`min-w-0 rounded-xl border p-4 sm:p-5 ${toneClass}`}>
+      <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-400">{label}</p>
+      <p className="whitespace-pre-wrap break-words font-serif text-sm leading-7 text-ink-700">
+        <HighlightedText text={text} query={query} />
+      </p>
+    </div>
   )
 }
 
