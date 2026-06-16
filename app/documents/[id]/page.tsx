@@ -695,17 +695,22 @@ export default function DocumentPage() {
   }
 
   // ── Export ──
-  const handleExport = (mode: ExportMode) => {
+  const handleExport = async (mode: ExportMode) => {
     if (!doc || segments.length === 0) { alert('请先切分原文'); return }
     setExportMenuOpen(false)
-    exportBilingualDoc({
-      title: doc.title,
-      sourceLang: doc.source_language,
-      targetLang: doc.target_language,
-      segments,
-      mode,
-      translatorTargets: origTargets,
-    })
+    try {
+      await exportBilingualDoc({
+        title: doc.title,
+        sourceLang: doc.source_language,
+        targetLang: doc.target_language,
+        segments,
+        mode,
+        translatorTargets: origTargets,
+      })
+    } catch (error) {
+      console.error(error)
+      alert('导出失败，请稍后重试。')
+    }
   }
 
   // ── Glossary ──
