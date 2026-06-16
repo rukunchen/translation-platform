@@ -166,7 +166,7 @@ function translatorDraftOf(seg: Segment): string {
 }
 
 function reviewTargetOf(seg: Segment): string {
-  return seg.review_target || seg.target || ''
+  return seg.review_target ?? seg.target ?? ''
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
