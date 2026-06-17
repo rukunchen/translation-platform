@@ -191,9 +191,33 @@ function detectScript(text: string): 'cjk' | 'latin' | 'unknown' {
   return cjk > latin ? 'cjk' : 'latin'
 }
 const langScript = (lang: string): 'cjk' | 'latin' => (['zh','ja','ko'].includes(lang) ? 'cjk' : 'latin')
+const CLOSING_PUNCTUATION_RE = /^[”’"'」』）)】》〉〕］〗]+$/
+const LEADING_CLOSING_PUNCTUATION_RE = /^[”’"'」』）)】》〉〕］〗]+/
+
+function mergeDanglingClosingTextItems(items: string[]): string[] {
+  const merged: string[] = []
+  for (const rawItem of items) {
+    let item = rawItem.trim()
+    if (!item) continue
+    if (merged.length > 0) {
+      if (CLOSING_PUNCTUATION_RE.test(item)) {
+        merged[merged.length - 1] += item
+        continue
+      }
+      const leadingClosing = item.match(LEADING_CLOSING_PUNCTUATION_RE)?.[0]
+      if (leadingClosing) {
+        merged[merged.length - 1] += leadingClosing
+        item = item.slice(leadingClosing.length).trim()
+        if (!item) continue
+      }
+    }
+    merged.push(item)
+  }
+  return merged
+}
 
 function textLines(text: string): string[] {
-  return text.split(/\n+/).map(s => s.trim()).filter(Boolean)
+  return mergeDanglingClosingTextItems(text.split(/\n+/))
 }
 
 function alignTargetsToSourceCount(targets: string[], sourceCount: number): string[] {
@@ -223,7 +247,7 @@ function pairOrderedItems(items: string[], sourceLang: string, targetLang: strin
   const pairs: ImportedSegment[] = []
   let pendingSource = ''
 
-  for (const item of items.map(s => s.trim()).filter(Boolean)) {
+  for (const item of mergeDanglingClosingTextItems(items)) {
     const script = detectScript(item)
     if (script === sourceScript || script === 'unknown') {
       if (pendingSource) pairs.push({ source: pendingSource, target: '' })
@@ -268,6 +292,35 @@ function pairTableRows(rows: unknown[][]): ImportedSegment[] {
     if (cells.length < 2) return []
     return [{ source: cells[0], target: cells[1], selected: true }]
   })
+}
+
+function mergeDanglingImportedSegments(rows: ImportedSegment[]): ImportedSegment[] {
+  const merged: ImportedSegment[] = []
+  for (const row of rows) {
+    let source = row.source.trim()
+    const target = row.target.trim()
+    if (!source) continue
+    if (merged.length > 0) {
+      if (CLOSING_PUNCTUATION_RE.test(source)) {
+        const previous = merged[merged.length - 1]
+        previous.source += source
+        if (target && !previous.target.trim()) previous.target = target
+        continue
+      }
+      const leadingClosing = source.match(LEADING_CLOSING_PUNCTUATION_RE)?.[0]
+      if (leadingClosing) {
+        const previous = merged[merged.length - 1]
+        previous.source += leadingClosing
+        source = source.slice(leadingClosing.length).trim()
+        if (!source) {
+          if (target && !previous.target.trim()) previous.target = target
+          continue
+        }
+      }
+    }
+    merged.push({ ...row, source, target })
+  }
+  return merged
 }
 
 function withSelected(rows: ImportedSegment[]): ImportedSegment[] {
@@ -752,7 +805,7 @@ export default function ProjectPage() {
       throw new Error('目前支持 .docx、.xlsx、.xls 文件')
     }
 
-    rows = withSelected(rows.filter(row => row.source.trim()))
+    rows = withSelected(mergeDanglingImportedSegments(rows.filter(row => row.source.trim())))
     if (rows.length === 0) throw new Error('没有识别到可导入的原文句段')
     return {
       id: `${file.name}-${file.size}-${file.lastModified}`,
