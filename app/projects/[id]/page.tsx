@@ -1126,17 +1126,17 @@ export default function ProjectPage() {
 
       {/* 新建/批量新建文档 modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-ink-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl w-full max-w-5xl shadow-[var(--shadow-modal)] max-h-[90vh] overflow-y-auto" style={{ padding: '48px' }}>
-            <h3 className="font-serif text-2xl text-ink-900 mb-2 tracking-tight">{modalMode === 'import' ? '批量新建文档' : '新建翻译文档'}</h3>
-            <p className="text-ink-600 text-sm mb-7">
+        <div className="fixed inset-0 bg-ink-900/40 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+          <div className="bg-white rounded-3xl w-full shadow-[var(--shadow-modal)] max-h-[90vh] overflow-y-auto" style={{ maxWidth: 1180, padding: '56px 64px' }}>
+            <h3 className="font-serif text-3xl text-ink-900 mb-3 tracking-tight">{modalMode === 'import' ? '批量新建文档' : '新建翻译文档'}</h3>
+            <p className="text-ink-600 text-sm mb-8 leading-relaxed">
               {modalMode === 'import' ? '上传一个或多个 Word / Excel 文件，解析后先预览确认，再批量创建文档。' : '可粘贴原文；如已有译文也可一同导入，系统会以原文句段为准对齐。'}
             </p>
-            <form onSubmit={createDocument} className="space-y-5">
+            <form onSubmit={createDocument} className="space-y-8">
               {modalMode === 'create' && (
                 <Input label="文档标题" value={title} onChange={e => setTitle(e.target.value)} placeholder="例如：第一章" required />
               )}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-6">
                 <Select label="原文语言" value={sourceLang} onChange={e => { setSourceLang(e.target.value); setImportedSegments(null) }}>
                   {Object.entries(langNames).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </Select>
@@ -1145,17 +1145,19 @@ export default function ProjectPage() {
                 </Select>
               </div>
               {modalMode === 'create' && (
-                <div className="rounded-2xl border border-line bg-canvas/40 px-4 py-4">
-                  <p className="text-sm font-medium text-ink-900">录入方式</p>
-                  <p className="text-xs text-ink-500 mt-1 leading-relaxed">
-                    可继续使用自动分句，也可以逐句手动录入，适合需要精确控制句段边界的文档。
-                  </p>
-                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-2xl bg-white p-1 border border-line">
+                <div className="rounded-3xl border border-line bg-canvas/40" style={{ padding: 28 }}>
+                  <div className="flex flex-col gap-1">
+                    <p className="text-lg font-medium text-ink-900">录入方式</p>
+                    <p className="text-sm text-ink-500 leading-relaxed">
+                      可继续使用自动分句，也可以逐句手动录入，适合需要精确控制句段边界的文档。
+                    </p>
+                  </div>
+                  <div className="mt-6 grid grid-cols-2 gap-2 rounded-2xl bg-white border border-line shadow-sm" style={{ padding: 8 }}>
                     <button
                       type="button"
                       onClick={() => { setCreateInputMode('paste'); setImportedSegments(null); setImportHint('') }}
                       className={cn(
-                        'rounded-xl px-4 py-2 text-sm font-medium transition-colors',
+                        'rounded-xl px-4 py-3.5 text-sm font-medium transition-colors',
                         createInputMode === 'paste' ? 'bg-ink-900 text-white shadow-sm' : 'text-ink-600 hover:bg-canvas'
                       )}
                     >
@@ -1165,7 +1167,7 @@ export default function ProjectPage() {
                       type="button"
                       onClick={() => { setCreateInputMode('manual'); setImportedSegments(null); setImportHint('') }}
                       className={cn(
-                        'rounded-xl px-4 py-2 text-sm font-medium transition-colors',
+                        'rounded-xl px-4 py-3.5 text-sm font-medium transition-colors',
                         createInputMode === 'manual' ? 'bg-ink-900 text-white shadow-sm' : 'text-ink-600 hover:bg-canvas'
                       )}
                     >
@@ -1372,54 +1374,56 @@ export default function ProjectPage() {
                 </div>
               )}
               {modalMode === 'create' && createInputMode === 'manual' && (
-                <div className="rounded-2xl border border-line bg-white overflow-hidden">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-canvas/60 border-b border-line px-4 py-3">
+                <div className="rounded-3xl border border-line bg-white overflow-hidden shadow-[0_18px_50px_rgba(31,29,26,0.06)]">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 bg-canvas/60 border-b border-line" style={{ padding: '26px 30px' }}>
                     <div>
-                      <p className="text-sm font-medium text-ink-900">手动分句</p>
-                      <p className="text-xs text-ink-500 mt-1">每一行就是一个句段。原文必填，译文可选。</p>
+                      <p className="text-lg font-medium text-ink-900">手动分句</p>
+                      <p className="text-sm text-ink-500 mt-2 leading-relaxed">每一行就是一个句段。原文必填，译文可选。</p>
                     </div>
                     <Button size="sm" variant="ghost" type="button" onClick={addManualSegment}>
                       + 增加下一句
                     </Button>
                   </div>
-                  <div className="max-h-[430px] overflow-y-auto px-4 py-4 space-y-3">
+                  <div className="max-h-[52vh] overflow-y-auto space-y-6" style={{ padding: 28 }}>
                     {manualSegments.map((row, idx) => (
-                      <div key={idx} className="rounded-2xl border border-line bg-canvas/30 px-4 py-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="inline-flex items-center gap-2">
-                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-ink-900 text-white text-xs font-mono">
+                      <div key={idx} className="rounded-3xl border border-line bg-white shadow-sm" style={{ padding: 28 }}>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="inline-flex items-center gap-3">
+                            <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-ink-900 text-white text-sm font-mono shadow-sm">
                               {String(idx + 1).padStart(2, '0')}
                             </span>
-                            <span className="text-sm font-medium text-ink-900">第 {idx + 1} 句</span>
+                            <span className="text-lg font-medium text-ink-900">第 {idx + 1} 句</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => deleteManualSegment(idx)}
-                            className="text-xs text-ink-400 hover:text-red-600 disabled:opacity-40"
+                            className="rounded-full px-4 py-2 text-sm text-ink-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
                             disabled={manualSegments.length <= 1 && !row.source && !row.target}
                           >
                             删除
                           </button>
                         </div>
-                        <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
                           <label className="block">
-                            <span className="block text-xs font-medium text-ink-600 mb-1.5">原文 · {langNames[sourceLang]}</span>
+                            <span className="block text-sm font-medium text-ink-700 mb-3">原文 · {langNames[sourceLang]}</span>
                             <textarea
                               value={row.source}
                               onChange={e => updateManualSegment(idx, { source: e.target.value })}
                               rows={3}
                               placeholder={`输入第 ${idx + 1} 句原文`}
-                              className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink-900 leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+                              className="w-full rounded-2xl border-2 border-line bg-canvas/20 text-ink-900 resize-y focus:outline-none focus:ring-4 focus:ring-brand/10 focus:border-brand transition-all"
+                              style={{ minHeight: 148, padding: '18px 20px', fontSize: 16, lineHeight: 1.75 }}
                             />
                           </label>
                           <label className="block">
-                            <span className="block text-xs font-medium text-ink-600 mb-1.5">译文 · {langNames[targetLang]}（可选）</span>
+                            <span className="block text-sm font-medium text-ink-700 mb-3">译文 · {langNames[targetLang]}（可选）</span>
                             <textarea
                               value={row.target}
                               onChange={e => updateManualSegment(idx, { target: e.target.value })}
                               rows={3}
                               placeholder={`如已有第 ${idx + 1} 句译文，填在这里`}
-                              className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink-900 leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+                              className="w-full rounded-2xl border-2 border-line bg-canvas/20 text-ink-900 resize-y focus:outline-none focus:ring-4 focus:ring-brand/10 focus:border-brand transition-all"
+                              style={{ minHeight: 148, padding: '18px 20px', fontSize: 16, lineHeight: 1.75 }}
                             />
                           </label>
                         </div>
@@ -1428,7 +1432,8 @@ export default function ProjectPage() {
                     <button
                       type="button"
                       onClick={addManualSegment}
-                      className="w-full rounded-2xl border border-dashed border-line bg-canvas/40 px-4 py-3 text-sm font-medium text-ink-600 hover:border-brand/50 hover:text-brand transition-colors"
+                      className="w-full rounded-2xl border border-dashed border-line bg-canvas/40 text-sm font-medium text-ink-600 hover:border-brand/50 hover:text-brand transition-colors"
+                      style={{ padding: '16px 20px' }}
                     >
                       + 增加下一句
                     </button>
@@ -1469,7 +1474,7 @@ export default function ProjectPage() {
                 互换原文与译文
               </button>
               )}
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-5 pt-2">
                 <Button variant="secondary" fullWidth type="button" onClick={() => { setShowModal(false); setCreateInputMode('paste'); setTargetText(''); setImportHint(''); setImportedSegments(null); setImportDrafts([]); setImportMode(null); setManualSegments([{ source: '', target: '' }]) }}>取消</Button>
                 <Button variant="primary" fullWidth type="submit" loading={loading}>
                   {loading ? '创建中...' : modalMode === 'import' ? '确认导入' : '创建并开始翻译'}
