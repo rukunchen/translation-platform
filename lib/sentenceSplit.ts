@@ -28,7 +28,10 @@ export type NewSegmentInput = {
   source: string
 }
 
-const TERMINATORS_CJK = /([。！？；…!?]+["'』」）)】]?)/g
+const CJK_CLOSING_MARKS = `[”’"'」』）)】》〉〕］〗]`
+const TERMINATORS_CJK = new RegExp(`([。！？；…!?]+${CJK_CLOSING_MARKS}*)`, 'g')
+const ONLY_CJK_CLOSING_MARKS = new RegExp(`^${CJK_CLOSING_MARKS}+$`)
+const LEADING_CJK_CLOSING_MARKS = new RegExp(`^${CJK_CLOSING_MARKS}+`)
 const TERMINATORS_LATIN = /([.!?]+["'')\]]?)(\s+|$)/g
 
 const isCJK = (lang: string) => ['zh', 'ja', 'ko'].includes(lang)
@@ -38,13 +41,28 @@ export function splitSentences(text: string, lang: string = 'en'): NewSegmentInp
 
   const paragraphs = text.split(/\n+/).map(p => p.trim()).filter(Boolean)
   const out: NewSegmentInput[] = []
+  const useCJK = isCJK(lang)
   let position = 0
 
   for (const para of paragraphs) {
-    const sentences = isCJK(lang) ? splitCJK(para) : splitLatin(para)
+    const sentences = useCJK ? splitCJK(para) : splitLatin(para)
     for (const s of sentences) {
-      const trimmed = s.trim()
+      let trimmed = s.trim()
       if (trimmed) {
+        if (useCJK && out.length > 0) {
+          if (ONLY_CJK_CLOSING_MARKS.test(trimmed)) {
+            out[out.length - 1].source += trimmed
+            continue
+          }
+
+          const leading = trimmed.match(LEADING_CJK_CLOSING_MARKS)?.[0]
+          if (leading) {
+            out[out.length - 1].source += leading
+            trimmed = trimmed.slice(leading.length).trim()
+            if (!trimmed) continue
+          }
+        }
+
         out.push({ position, source: trimmed })
         position++
       }
@@ -64,7 +82,34 @@ function splitCJK(text: string): string[] {
     last = m.index + m[0].length
   }
   if (last < text.length) parts.push(text.slice(last))
-  return parts
+  return mergeDanglingCJKClosers(parts)
+}
+
+function mergeDanglingCJKClosers(parts: string[]): string[] {
+  const merged: string[] = []
+
+  for (const part of parts) {
+    let trimmed = part.trim()
+    if (!trimmed) continue
+
+    if (merged.length > 0) {
+      if (ONLY_CJK_CLOSING_MARKS.test(trimmed)) {
+        merged[merged.length - 1] += trimmed
+        continue
+      }
+
+      const leading = trimmed.match(LEADING_CJK_CLOSING_MARKS)?.[0]
+      if (leading) {
+        merged[merged.length - 1] += leading
+        trimmed = trimmed.slice(leading.length).trim()
+        if (!trimmed) continue
+      }
+    }
+
+    merged.push(trimmed)
+  }
+
+  return merged
 }
 
 function splitLatin(text: string): string[] {
