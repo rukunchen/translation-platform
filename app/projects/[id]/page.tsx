@@ -47,6 +47,7 @@ type ParallelRow = {
 
 type SegmentStatus = 'untranslated' | 'draft' | 'reviewed' | 'locked'
 type ImportedSegment = { source: string; target: string; selected?: boolean }
+type CreateInputMode = 'paste' | 'manual'
 type ImportMode = 'single' | 'multiple'
 type ImportDraft = {
   id: string
@@ -314,12 +315,14 @@ export default function ProjectPage() {
   // ---- 新建文档 modal ----
   const [showModal, setShowModal] = useState(false)
   const [modalMode, setModalMode] = useState<'create' | 'import'>('create')
+  const [createInputMode, setCreateInputMode] = useState<CreateInputMode>('paste')
   const [importMode, setImportMode] = useState<ImportMode | null>(null)
   const [importDrafts, setImportDrafts] = useState<ImportDraft[]>([])
   const [activeImportIndex, setActiveImportIndex] = useState(0)
   const [title, setTitle] = useState('')
   const [sourceText, setSourceText] = useState('')
   const [targetText, setTargetText] = useState('')
+  const [manualSegments, setManualSegments] = useState<ImportedSegment[]>([{ source: '', target: '' }])
   const [sourceLang, setSourceLang] = useState('en')
   const [targetLang, setTargetLang] = useState('zh')
   const [loading, setLoading] = useState(false)
@@ -366,9 +369,11 @@ export default function ProjectPage() {
 
   function openCreateModal() {
     setModalMode('create')
+    setCreateInputMode('paste')
     setImportMode(null)
     setImportedSegments(null)
     setImportDrafts([])
+    setManualSegments([{ source: '', target: '' }])
     setImportHint('')
     setShowModal(true)
   }
@@ -596,9 +601,16 @@ export default function ProjectPage() {
       await createImportedDocuments()
       return
     }
+    const manualRows = createInputMode === 'manual'
+      ? manualSegments.map(row => ({ source: row.source.trim(), target: row.target.trim() }))
+      : null
+    if (manualRows?.some(row => !row.source && row.target)) {
+      alert('手动分句中每一行都需要先填写原文，译文可以留空')
+      return
+    }
     let src = sourceText, tgt = targetText
     const importedRows = importedSegments?.filter(s => s.source.trim()) ?? null
-    if (!importedRows && tgt.trim()) {
+    if (!manualRows && !importedRows && tgt.trim()) {
       const srcScript = detectScript(src), tgtScript = detectScript(tgt)
       const expSrc = langScript(sourceLang), expTgt = langScript(targetLang)
       if (srcScript !== 'unknown' && tgtScript !== 'unknown' && srcScript === expTgt && tgtScript === expSrc) {
@@ -608,11 +620,13 @@ export default function ProjectPage() {
         }
       }
     }
-    const preparedSegments = importedRows && importedRows.length > 0
+    const preparedSegments = manualRows
+      ? manualRows.filter(row => row.source)
+      : importedRows && importedRows.length > 0
       ? importedRows
       : makeManualSegments(src, tgt, sourceLang, targetLang)
     if (preparedSegments.length === 0) {
-      alert('请先输入原文或上传 Word / Excel 文件')
+      alert(createInputMode === 'manual' ? '请至少手动输入一句原文' : '请先输入原文或上传 Word / Excel 文件')
       return
     }
     src = preparedSegments.map(s => s.source).join('\n')
@@ -761,6 +775,21 @@ export default function ProjectPage() {
   function updateImportRow(index: number, patch: Partial<ImportedSegment>) {
     if (!importedSegments) return
     setImportRows(importedSegments.map((row, i) => i === index ? { ...row, ...patch } : row))
+  }
+
+  function updateManualSegment(index: number, patch: Partial<ImportedSegment>) {
+    setManualSegments(prev => prev.map((row, i) => i === index ? { ...row, ...patch } : row))
+  }
+
+  function addManualSegment() {
+    setManualSegments(prev => [...prev, { source: '', target: '' }])
+  }
+
+  function deleteManualSegment(index: number) {
+    setManualSegments(prev => {
+      if (prev.length <= 1) return [{ source: '', target: '' }]
+      return prev.filter((_, i) => i !== index)
+    })
   }
 
   function moveImportTarget(index: number, direction: -1 | 1) {
@@ -1062,6 +1091,36 @@ export default function ProjectPage() {
                   {Object.entries(langNames).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </Select>
               </div>
+              {modalMode === 'create' && (
+                <div className="rounded-2xl border border-line bg-canvas/40 px-4 py-4">
+                  <p className="text-sm font-medium text-ink-900">录入方式</p>
+                  <p className="text-xs text-ink-500 mt-1 leading-relaxed">
+                    可继续使用自动分句，也可以逐句手动录入，适合需要精确控制句段边界的文档。
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-2xl bg-white p-1 border border-line">
+                    <button
+                      type="button"
+                      onClick={() => { setCreateInputMode('paste'); setImportedSegments(null); setImportHint('') }}
+                      className={cn(
+                        'rounded-xl px-4 py-2 text-sm font-medium transition-colors',
+                        createInputMode === 'paste' ? 'bg-ink-900 text-white shadow-sm' : 'text-ink-600 hover:bg-canvas'
+                      )}
+                    >
+                      粘贴自动分句
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setCreateInputMode('manual'); setImportedSegments(null); setImportHint('') }}
+                      className={cn(
+                        'rounded-xl px-4 py-2 text-sm font-medium transition-colors',
+                        createInputMode === 'manual' ? 'bg-ink-900 text-white shadow-sm' : 'text-ink-600 hover:bg-canvas'
+                      )}
+                    >
+                      手动分句
+                    </button>
+                  </div>
+                </div>
+              )}
               {modalMode === 'import' && !importMode && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <button type="button" onClick={() => { setImportMode('single'); setImportDrafts([]); setImportedSegments(null) }}
@@ -1110,7 +1169,7 @@ export default function ProjectPage() {
                   </div>
                 </div>
               )}
-              {modalMode === 'create' && (
+              {modalMode === 'create' && createInputMode === 'paste' && (
               <div className="rounded-2xl border border-dashed border-line bg-canvas/40 px-4 py-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex-1 min-w-0">
@@ -1259,7 +1318,71 @@ export default function ProjectPage() {
                   </div>
                 </div>
               )}
-              {modalMode === 'create' && (
+              {modalMode === 'create' && createInputMode === 'manual' && (
+                <div className="rounded-2xl border border-line bg-white overflow-hidden">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-canvas/60 border-b border-line px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-ink-900">手动分句</p>
+                      <p className="text-xs text-ink-500 mt-1">每一行就是一个句段。原文必填，译文可选。</p>
+                    </div>
+                    <Button size="sm" variant="ghost" type="button" onClick={addManualSegment}>
+                      + 增加下一句
+                    </Button>
+                  </div>
+                  <div className="max-h-[430px] overflow-y-auto px-4 py-4 space-y-3">
+                    {manualSegments.map((row, idx) => (
+                      <div key={idx} className="rounded-2xl border border-line bg-canvas/30 px-4 py-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="inline-flex items-center gap-2">
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-ink-900 text-white text-xs font-mono">
+                              {String(idx + 1).padStart(2, '0')}
+                            </span>
+                            <span className="text-sm font-medium text-ink-900">第 {idx + 1} 句</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => deleteManualSegment(idx)}
+                            className="text-xs text-ink-400 hover:text-red-600 disabled:opacity-40"
+                            disabled={manualSegments.length <= 1 && !row.source && !row.target}
+                          >
+                            删除
+                          </button>
+                        </div>
+                        <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                          <label className="block">
+                            <span className="block text-xs font-medium text-ink-600 mb-1.5">原文 · {langNames[sourceLang]}</span>
+                            <textarea
+                              value={row.source}
+                              onChange={e => updateManualSegment(idx, { source: e.target.value })}
+                              rows={3}
+                              placeholder={`输入第 ${idx + 1} 句原文`}
+                              className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink-900 leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="block text-xs font-medium text-ink-600 mb-1.5">译文 · {langNames[targetLang]}（可选）</span>
+                            <textarea
+                              value={row.target}
+                              onChange={e => updateManualSegment(idx, { target: e.target.value })}
+                              rows={3}
+                              placeholder={`如已有第 ${idx + 1} 句译文，填在这里`}
+                              className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink-900 leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={addManualSegment}
+                      className="w-full rounded-2xl border border-dashed border-line bg-canvas/40 px-4 py-3 text-sm font-medium text-ink-600 hover:border-brand/50 hover:text-brand transition-colors"
+                    >
+                      + 增加下一句
+                    </button>
+                  </div>
+                </div>
+              )}
+              {modalMode === 'create' && createInputMode === 'paste' && (
               <>
               <Textarea
                 label={`原文 · ${langNames[sourceLang]}`}
@@ -1283,7 +1406,7 @@ export default function ProjectPage() {
               {importHint && (
                 <p className="text-xs text-brand bg-brand-50 border border-brand/20 rounded-lg px-3 py-2">✓ {importHint}</p>
               )}
-              {modalMode === 'create' && (
+              {modalMode === 'create' && createInputMode === 'paste' && (
               <button type="button"
                 onClick={() => { const a = sourceText; setSourceText(targetText); setTargetText(a); setImportedSegments(null) }}
                 className="text-xs text-brand hover:text-brand-600 font-medium inline-flex items-center gap-1">
@@ -1294,7 +1417,7 @@ export default function ProjectPage() {
               </button>
               )}
               <div className="flex gap-3 pt-2">
-                <Button variant="secondary" fullWidth type="button" onClick={() => { setShowModal(false); setTargetText(''); setImportHint(''); setImportedSegments(null); setImportDrafts([]); setImportMode(null) }}>取消</Button>
+                <Button variant="secondary" fullWidth type="button" onClick={() => { setShowModal(false); setCreateInputMode('paste'); setTargetText(''); setImportHint(''); setImportedSegments(null); setImportDrafts([]); setImportMode(null); setManualSegments([{ source: '', target: '' }]) }}>取消</Button>
                 <Button variant="primary" fullWidth type="submit" loading={loading}>
                   {loading ? '创建中...' : modalMode === 'import' ? '确认导入' : '创建并开始翻译'}
                 </Button>
