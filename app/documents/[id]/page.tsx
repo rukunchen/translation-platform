@@ -827,7 +827,7 @@ export default function DocumentPage() {
   const handleDeleteRow = async (seg: Segment) => {
     const isLocked = seg.status === 'locked'
     if (isLocked && !canManage(myRole)) { alert('该句段已定稿，无法删除'); return }
-    if (!confirm('确认删除该句段？此操作无法撤销。')) return
+    if (!confirm('确认删除该句段？该行将被整行移除，不会留空行（无法恢复）。')) return
 
     setDeletingIds(prev => new Set(prev).add(seg.id))
     try {
@@ -862,10 +862,21 @@ export default function DocumentPage() {
         delete next[seg.id]
         return next
       })
+      setSavingIds(prev => {
+        const next = new Set(prev)
+        next.delete(seg.id)
+        return next
+      })
+      setTranslatingIds(prev => {
+        const next = new Set(prev)
+        next.delete(seg.id)
+        return next
+      })
       delete sourceFocusRef.current[seg.id]
       delete notesFocusRef.current[seg.id]
       if (hoveredId === seg.id) setHoveredId(null)
       window.localStorage.removeItem(`translator-target:${seg.id}`)
+      if (doc) await loadSegments(doc.id)
     } finally {
       setDeletingIds(prev => {
         const next = new Set(prev)
