@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { apiJSON } from '@/lib/apiFetch'
 import { splitSentences, type Segment, type SegmentStatus } from '@/lib/sentenceSplit'
-import { exportBilingualDoc, type ExportMode } from '@/lib/exportBilingual'
+import type { ExportMode } from '@/lib/exportBilingual'
 import { type Role, canManage, canReview } from '@/lib/permissions'
 import ChatPanel from '@/components/ChatPanel'
 import ChatToggleButton from '@/components/ChatToggleButton'
@@ -13,7 +13,9 @@ import Logo from '@/components/Logo'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { PROVIDERS } from '@/lib/modelPresets'
+import { getPlanConfig, normalizePlanKey, type PlanKey } from '@/lib/plans'
 import type { ProviderId } from '@/lib/translateShared'
+import { yijingWorkflowSteps } from '@/lib/yijingWorkflow'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,7 +28,32 @@ type Doc = {
   project_id: string
   review_overall_note?: string | null
 }
-type ProjectCrumb = { id: string; name: string }
+type ProjectCrumb = { id: string; name: string; team_id?: string | null }
+type DocumentTeamPlan = {
+  id: string
+  name: string
+  planKey: PlanKey
+  planLabel: string
+  status: string
+}
+type DocumentTeamPlanRow = {
+  id: string
+  name?: string | null
+  plan_key?: string | null
+  status?: string | null
+}
+
+function mapDocumentTeamPlan(row: DocumentTeamPlanRow): DocumentTeamPlan {
+  const planKey = normalizePlanKey(row.plan_key)
+  const plan = getPlanConfig(planKey)
+  return {
+    id: row.id,
+    name: row.name || '译境工作室',
+    planKey,
+    planLabel: plan.label,
+    status: row.status || 'trialing',
+  }
+}
 type GlossaryTerm = {
   id: string
   source_term: string
@@ -37,6 +64,27 @@ type GlossaryTerm = {
 }
 type ReviewComment = { type: string; text: string }
 type TermHit = { source: string; target: string; matched: boolean }
+type ReviewFocusKind = 'pending' | 'terms' | 'sentBack' | 'lockable'
+type TermConsistencyStats = {
+  hitSegments: number
+  matchedSegments: number
+  warningSegments: number
+  totalHits: number
+  matchedHits: number
+  warnings: number
+  samples: Array<{ index: number; hits: TermHit[] }>
+}
+type ReviewAssetStats = {
+  total: number
+  pendingReview: number
+  reviewed: number
+  locked: number
+  sentBack: number
+  termWarningSegments: number
+  termWarnings: number
+  lockable: number
+  issueCounts: Record<string, number>
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -53,12 +101,21 @@ const LANG_NAMES: Record<string, string> = {
 
 const STATUS_META: Record<DisplayStatus, { label: string; bg: string; color: string; border: string }> = {
   draft:          { label: '草稿',   bg: '#F3F2EE', color: '#7A7872', border: '#E0DDD3' },
-  pending_review: { label: '待审校', bg: '#FFF7F4', color: '#C46340', border: '#FBD9C7' },
-  reviewing:      { label: '审校中', bg: '#F5F0FF', color: '#7C5BD9', border: '#DDD0F5' },
-  reviewed:       { label: '已审校', bg: '#EEF4FF', color: '#5470D6', border: '#C7D5F8' },
-  locked:         { label: '已锁定', bg: '#1F1E1D', color: '#FFFFFF', border: '#1F1E1D' },
+  pending_review: { label: '待共识审校', bg: '#FFF7F4', color: '#C46340', border: '#FBD9C7' },
+  reviewing:      { label: '共识审校中', bg: '#F5F0FF', color: '#7C5BD9', border: '#DDD0F5' },
+  reviewed:       { label: '已共识审校', bg: '#EEF4FF', color: '#5470D6', border: '#C7D5F8' },
+  locked:         { label: '已定稿', bg: '#1F1E1D', color: '#FFFFFF', border: '#1F1E1D' },
   needs_revision: { label: '需修改', bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' },
 }
+
+const [
+  sourceWorkflow,
+  translationWorkflow,
+  reviewWorkflow,
+  glossaryWorkflow,
+  practiceWorkflow,
+  writingWorkflow,
+] = yijingWorkflowSteps
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -161,12 +218,29 @@ function replaceFirstExact(text: string, from: string, to: string): string | nul
   return text.replace(from, to)
 }
 
+function buildTermIssueLine(hit: TermHit): string {
+  return `术语问题：原文“${hit.source}”未采用项目术语资产共识译名“${hit.target}”，建议统一。`
+}
+
+function buildTermAdoptedLine(hit: TermHit): string {
+  return `术语已统一：将“${hit.source}”按项目术语资产采用为“${hit.target}”。`
+}
+
+function buildTermNeedsManualLine(hit: TermHit): string {
+  return `术语待统一：当前译文未检测到共识译名“${hit.target}”。请在共识审校译文中确认对应表达后统一。`
+}
+
 function translatorDraftOf(seg: Segment): string {
   return seg.translator_target || seg.target || ''
 }
 
 function reviewTargetOf(seg: Segment): string {
   return seg.review_target ?? seg.target ?? ''
+}
+
+function reviewIssueTypesOf(seg: Segment, local?: ReviewComment): string[] {
+  const parsed = parseNotes(seg.notes)
+  return splitReviewTypes(local?.type || parsed.reviewType)
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -180,6 +254,7 @@ export default function DocumentPage() {
   const [myRole, setMyRole] = useState<Role | null>(null)
   const [doc, setDoc] = useState<Doc | null>(null)
   const [projectCrumb, setProjectCrumb] = useState<ProjectCrumb | null>(null)
+  const [documentTeamPlan, setDocumentTeamPlan] = useState<DocumentTeamPlan | null>(null)
   const [loading, setLoading] = useState(true)
   const [accessDenied, setAccessDenied] = useState(false)
   const [segments, setSegments] = useState<Segment[]>([])
@@ -188,7 +263,7 @@ export default function DocumentPage() {
 
   const [editorMode, setEditorMode] = useState<EditorMode>('translate')
 
-  // AI 初译缓存（本次会话内，由「重译/一键翻译」填充）
+  // AI 对照候选缓存（本次会话内，由「重译/AI 翻译全部」填充）
   const [aiDrafts, setAiDrafts] = useState<Record<string, string>>({})
   // 进入审校模式时的「译者译文」快照
   const [origTargets, setOrigTargets] = useState<Record<string, string>>({})
@@ -211,15 +286,16 @@ export default function DocumentPage() {
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
-  const [generatingGlossary, setGeneratingGlossary] = useState(false)
 
   const [chatOpen, setChatOpen] = useState(false)
   const [unread, setUnread] = useState(0)
 
   const segmentsRef = useRef<Segment[]>([])
   const editorModeRef = useRef<EditorMode>(editorMode)
+  const termFocusHandledRef = useRef(false)
   const sourceFocusRef = useRef<Record<string, string>>({})
   const notesFocusRef = useRef<Record<string, string>>({})
 
@@ -242,15 +318,6 @@ export default function DocumentPage() {
       })
       return changed ? snap : prev
     })
-  }, [])
-
-  const loadGlossary = useCallback(async (projectId: string) => {
-    const { data } = await supabase.from('glossary_terms').select('*')
-      .eq('project_id', projectId).order('created_at', { ascending: false })
-    if (data) setGlossary((data as GlossaryTerm[]).map(term => ({
-      ...term,
-      revision_term: parseGlossaryRevisionTerm(term),
-    })))
   }, [])
 
   const loadSegments = useCallback(async (documentId: string) => {
@@ -285,7 +352,7 @@ export default function DocumentPage() {
         supabase.from('project_members')
           .select('role').eq('project_id', docData.project_id).eq('user_id', user.id).maybeSingle(),
         supabase.from('projects')
-          .select('id, name')
+          .select('id, name, team_id')
           .eq('id', docData.project_id)
           .maybeSingle(),
         supabase.from('segments').select('*')
@@ -296,13 +363,24 @@ export default function DocumentPage() {
       const memberRow = memberRes.data
       if (!memberRow) {
         setAccessDenied(true)
-        setDoc(null); setProjectCrumb(null); setSegments([]); setGlossary([])
+        setDoc(null); setProjectCrumb(null); setDocumentTeamPlan(null); setSegments([]); setGlossary([])
         setLoading(false)
         return
       }
       setAccessDenied(false)
       setDoc(docData)
-      setProjectCrumb(projectRes.data ? projectRes.data as ProjectCrumb : null)
+      const projectRow = projectRes.data ? projectRes.data as ProjectCrumb : null
+      setProjectCrumb(projectRow)
+      if (projectRow?.team_id) {
+        const { data: team } = await supabase
+          .from('teams')
+          .select('id, name, plan_key, status')
+          .eq('id', projectRow.team_id)
+          .maybeSingle()
+        setDocumentTeamPlan(team ? mapDocumentTeamPlan(team) : null)
+      } else {
+        setDocumentTeamPlan(null)
+      }
       const localOverall = window.localStorage.getItem(`review-overall:${documentId}`)
       setReviewOverallNote(String((docData as Doc).review_overall_note ?? localOverall ?? ''))
       setReviewOverallSaved(true)
@@ -336,7 +414,7 @@ export default function DocumentPage() {
   }, [loadData])
 
   useEffect(() => {
-    router.prefetch('/dashboard')
+    router.prefetch('/projects')
     if (doc?.project_id) router.prefetch(`/projects/${doc.project_id}`)
     if (doc?.id) router.prefetch(`/documents/${doc.id}/parallel`)
   }, [doc?.id, doc?.project_id, router])
@@ -361,7 +439,7 @@ export default function DocumentPage() {
 
   const handleSplit = async () => {
     if (!doc) return
-    if (segments.length > 0 && !confirm('已存在分句结果，重新切分将删除所有现有译文，但不会删除任务聊天记录。是否继续？')) return
+    if (segments.length > 0 && !confirm('已存在句段结果，重新切分将删除所有现有译文，但不会删除任务聊天记录。是否继续？')) return
     setSplitting(true)
     // 只重建句段。任务聊天绑定 project_id，必须保留到整个项目/任务被真正删除时才删除。
     await supabase.from('segments').delete().eq('document_id', doc.id)
@@ -431,17 +509,17 @@ export default function DocumentPage() {
     setReviewOverallSaving(false)
     if (error) {
       setReviewOverallSaved(false)
-      if (!silent) alert('整体意见已暂存到本机，但还没有保存到数据库。请先执行新增字段 SQL 后再保存。')
+      if (!silent) alert('共识审校原则已暂存到本机，但还没有保存到数据库。请先执行新增字段 SQL 后再保存。')
       return false
     }
     setReviewOverallSaved(true)
-    if (!silent) alert('审校原则和整体意见已保存。')
+    if (!silent) alert('共识审校原则和整体意见已保存。')
     return true
   }
 
-  // 单行重译：只把结果存入 AI 初译缓存，由「采用 AI」决定是否写入人工译文
+  // 单行重译：只把结果存入 AI 对照候选缓存，由「采用候选」决定是否写入译者译文
   const handleTranslateRow = async (seg: Segment) => {
-    if (seg.status === 'locked') { alert('该句段已锁定，无法翻译'); return }
+    if (seg.status === 'locked') { alert('该句段已定稿，无法翻译'); return }
     setTranslatingIds(prev => new Set(prev).add(seg.id))
     try {
       const translation = await translateOne(seg)
@@ -453,7 +531,7 @@ export default function DocumentPage() {
     }
   }
 
-  // 采用 AI 译文 → 写入 target
+  // 采用 AI 候选译文 → 写入 target
   const adoptAiDraft = async (seg: Segment) => {
     const ai = aiDrafts[seg.id]
     if (!ai) return
@@ -506,7 +584,7 @@ export default function DocumentPage() {
 
   const handleTranslateAll = () => {
     const empty = segmentsRef.current.filter(s => !s.target.trim() && s.status !== 'locked')
-    if (empty.length === 0) { alert('所有句子都已翻译或被锁定'); return }
+    if (empty.length === 0) { alert('所有句段都已有译文或已定稿'); return }
     void runBatchTranslate(empty)
   }
 
@@ -632,24 +710,24 @@ export default function DocumentPage() {
     alert(failed > 0 ? `${failed} 个句段保存失败，请检查后重试。` : '本页内容已保存。')
   }
 
-  // 「通过」：标记 reviewed；保留已写的审校意见（不带退回标记）
+  // 「确认通过」：标记 reviewed；保留已写的共识审校意见（不带退回标记）
   const handleApprove = async (seg: Segment) => {
-    if (!reviewTargetOf(seg).trim()) { alert('该句段尚无审校译文，无法通过'); return }
+    if (!reviewTargetOf(seg).trim()) { alert('该句段尚无共识审校译文，无法通过'); return }
     await saveReviewComment(seg.id, false)
     await handleReview(seg, true)
   }
   // 「退回修改」：写入退回标记，不标 reviewed
   const handleSendBack = async (seg: Segment) => {
     const rc = reviewComments[seg.id]
-    if (!rc || (!rc.type && !rc.text.trim())) { alert('请先填写审校意见再退回'); return }
+    if (!rc || (!rc.type && !rc.text.trim())) { alert('请先填写共识审校意见再退回'); return }
     if (seg.status === 'reviewed') await handleReview(seg, false)
     await saveReviewComment(seg.id, true)
   }
-  // 「修改并通过」：保存当前 target（审校译文）+ 审校意见 + reviewed
+  // 「修改并通过」：保存当前 target（共识审校译文）+ 审校意见 + reviewed
   const handleEditAndApprove = async (seg: Segment) => {
     const current = segmentsRef.current.find(s => s.id === seg.id); if (!current) return
     const currentReviewTarget = reviewTargetOf(current)
-    if (!currentReviewTarget.trim()) { alert('审校译文不能为空'); return }
+    if (!currentReviewTarget.trim()) { alert('共识审校译文不能为空'); return }
     await patchSegment(seg.id, { review_target: currentReviewTarget })
     await saveReviewComment(seg.id, false)
     await handleReview({ ...seg, review_target: currentReviewTarget }, true)
@@ -658,16 +736,68 @@ export default function DocumentPage() {
   const handleApproveAll = async () => {
     const pending = segments.filter(s => reviewTargetOf(s).trim() && s.status !== 'reviewed' && s.status !== 'locked' && !parseNotes(s.notes).sentBack)
     if (pending.length === 0) { alert('没有可一键通过的句段'); return }
-    if (!confirm(`将 ${pending.length} 个句段标记为「已审校」？`)) return
+    if (!confirm(`将 ${pending.length} 个句段标记为「已共识审校」？`)) return
     for (const s of pending) await handleReview(s, true)
   }
 
   const handleSubmitForReview = async () => {
-    // 译者：把所有有译文但还未审校/锁定的句段，本地状态保持为 draft 即可（draft + 有 target = 待审校）
-    // 这里只做一个提示反馈，让译者知道审校者可以在审校模式看到。
+    // 译者：把所有有译文但还未审校/定稿的句段，本地状态保持为 draft 即可（draft + 有 target = 待共识审校）
+    // 这里只做一个提示反馈，让译者知道审校者可以在共识审校模式看到。
     const pending = segments.filter(s => s.target?.trim() && s.status !== 'reviewed' && s.status !== 'locked')
-    alert(pending.length === 0 ? '当前没有待审校的句段' : `已就绪：${pending.length} 个句段处于「待审校」，审校者可在审校模式处理。`)
+    alert(pending.length === 0 ? '当前没有待共识审校的句段' : `已就绪：${pending.length} 个句段处于「待共识审校」，审校者可在共识审校模式处理。`)
   }
+
+  const focusReviewSegment = (kind: ReviewFocusKind) => {
+    const candidate = segments.find(seg => {
+      const parsed = parseNotes(seg.notes)
+      const reviewText = reviewTargetOf(seg).trim()
+      if (kind === 'pending') return Boolean(reviewText) && seg.status !== 'reviewed' && seg.status !== 'locked' && !parsed.sentBack
+      if (kind === 'sentBack') return parsed.sentBack
+      if (kind === 'lockable') return seg.status === 'reviewed'
+      const checkText = reviewText || origTargets[seg.id] || translatorDraftOf(seg)
+      return findTermHits(seg.source, checkText, glossary).some(hit => !hit.matched)
+    })
+    if (!candidate) return
+    if (editorModeRef.current !== 'review') setEditorMode('review')
+    if (kind === 'terms') setShowGlossary(true)
+    window.setTimeout(() => {
+      const el = window.document.getElementById(`review-seg-${candidate.id}`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHoveredId(candidate.id)
+    }, 60)
+  }
+
+  const focusReviewSegmentById = (segmentId: string) => {
+    const candidate = segments.find(seg => seg.id === segmentId)
+    if (!candidate) return false
+    if (editorModeRef.current !== 'review') setEditorMode('review')
+    setShowGlossary(true)
+    window.setTimeout(() => {
+      const el = window.document.getElementById(`review-seg-${candidate.id}`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHoveredId(candidate.id)
+    }, 80)
+    return true
+  }
+
+  useEffect(() => {
+    if (termFocusHandledRef.current || loading || !doc || segments.length === 0) return
+    const params = new URLSearchParams(window.location.search)
+    const focus = params.get('focus')
+    const focusKind = ['pending', 'terms', 'sentBack', 'lockable'].includes(focus || '')
+      ? focus as ReviewFocusKind
+      : null
+    if (!focusKind) return
+    const segmentId = params.get('segmentId')
+    if (focusKind === 'terms' && !segmentId && glossary.length === 0) return
+    termFocusHandledRef.current = true
+    window.history.replaceState(null, '', `/documents/${documentId}`)
+    window.setTimeout(() => {
+      if (segmentId && focusReviewSegmentById(segmentId)) return
+      focusReviewSegment(focusKind)
+    }, 160)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, doc?.id, segments.length, glossary.length, documentId])
 
   // ── Batch select ──
   const toggleSelectMode = () => setSelectMode(prev => { if (prev) setSelectedIds(new Set()); return !prev })
@@ -689,16 +819,69 @@ export default function DocumentPage() {
       if (error) failed++
     }))
     setBulkDeleting(false)
-    if (failed > 0) alert(`${failed} 个句段删除失败（可能已锁定且你无权限）`)
+    if (failed > 0) alert(`${failed} 个句段删除失败（可能已定稿且你无权限）`)
     setSelectedIds(new Set()); setSelectMode(false)
     if (doc) await loadSegments(doc.id)
   }
 
+  const handleDeleteRow = async (seg: Segment) => {
+    const isLocked = seg.status === 'locked'
+    if (isLocked && !canManage(myRole)) { alert('该句段已定稿，无法删除'); return }
+    if (!confirm('确认删除该句段？此操作无法撤销。')) return
+
+    setDeletingIds(prev => new Set(prev).add(seg.id))
+    try {
+      const { error } = await apiJSON(`/api/segments/${seg.id}`, { method: 'DELETE' })
+      if (error) {
+        alert(`删除失败：${error}`)
+        return
+      }
+
+      setSegments(prev => prev.filter(s => s.id !== seg.id))
+      setSelectedIds(prev => {
+        if (!prev.has(seg.id)) return prev
+        const next = new Set(prev)
+        next.delete(seg.id)
+        return next
+      })
+      setAiDrafts(prev => {
+        if (!(seg.id in prev)) return prev
+        const next = { ...prev }
+        delete next[seg.id]
+        return next
+      })
+      setOrigTargets(prev => {
+        if (!(seg.id in prev)) return prev
+        const next = { ...prev }
+        delete next[seg.id]
+        return next
+      })
+      setReviewComments(prev => {
+        if (!(seg.id in prev)) return prev
+        const next = { ...prev }
+        delete next[seg.id]
+        return next
+      })
+      delete sourceFocusRef.current[seg.id]
+      delete notesFocusRef.current[seg.id]
+      if (hoveredId === seg.id) setHoveredId(null)
+      window.localStorage.removeItem(`translator-target:${seg.id}`)
+    } finally {
+      setDeletingIds(prev => {
+        const next = new Set(prev)
+        next.delete(seg.id)
+        return next
+      })
+    }
+  }
+
   // ── Export ──
+  const documentExportBrandFooter = !documentTeamPlan || documentTeamPlan.planKey === 'trial'
   const handleExport = async (mode: ExportMode) => {
     if (!doc || segments.length === 0) { alert('请先切分原文'); return }
     setExportMenuOpen(false)
     try {
+      const { exportBilingualDoc } = await import('@/lib/exportBilingual')
       await exportBilingualDoc({
         title: doc.title,
         sourceLang: doc.source_language,
@@ -706,6 +889,9 @@ export default function DocumentPage() {
         segments,
         mode,
         translatorTargets: origTargets,
+        glossary,
+        reviewOverallNote,
+        brandFooter: documentExportBrandFooter,
       })
     } catch (error) {
       console.error(error)
@@ -714,23 +900,11 @@ export default function DocumentPage() {
   }
 
   // ── Glossary ──
-  const handleGenerateGlossary = async () => {
+  const handleGenerateGlossary = () => {
     if (!doc) return
     const fullTrans = segments.map(s => s.target).filter(Boolean).join('\n')
-    if (!fullTrans.trim()) { alert('请先翻译再生成术语表'); return }
-    setGeneratingGlossary(true)
-    try {
-      const res = await apiJSON<{ terms: GlossaryTerm[] }>('/api/glossary', {
-        method: 'POST',
-        body: JSON.stringify({ sourceText: doc.source_text, translatedText: fullTrans, sourceLang: doc.source_language, targetLang: doc.target_language, projectId: doc.project_id }),
-      })
-      if (res.error) { alert('生成失败：' + res.error); return }
-      const terms = res.data?.terms || []
-      const { data: { user: u } } = await supabase.auth.getUser()
-      for (const term of terms) await supabase.from('glossary_terms').insert({ ...term, project_id: doc.project_id, created_by: u?.id })
-      loadGlossary(doc.project_id)
-    } catch { alert('生成术语表失败') }
-    setGeneratingGlossary(false)
+    if (!fullTrans.trim()) { alert('请先完成句段翻译，再生成术语候选。'); return }
+    router.push(`/projects/${doc.project_id}/glossary?generate=1`)
   }
 
   // ─── Early returns ──────────────────────────────────────────────────────────
@@ -755,6 +929,74 @@ export default function DocumentPage() {
   const translatedCount = segments.filter(s => s.target?.trim()).length
   const reviewedCount = segments.filter(s => s.status === 'reviewed' || s.status === 'locked').length
   const lockedCount = segments.filter(s => s.status === 'locked').length
+  const termConsistencyStats: TermConsistencyStats = (() => {
+    let hitSegments = 0
+    let matchedSegments = 0
+    let warningSegments = 0
+    let totalHits = 0
+    let matchedHits = 0
+    let warnings = 0
+    const samples: TermConsistencyStats['samples'] = []
+
+    segments.forEach((seg, index) => {
+      const reviewText = reviewTargetOf(seg).trim()
+      const checkText = reviewText || origTargets[seg.id] || translatorDraftOf(seg)
+      const hits = findTermHits(seg.source, checkText, glossary)
+      if (hits.length === 0) return
+      hitSegments++
+      const segmentWarnings = hits.filter(hit => !hit.matched)
+      totalHits += hits.length
+      matchedHits += hits.length - segmentWarnings.length
+      if (segmentWarnings.length === 0) matchedSegments++
+      else {
+        warningSegments++
+        warnings += segmentWarnings.length
+        if (samples.length < 3) samples.push({ index, hits: segmentWarnings })
+      }
+    })
+
+    return { hitSegments, matchedSegments, warningSegments, totalHits, matchedHits, warnings, samples }
+  })()
+  const reviewAssetStats: ReviewAssetStats = (() => {
+    const issueCounts = REVIEW_ISSUE_TYPES.reduce<Record<string, number>>((acc, type) => {
+      acc[type] = 0
+      return acc
+    }, {})
+    let pendingReview = 0
+    let sentBack = 0
+    let termWarningSegments = 0
+    let termWarnings = 0
+    let lockable = 0
+
+    segments.forEach(seg => {
+      const parsed = parseNotes(seg.notes)
+      const reviewText = reviewTargetOf(seg).trim()
+      if (reviewText && seg.status !== 'reviewed' && seg.status !== 'locked' && !parsed.sentBack) pendingReview++
+      if (parsed.sentBack) sentBack++
+      if (seg.status === 'reviewed') lockable++
+      reviewIssueTypesOf(seg, reviewComments[seg.id]).forEach(type => {
+        issueCounts[type] = (issueCounts[type] ?? 0) + 1
+      })
+      const checkText = reviewText || origTargets[seg.id] || translatorDraftOf(seg)
+      const warnings = findTermHits(seg.source, checkText, glossary).filter(hit => !hit.matched)
+      if (warnings.length > 0) {
+        termWarningSegments++
+        termWarnings += warnings.length
+      }
+    })
+
+    return {
+      total,
+      pendingReview,
+      reviewed: reviewedCount,
+      locked: lockedCount,
+      sentBack,
+      termWarningSegments,
+      termWarnings,
+      lockable,
+      issueCounts,
+    }
+  })()
 
   const SIDE = 64
   const canReviewerAct = canReview(myRole)
@@ -768,16 +1010,16 @@ export default function DocumentPage() {
         style={{ paddingLeft: SIDE, paddingRight: SIDE, paddingTop: 14, paddingBottom: 14 }}>
         <div className="flex items-center" style={{ gap: 14 }}>
           <nav className="flex items-center min-w-0 flex-shrink-0" style={{ gap: 8 }} aria-label="当前位置">
-            <button onClick={() => router.push('/dashboard')}
+            <button onClick={() => router.push('/projects')}
               className="hover:text-ink-900 transition-colors"
               style={{ fontSize: 13, color: 'var(--color-ink-500)' }}>
-              项目列表
+              研译项目
             </button>
             <span style={{ fontSize: 13, color: 'var(--color-ink-300)' }}>/</span>
             <button onClick={() => router.push(`/projects/${doc.project_id}`)}
               className="max-w-[180px] truncate hover:text-ink-900 transition-colors"
               style={{ fontSize: 13, color: 'var(--color-ink-500)' }}>
-              {projectCrumb?.name || '项目'}
+              {projectCrumb?.name || '研译项目'}
             </button>
             <span style={{ fontSize: 13, color: 'var(--color-ink-300)' }}>/</span>
             <span className="max-w-[220px] truncate"
@@ -811,7 +1053,9 @@ export default function DocumentPage() {
                     color: active ? 'var(--color-ink-900)' : 'var(--color-ink-500)',
                     boxShadow: active ? '0 1px 3px rgba(31,30,29,0.12)' : 'none',
                   }}>
-                  {mode === 'translate' ? '✏️ 翻译模式' : '✓ 审校模式'}
+                  {mode === 'translate'
+                    ? `${translationWorkflow.no} ${translationWorkflow.title}`
+                    : `${reviewWorkflow.no} ${reviewWorkflow.title}`}
                 </button>
               )
             })}
@@ -824,7 +1068,7 @@ export default function DocumentPage() {
               background: myRole === 'manager' ? '#1F1E1D' : myRole === 'reviewer' ? '#EEF4FF' : '#FFF7F4',
               color: myRole === 'manager' ? '#FFF' : myRole === 'reviewer' ? '#5470D6' : '#D97757',
             }}>
-            {myRole === 'manager' ? '项目经理' : myRole === 'reviewer' ? '审校' : myRole === 'translator' ? '译员' : '访客'}
+            {myRole === 'manager' ? '项目经理' : myRole === 'reviewer' ? '审校员' : myRole === 'translator' ? '译者' : '访客'}
           </span>
           <ChatToggleButton unread={unread} active={chatOpen} onClick={() => setChatOpen(true)} />
         </div>
@@ -835,9 +1079,9 @@ export default function DocumentPage() {
         <div className="flex items-center flex-shrink-0 border-b border-line"
           style={{ background: 'var(--color-canvas-2)', paddingLeft: SIDE, paddingRight: SIDE, paddingTop: 10, paddingBottom: 10, gap: 32 }}>
           {[
-            { label: '翻译', value: translatedCount, color: '#D97757' },
-            { label: '审校', value: reviewedCount, color: '#5470D6' },
-            { label: '锁定', value: lockedCount, color: '#1F1E1D' },
+            { label: `${translationWorkflow.no} ${translationWorkflow.title}`, value: translatedCount, color: '#D97757' },
+            { label: `${reviewWorkflow.no} ${reviewWorkflow.title}`, value: reviewedCount, color: '#5470D6' },
+            { label: '定稿锁定', value: lockedCount, color: '#1F1E1D' },
           ].map(({ label, value, color }) => {
             const pct = total ? Math.round((value / total) * 100) : 0
             return (
@@ -866,8 +1110,8 @@ export default function DocumentPage() {
           <>
             <Button size="sm" variant="ghost" onClick={handleSplit}
               disabled={splitting || !canManage(myRole)} loading={splitting}
-              title={canManage(myRole) ? '' : '只有项目经理可以重新分句'}>
-              {segments.length > 0 ? '重新分句' : '分句'}
+              title={canManage(myRole) ? '' : '只有项目经理可以重新切分原文'}>
+              {segments.length > 0 ? '重新切分原文' : '切分原文'}
             </Button>
             <div style={{ width: 1, height: 18, background: 'var(--color-line)' }} />
             <select value={aiProvider} onChange={e => setAiProvider(e.target.value as ProviderId)}
@@ -879,12 +1123,12 @@ export default function DocumentPage() {
             </select>
             <Button size="sm" variant="brand" onClick={handleTranslateAll}
               disabled={batchTranslating || segments.length === 0} loading={batchTranslating}>
-              {batchTranslating ? `翻译中 ${batchProgress.done}/${batchProgress.total}` : '一键翻译全部'}
+              {batchTranslating ? `AI 翻译中 ${batchProgress.done}/${batchProgress.total}` : 'AI 翻译全部'}
             </Button>
             <Button size="sm" variant="secondary"
               onClick={handleTranslateSelected}
               disabled={batchTranslating || !selectMode || selectedIds.size === 0}>
-              翻译选中{selectMode && selectedIds.size > 0 ? `（${selectedIds.size}）` : ''}
+              AI 翻译选中{selectMode && selectedIds.size > 0 ? `（${selectedIds.size}）` : ''}
             </Button>
             <div style={{ width: 1, height: 18, background: 'var(--color-line)' }} />
             <Button size="sm" variant={selectMode ? 'brand' : 'ghost'} onClick={toggleSelectMode}
@@ -893,7 +1137,7 @@ export default function DocumentPage() {
             </Button>
             <Button size="sm" variant="ghost" onClick={handleSubmitForReview}
               disabled={segments.length === 0}>
-              提交审校
+              提交{reviewWorkflow.title}
             </Button>
             <div className="ml-auto flex items-center" style={{ gap: 8 }}>
               <Button size="sm" variant="primary" onClick={handleSavePage}
@@ -902,25 +1146,39 @@ export default function DocumentPage() {
               </Button>
               <Button size="sm" variant="secondary"
                 onClick={() => router.push(`/documents/${doc.id}/parallel`)}
-                disabled={segments.length === 0}>⚡ 多模型并行</Button>
-              <ExportMenu open={exportMenuOpen} onToggle={() => setExportMenuOpen(o => !o)} onExport={handleExport} isReviewMode={false} />
+                disabled={segments.length === 0}>AI 对照</Button>
+              <ExportMenu
+                open={exportMenuOpen}
+                onToggle={() => setExportMenuOpen(o => !o)}
+                onExport={handleExport}
+                isReviewMode={false}
+                teamPlan={documentTeamPlan}
+                brandFooter={documentExportBrandFooter}
+              />
             </div>
           </>
         ) : (
           <>
             {canReviewerAct && (
               <Button size="sm" variant="secondary" onClick={handleApproveAll}
-                disabled={segments.length === 0}>✓ 全部通过</Button>
+                disabled={segments.length === 0}>全部通过</Button>
             )}
             <Button size="sm" variant="ghost" onClick={() => setShowGlossary(g => !g)} disabled={glossary.length === 0}>
-              {showGlossary ? '隐藏术语表' : `术语表（${glossary.length}）`}
+              {showGlossary ? `隐藏${glossaryWorkflow.title}` : `${glossaryWorkflow.title}（${glossary.length}）`}
             </Button>
             <div className="ml-auto flex items-center" style={{ gap: 8 }}>
               <Button size="sm" variant="primary" onClick={handleSavePage}
                 disabled={segments.length === 0 || pageSaving || !canReviewerAct} loading={pageSaving}>
                 保存本页
               </Button>
-              <ExportMenu open={exportMenuOpen} onToggle={() => setExportMenuOpen(o => !o)} onExport={handleExport} isReviewMode />
+              <ExportMenu
+                open={exportMenuOpen}
+                onToggle={() => setExportMenuOpen(o => !o)}
+                onExport={handleExport}
+                isReviewMode
+                teamPlan={documentTeamPlan}
+                brandFooter={documentExportBrandFooter}
+              />
             </div>
           </>
         )}
@@ -957,26 +1215,46 @@ export default function DocumentPage() {
               </div>
             )}
 
+            {glossary.length > 0 && (
+              <TermConsistencyPanel
+                stats={termConsistencyStats}
+                glossaryCount={glossary.length}
+                onFocusTerms={() => focusReviewSegment('terms')}
+                onOpenGlossary={() => setShowGlossary(true)}
+              />
+            )}
+
             <Card padding="none" className="overflow-hidden">
               {editorMode === 'translate' ? (
-                <TranslateTable
-                  segments={segments}
-                  aiDrafts={aiDrafts}
-                  myRole={myRole}
-                  hoveredId={hoveredId} setHoveredId={setHoveredId}
-                  translatingIds={translatingIds} savingIds={savingIds}
-                  selectMode={selectMode} selectedIds={selectedIds} onToggleSelectOne={toggleSelectOne}
-                  glossary={glossary}
-                  onEditSource={handleEditSource} onBlurSource={handleBlurSource}
-                  onFocusSource={(id, v) => { sourceFocusRef.current[id] = v }}
-                  onEditTarget={handleEditTarget} onBlurTarget={handleBlurTarget}
-                  onEditNotes={handleEditTranslatorNotes} onBlurNotes={handleBlurNotes}
-                  onFocusNotes={(id, v) => { notesFocusRef.current[id] = v }}
-                  onTranslateRow={handleTranslateRow} onAdoptAi={adoptAiDraft}
-                  onClearTarget={clearTranslatorTarget}
-                />
-              ) : (
+                  <TranslateTable
+                    segments={segments}
+                    aiDrafts={aiDrafts}
+                    myRole={myRole}
+                    hoveredId={hoveredId} setHoveredId={setHoveredId}
+                    translatingIds={translatingIds} savingIds={savingIds} deletingIds={deletingIds}
+                    selectMode={selectMode} selectedIds={selectedIds} onToggleSelectOne={toggleSelectOne}
+                    glossary={glossary}
+                    onEditSource={handleEditSource} onBlurSource={handleBlurSource}
+                    onFocusSource={(id, v) => { sourceFocusRef.current[id] = v }}
+                    onEditTarget={handleEditTarget} onBlurTarget={handleBlurTarget}
+                    onEditNotes={handleEditTranslatorNotes} onBlurNotes={handleBlurNotes}
+                    onFocusNotes={(id, v) => { notesFocusRef.current[id] = v }}
+                    onTranslateRow={handleTranslateRow} onAdoptAi={adoptAiDraft}
+                    onClearTarget={clearTranslatorTarget}
+                    onDeleteRow={handleDeleteRow}
+                  />
+                ) : (
                 <>
+                  <ReviewAssetPanel
+                    stats={reviewAssetStats}
+                    glossaryCount={glossary.length}
+                    canReviewerAct={canReviewerAct}
+                    onFocus={focusReviewSegment}
+                    onOpenGlossary={() => setShowGlossary(true)}
+                    onApproveAll={handleApproveAll}
+                    onExportReview={() => handleExport('review_comparison')}
+                    onExportPackage={() => handleExport('delivery_package')}
+                  />
                   <ReviewOverallBox
                     value={reviewOverallNote}
                     canEdit={canReviewerAct}
@@ -1004,6 +1282,8 @@ export default function DocumentPage() {
                     onEditAndApprove={handleEditAndApprove}
                     onLock={(s) => handleLock(s, s.status !== 'locked')}
                     onSaveComment={saveReviewComment}
+                    deletingIds={deletingIds}
+                    onDeleteRow={handleDeleteRow}
                   />
                 </>
               )}
@@ -1014,7 +1294,7 @@ export default function DocumentPage() {
               <Card padding="md">
                 <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
                   <h3 className="font-serif" style={{ fontFamily: 'var(--font-serif)', fontSize: 15, color: 'var(--color-ink-900)' }}>
-                    术语表（{glossary.length}）
+                    {glossaryWorkflow.no} {glossaryWorkflow.title}（{glossary.length}）
                   </h3>
                   <button onClick={() => setShowGlossary(false)} style={{ fontSize: 12, color: 'var(--color-ink-500)' }}>收起</button>
                 </div>
@@ -1039,8 +1319,8 @@ export default function DocumentPage() {
 
             {editorMode === 'translate' && canManage(myRole) && glossary.length === 0 && (
               <div className="text-center">
-                <Button size="sm" variant="ghost" onClick={handleGenerateGlossary} loading={generatingGlossary}>
-                  {generatingGlossary ? '生成中...' : '🪄 AI 生成术语表'}
+                <Button size="sm" variant="ghost" onClick={handleGenerateGlossary}>
+                  AI 生成/补全术语候选
                 </Button>
               </div>
             )}
@@ -1062,8 +1342,245 @@ export default function DocumentPage() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Translate Table
+// Review / Term Asset Panels
 // ═══════════════════════════════════════════════════════════════════════════════
+
+function TermConsistencyPanel(props: {
+  stats: TermConsistencyStats
+  glossaryCount: number
+  onFocusTerms: () => void
+  onOpenGlossary: () => void
+}) {
+  const adoptionRate = props.stats.totalHits > 0
+    ? Math.round((props.stats.matchedHits / props.stats.totalHits) * 100)
+    : 0
+  const hasWarnings = props.stats.warnings > 0
+
+  return (
+    <section className="rounded-2xl border border-line bg-white" style={{ padding: '20px 24px' }}>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-5">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-start justify-between gap-3" style={{ marginBottom: 16 }}>
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: 'var(--color-ink-500)', marginBottom: 7 }}>
+                {glossaryWorkflow.no} Terminology Consistency
+              </p>
+              <h3 className="font-serif" style={{ fontSize: 20, lineHeight: 1.3, color: 'var(--color-ink-900)' }}>
+                {glossaryWorkflow.title}一致性检查
+              </h3>
+              <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--color-ink-600)', marginTop: 7, maxWidth: 760 }}>
+                从{translationWorkflow.title}和{reviewWorkflow.title}译文中检查原文术语命中、推荐译法采用情况和疑似不一致句段。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="ghost" onClick={props.onOpenGlossary}>
+                {glossaryWorkflow.title}（{props.glossaryCount}）
+              </Button>
+              <Button size="sm" variant={hasWarnings ? 'secondary' : 'ghost'} onClick={props.onFocusTerms} disabled={!hasWarnings}>
+                定位不一致
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <TermMetric label="命中句段" value={props.stats.hitSegments} tone="ink" />
+            <TermMetric label="已采用句段" value={props.stats.matchedSegments} tone="green" />
+            <TermMetric label="疑似不一致" value={props.stats.warningSegments} suffix={`${props.stats.warnings} 处`} tone={hasWarnings ? 'red' : 'green'} />
+            <TermMetric label="采用率" value={`${adoptionRate}%`} tone="blue" />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-line bg-canvas/45" style={{ padding: 14 }}>
+          <div className="flex items-center justify-between gap-3" style={{ marginBottom: 10 }}>
+            <p className="text-sm font-medium text-ink-900">待处理术语</p>
+            <span className="font-mono text-xs text-ink-500">{props.stats.warnings} 处</span>
+          </div>
+          {props.stats.samples.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {props.stats.samples.map(sample => (
+                <div key={sample.index} className="rounded-xl border border-line bg-white" style={{ padding: '10px 12px' }}>
+                  <p className="font-mono text-[11px] text-ink-400" style={{ marginBottom: 6 }}>
+                    #{String(sample.index + 1).padStart(2, '0')}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {sample.hits.map((hit, i) => (
+                      <span key={`${hit.source}-${hit.target}-${i}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px]"
+                        style={{ borderColor: '#FBD9C7', background: '#FFF7F4', color: '#6B3F2A' }}>
+                        <span>{hit.source}</span>
+                        <span style={{ color: 'var(--color-ink-400)' }}>→</span>
+                        <span style={{ color: 'var(--color-brand)', fontWeight: 600 }}>{hit.target}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs leading-relaxed text-ink-500">
+              {props.stats.totalHits > 0 ? '当前命中的术语均已采用推荐译法。' : '当前原文暂未命中项目术语资产。'}
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function TermMetric({
+  label,
+  value,
+  suffix,
+  tone,
+}: {
+  label: string
+  value: string | number
+  suffix?: string
+  tone: 'ink' | 'green' | 'red' | 'blue'
+}) {
+  const styles = {
+    ink: { bg: '#F3F2EE', border: '#E0DDD3', color: '#1F1E1D' },
+    green: { bg: '#ECFDF3', border: '#B7E4C7', color: '#227A45' },
+    red: { bg: '#FFF7F4', border: '#FBD9C7', color: '#C46340' },
+    blue: { bg: '#EEF4FF', border: '#C7D5F8', color: '#5470D6' },
+  }[tone]
+
+  return (
+    <div className="rounded-xl border" style={{ borderColor: styles.border, background: styles.bg, padding: '12px 14px', minHeight: 82 }}>
+      <p className="text-[11px]" style={{ color: 'var(--color-ink-500)', marginBottom: 6 }}>{label}</p>
+      <div className="flex items-end gap-2">
+        <span className="font-serif" style={{ fontSize: 26, lineHeight: 1, color: styles.color }}>{value}</span>
+        {suffix && <span className="font-mono text-[11px]" style={{ color: styles.color, paddingBottom: 2 }}>{suffix}</span>}
+      </div>
+    </div>
+  )
+}
+
+function ReviewAssetPanel(props: {
+  stats: ReviewAssetStats
+  glossaryCount: number
+  canReviewerAct: boolean
+  onFocus: (kind: ReviewFocusKind) => void
+  onOpenGlossary: () => void
+  onApproveAll: () => void
+  onExportReview: () => void
+  onExportPackage: () => void
+}) {
+  const topIssues = REVIEW_ISSUE_TYPES
+    .map(type => ({ type, count: props.stats.issueCounts[type] ?? 0 }))
+    .filter(item => item.count > 0)
+    .sort((a, b) => b.count - a.count)
+
+  return (
+    <section className="border-b border-line bg-white" style={{ padding: '24px 30px' }}>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-5">
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: 'var(--color-ink-500)', marginBottom: 8 }}>
+            {reviewWorkflow.no} Review Assets
+          </p>
+          <div className="flex flex-wrap items-end justify-between gap-3" style={{ marginBottom: 16 }}>
+            <div>
+              <h3 className="font-serif" style={{ fontSize: 21, lineHeight: 1.3, color: 'var(--color-ink-900)' }}>
+                {reviewWorkflow.title}工作台
+              </h3>
+              <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--color-ink-600)', marginTop: 7, maxWidth: 720 }}>
+                集中处理待审校句段、术语一致性、退回修改和可定稿素材，沉淀为{glossaryWorkflow.title}、{practiceWorkflow.title}和{writingWorkflow.title}可复用证据。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="ghost" onClick={props.onOpenGlossary} disabled={props.glossaryCount === 0}>
+                {glossaryWorkflow.title}（{props.glossaryCount}）
+              </Button>
+              <Button size="sm" variant="ghost" onClick={props.onExportReview} disabled={props.stats.total === 0}>
+                导出{reviewWorkflow.title}对照
+              </Button>
+              <Button size="sm" variant="brand" onClick={props.onExportPackage} disabled={props.stats.total === 0}>
+                完整成果包
+              </Button>
+              <Button size="sm" variant="secondary" onClick={props.onApproveAll} disabled={!props.canReviewerAct || props.stats.pendingReview === 0}>
+                全部通过
+              </Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+            <ReviewAssetMetric label="待审校" value={props.stats.pendingReview} tone="amber" onClick={() => props.onFocus('pending')} disabled={props.stats.pendingReview === 0} />
+            <ReviewAssetMetric label="术语不一致" value={props.stats.termWarningSegments} suffix={`${props.stats.termWarnings} 处`} tone="red" onClick={() => props.onFocus('terms')} disabled={props.stats.termWarningSegments === 0} />
+            <ReviewAssetMetric label="退回修改" value={props.stats.sentBack} tone="red" onClick={() => props.onFocus('sentBack')} disabled={props.stats.sentBack === 0} />
+            <ReviewAssetMetric label="已审校" value={props.stats.reviewed} tone="blue" />
+            <ReviewAssetMetric label="可定稿" value={props.stats.lockable} tone="ink" onClick={() => props.onFocus('lockable')} disabled={props.stats.lockable === 0} />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-line bg-canvas/40" style={{ padding: 16 }}>
+          <div className="flex items-center justify-between gap-3" style={{ marginBottom: 12 }}>
+            <p className="text-sm font-medium text-ink-900">问题类型沉淀</p>
+            <span className="font-mono text-xs text-ink-500">
+              {topIssues.reduce((sum, item) => sum + item.count, 0)} 条
+            </span>
+          </div>
+          {topIssues.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {topIssues.map(item => (
+                <span key={item.type} className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-3 py-1.5 text-xs text-ink-700">
+                  <span>{item.type}</span>
+                  <span className="font-mono text-ink-900">{item.count}</span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs leading-relaxed text-ink-500">
+              暂无结构化审校问题。逐句选择问题类型后，这里会自动汇总为复盘和论文写作素材。
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ReviewAssetMetric({
+  label,
+  value,
+  suffix,
+  tone,
+  onClick,
+  disabled,
+}: {
+  label: string
+  value: number
+  suffix?: string
+  tone: 'amber' | 'red' | 'blue' | 'ink'
+  onClick?: () => void
+  disabled?: boolean
+}) {
+  const colors = {
+    amber: { bg: '#FFF7F4', border: '#FBD9C7', text: '#C46340' },
+    red: { bg: '#FEF2F2', border: '#FECACA', text: '#DC2626' },
+    blue: { bg: '#EEF4FF', border: '#C7D5F8', text: '#5470D6' },
+    ink: { bg: '#F3F2EE', border: '#E0DDD3', text: '#1F1E1D' },
+  }[tone]
+  const clickable = Boolean(onClick) && !disabled
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!clickable}
+      className="rounded-xl border text-left transition-colors"
+      style={{
+        minHeight: 86,
+        background: colors.bg,
+        borderColor: colors.border,
+        padding: '13px 14px',
+        cursor: clickable ? 'pointer' : 'default',
+        opacity: disabled ? 0.72 : 1,
+      }}
+    >
+      <span className="block text-[11px]" style={{ color: 'var(--color-ink-500)' }}>{label}</span>
+      <span className="mt-2 block font-serif leading-none" style={{ fontSize: 29, color: colors.text }}>{value}</span>
+      {suffix && <span className="mt-1 block text-[11px]" style={{ color: 'var(--color-ink-500)' }}>{suffix}</span>}
+    </button>
+  )
+}
 
 function ReviewOverallBox(props: {
   value: string
@@ -1087,13 +1604,13 @@ function ReviewOverallBox(props: {
       <div className="flex items-start justify-between" style={{ gap: 18, marginBottom: 16 }}>
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: 'var(--color-ink-500)', marginBottom: 8 }}>
-            Review Principles
+            Consensus Review
           </p>
           <h3 className="font-serif" style={{ fontSize: 20, lineHeight: 1.35, color: 'var(--color-ink-900)' }}>
-            审校原则和整体意见
+            共识审校原则和整体意见
           </h3>
           <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--color-ink-600)', marginTop: 8, maxWidth: 760 }}>
-            用于记录你对本章节的理解、审校依据、整体问题判断和统一处理原则。这里的内容独立于逐句审校意见。
+            用于记录本章节理解、审校依据、术语统一原则和整体问题判断。这里的内容独立于逐句共识审校意见。
           </p>
         </div>
         <div className="flex items-center flex-shrink-0" style={{ gap: 10, paddingTop: 4 }}>
@@ -1111,7 +1628,7 @@ function ReviewOverallBox(props: {
           </span>
           {props.canEdit && (
             <Button size="sm" variant="secondary" onClick={props.onSave} loading={props.saving}>
-              {props.saving ? '保存中...' : '保存整体意见'}
+              {props.saving ? '保存中...' : '保存审校原则'}
             </Button>
           )}
         </div>
@@ -1144,6 +1661,7 @@ function TranslateTable(props: {
   setHoveredId: (id: string | null) => void
   translatingIds: Set<string>
   savingIds: Set<string>
+  deletingIds: Set<string>
   selectMode: boolean
   selectedIds: Set<string>
   glossary: GlossaryTerm[]
@@ -1159,6 +1677,7 @@ function TranslateTable(props: {
   onTranslateRow: (s: Segment) => void
   onAdoptAi: (s: Segment) => void
   onClearTarget: (s: Segment) => void
+  onDeleteRow: (s: Segment) => void
 }) {
   const cols = props.selectMode
     ? '40px 56px minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,0.8fr) 96px'
@@ -1177,8 +1696,8 @@ function TranslateTable(props: {
         {props.selectMode && <div />}
         <div style={{ textAlign: 'center' }}>#</div>
         <div>原文</div>
-        <div>AI 初译</div>
-        <div>人工译文</div>
+        <div>AI 对照候选</div>
+        <div>译者译文</div>
         <div>备注</div>
         <div style={{ textAlign: 'center' }}>状态 / 操作</div>
       </div>
@@ -1191,13 +1710,16 @@ function TranslateTable(props: {
         const meta = STATUS_META[status]
         const isTranslating = props.translatingIds.has(seg.id)
         const isSaving = props.savingIds.has(seg.id)
+        const isDeleting = props.deletingIds.has(seg.id)
         const isHover = props.hoveredId === seg.id
         const isLocked = seg.status === 'locked'
         const editable = !isLocked || canManage(props.myRole)
-        const termHits = findTermHits(seg.source, seg.target || '', props.glossary)
+        const canDelete = !isLocked || canManage(props.myRole)
+        const termHits = findTermHits(seg.source, translatorDraftOf(seg), props.glossary)
 
         return (
           <div key={seg.id}
+            id={`review-seg-${seg.id}`}
             onMouseEnter={() => props.setHoveredId(seg.id)}
             onMouseLeave={() => { if (props.hoveredId === seg.id) props.setHoveredId(null) }}
             className="border-b border-line transition-colors"
@@ -1240,7 +1762,7 @@ function TranslateTable(props: {
                       <span style={{ color: 'var(--color-ink-400)' }}>→</span>
                       <span style={{ color: 'var(--color-brand)', fontWeight: 600 }}>{hit.target}</span>
                       <span style={{ color: hit.matched ? '#227A45' : '#C46340', fontWeight: 600 }}>
-                        {hit.matched ? '已匹配' : '参考'}
+                        {hit.matched ? '已采用' : '未采用'}
                       </span>
                     </span>
                   ))}
@@ -1248,24 +1770,24 @@ function TranslateTable(props: {
               )}
             </div>
 
-            {/* AI 初译 */}
+            {/* AI 对照候选 */}
             <div className="rounded-lg relative" style={{ background: '#F9F6FF', border: '1px solid #E5DDF5', padding: 10, minHeight: 60 }}>
               {ai ? (
                 <p style={{ fontSize: 13, lineHeight: 1.6, color: '#4A3B7A', whiteSpace: 'pre-wrap', fontFamily: 'var(--font-serif)' }}>{ai}</p>
               ) : (
                 <p style={{ fontSize: 12, color: 'var(--color-ink-400)', fontStyle: 'italic' }}>
-                  {isTranslating ? '翻译中...' : '点击「重译」获取 AI 译文'}
+                  {isTranslating ? 'AI 对照生成中...' : '点击「重译」获取 AI 候选'}
                 </p>
               )}
             </div>
 
-            {/* 人工译文 */}
+            {/* 译者译文 */}
             <textarea value={seg.target}
               onChange={e => props.onEditTarget(seg.id, e.target.value)}
               onBlur={() => props.onBlurTarget(seg)}
               disabled={!editable}
               rows={Math.max(2, Math.ceil((seg.target || '').length / 28) || 2)}
-              placeholder="在这里输入或编辑译文..."
+              placeholder="在这里输入或编辑句段译文..."
               style={cellTextarea({ bg: '#FFFFFF', border: '#D97757', editable, accent: true })} />
 
             {/* 备注 */}
@@ -1281,16 +1803,17 @@ function TranslateTable(props: {
             {/* 状态 / 操作 */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingTop: 4 }}>
               <StatusPill meta={meta} />
-              <div style={{
-                display: 'flex', flexDirection: 'column', gap: 4, width: '100%',
-                opacity: isHover ? 1 : 0,
-                pointerEvents: isHover ? 'auto' : 'none',
-                transition: 'opacity 0.15s',
-              }}>
-                <RowMicroBtn label={isTranslating ? '...' : '重译'} onClick={() => props.onTranslateRow(seg)} disabled={isTranslating || isLocked} />
-                <RowMicroBtn label="清除译文" onClick={() => props.onClearTarget(seg)} disabled={!editable || !seg.target?.trim()} />
-                {ai && ai !== seg.target && (
-                  <RowMicroBtn label="采用 AI" onClick={() => props.onAdoptAi(seg)} disabled={!editable} variant="primary" />
+                <div style={{
+                  display: 'flex', flexDirection: 'column', gap: 4, width: '100%',
+                  opacity: isHover ? 1 : 0,
+                  pointerEvents: isHover ? 'auto' : 'none',
+                  transition: 'opacity 0.15s',
+                }}>
+                  <RowMicroBtn label={isDeleting ? '删除中...' : '删除本行'} onClick={() => props.onDeleteRow(seg)} disabled={isDeleting || !canDelete} variant="danger" />
+                  <RowMicroBtn label={isTranslating ? '...' : '重译'} onClick={() => props.onTranslateRow(seg)} disabled={isTranslating || isLocked} />
+                  <RowMicroBtn label="清除译文" onClick={() => props.onClearTarget(seg)} disabled={!editable || !seg.target?.trim()} />
+                  {ai && ai !== seg.target && (
+                    <RowMicroBtn label="采用候选" onClick={() => props.onAdoptAi(seg)} disabled={!editable} variant="primary" />
                 )}
                 {isSaving && <span style={{ fontSize: 10, color: 'var(--color-ink-400)', textAlign: 'center' }}>保存中…</span>}
               </div>
@@ -1317,6 +1840,7 @@ function ReviewTable(props: {
   hoveredId: string | null
   setHoveredId: (id: string | null) => void
   savingIds: Set<string>
+  deletingIds: Set<string>
   onEditTarget: (id: string, v: string) => void
   onBlurTarget: (s: Segment) => void
   onReplaceTarget: (s: Segment, v: string) => void
@@ -1325,6 +1849,7 @@ function ReviewTable(props: {
   onEditAndApprove: (s: Segment) => void
   onLock: (s: Segment) => void
   onSaveComment: (segId: string, sendBack: boolean, override?: ReviewComment) => void
+  onDeleteRow: (s: Segment) => void
 }) {
   const cols = '56px minmax(0,1.1fr) minmax(0,1.1fr) minmax(0,1.1fr) minmax(0,1.3fr) 110px'
 
@@ -1340,8 +1865,8 @@ function ReviewTable(props: {
         <div style={{ textAlign: 'center' }}>#</div>
         <div>原文</div>
         <div>译者译文</div>
-        <div>审校译文</div>
-        <div>审校意见</div>
+        <div>共识审校译文</div>
+        <div>共识审校意见</div>
         <div style={{ textAlign: 'center' }}>状态 / 操作</div>
       </div>
 
@@ -1353,8 +1878,10 @@ function ReviewTable(props: {
         const meta = STATUS_META[status]
         const isHover = props.hoveredId === seg.id
         const isSaving = props.savingIds.has(seg.id)
+        const isDeleting = props.deletingIds.has(seg.id)
         const isLocked = seg.status === 'locked'
         const canEditTarget = props.canReviewerAct && !isLocked
+        const canDelete = canManage(props.myRole) || (!isLocked && props.canReviewerAct)
         const checkText = reviewTarget.trim() ? reviewTarget : orig
         const termHits = findTermHits(seg.source, checkText, props.glossary)
 
@@ -1368,11 +1895,14 @@ function ReviewTable(props: {
           props.onSaveComment(seg.id, false, next)
         }
 
-        const markTermIssue = (hit: TermHit) => {
-          const line = `术语问题：原文“${hit.source}”未采用项目术语库推荐译法“${hit.target}”，建议统一。`
+        const saveTermComment = (hit: TermHit, line: string) => {
           const next = { type: addReviewType(rc.type, '术语问题'), text: appendReviewText(rc.text, line) }
           props.setReviewComments(prev => ({ ...prev, [seg.id]: next }))
           props.onSaveComment(seg.id, false, next)
+        }
+
+        const markTermIssue = (hit: TermHit) => {
+          saveTermComment(hit, buildTermIssueLine(hit))
         }
 
         const replaceWithRecommended = (hit: TermHit) => {
@@ -1387,14 +1917,17 @@ function ReviewTable(props: {
           }
           const replaced = replaceFirstExact(base, hit.source, hit.target)
           if (!replaced) {
-            markTermIssue(hit)
+            if (!reviewTarget.trim()) props.onReplaceTarget(seg, base)
+            saveTermComment(hit, buildTermNeedsManualLine(hit))
             return
           }
           props.onReplaceTarget(seg, replaced)
+          saveTermComment(hit, buildTermAdoptedLine(hit))
         }
 
         return (
           <div key={seg.id}
+            id={`review-seg-${seg.id}`}
             onMouseEnter={() => props.setHoveredId(seg.id)}
             onMouseLeave={() => { if (props.hoveredId === seg.id) props.setHoveredId(null) }}
             className="border-b border-line transition-colors"
@@ -1441,16 +1974,17 @@ function ReviewTable(props: {
                       }}>
                         {hit.matched ? '已匹配' : '可能不一致'}
                       </span>
-                      {canEditTarget && (
+                      {canEditTarget && !hit.matched && (
                         <>
                           <button type="button" onClick={() => replaceWithRecommended(hit)}
+                            title="能精确替换时直接更新共识译文；无法判断时写入审校意见"
                             style={{
                               border: '1px solid #C7D5F8', borderRadius: 7,
                               background: '#FFFFFF', color: '#5470D6',
                               padding: '3px 7px', fontSize: 11, lineHeight: 1.4,
                               cursor: 'pointer',
                             }}>
-                            替换为推荐译法
+                            采用共识译名
                           </button>
                           <button type="button" onClick={() => markTermIssue(hit)}
                             style={{
@@ -1478,16 +2012,16 @@ function ReviewTable(props: {
               )}
             </div>
 
-            {/* 审校译文（独立于译者译文） */}
+            {/* 共识审校译文（独立于译者译文） */}
             <textarea value={reviewTarget}
               onChange={e => props.onEditTarget(seg.id, e.target.value)}
               onBlur={() => props.onBlurTarget(seg)}
               disabled={!canEditTarget}
               rows={Math.max(2, Math.ceil((reviewTarget || '').length / 28) || 2)}
-              placeholder={canEditTarget ? '可直接修改译文，然后点「修改并通过」' : '无审校权限'}
+              placeholder={canEditTarget ? '可直接修改共识译文，然后点「修改并通过」' : '无审校权限'}
               style={cellTextarea({ bg: '#FFFFFF', border: '#5470D6', editable: canEditTarget, accent: true })} />
 
-            {/* 审校意见 */}
+            {/* 共识审校意见 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div
                 className="rounded-lg"
@@ -1531,7 +2065,7 @@ function ReviewTable(props: {
                 onBlur={() => props.onSaveComment(seg.id, false)}
                 disabled={!props.canReviewerAct}
                 rows={2}
-                placeholder="审校意见..."
+                placeholder="共识审校意见..."
                 style={cellTextarea({ bg: '#EEF4FF', border: '#C7D5F8', editable: props.canReviewerAct })} />
             </div>
 
@@ -1545,8 +2079,9 @@ function ReviewTable(props: {
                   pointerEvents: isHover ? 'auto' : 'none',
                   transition: 'opacity 0.15s',
                 }}>
+                  <RowMicroBtn label={isDeleting ? '删除中...' : '删除本行'} onClick={() => props.onDeleteRow(seg)} disabled={isDeleting || !canDelete} variant="danger" />
                   {seg.status !== 'reviewed' && !isLocked && (
-                    <RowMicroBtn label="通过" variant="primary" onClick={() => props.onApprove(seg)} />
+                    <RowMicroBtn label="确认通过" variant="primary" onClick={() => props.onApprove(seg)} />
                   )}
                   {!isLocked && (
                     <RowMicroBtn label="退回" onClick={() => props.onSendBack(seg)} />
@@ -1555,7 +2090,7 @@ function ReviewTable(props: {
                     <RowMicroBtn label="修改并通过" onClick={() => props.onEditAndApprove(seg)} />
                   )}
                   {canManage(props.myRole) && (
-                    <RowMicroBtn label={isLocked ? '解锁' : '锁定'} onClick={() => props.onLock(seg)} />
+                    <RowMicroBtn label={isLocked ? '解锁' : '定稿'} onClick={() => props.onLock(seg)} />
                   )}
                   {isSaving && <span style={{ fontSize: 10, color: 'var(--color-ink-400)', textAlign: 'center' }}>保存中…</span>}
                 </div>
@@ -1605,17 +2140,19 @@ function StatusPill({ meta }: { meta: { label: string; bg: string; color: string
 }
 
 function RowMicroBtn({ label, onClick, disabled, variant = 'ghost' }: {
-  label: string; onClick: () => void; disabled?: boolean; variant?: 'ghost' | 'primary'
+  label: string; onClick: () => void; disabled?: boolean; variant?: 'ghost' | 'primary' | 'danger'
 }) {
   const isPrimary = variant === 'primary'
+  const isDanger = variant === 'danger'
   return (
     <button onClick={onClick} disabled={disabled}
       style={{
         fontSize: 11, fontWeight: 500,
         paddingLeft: 8, paddingRight: 8, paddingTop: 5, paddingBottom: 5,
-        borderRadius: 7, border: `1px solid ${isPrimary ? '#D97757' : '#E7E2D8'}`,
-        background: isPrimary ? '#D97757' : '#FFFFFF',
-        color: isPrimary ? '#FFFFFF' : 'var(--color-ink-700)',
+        borderRadius: 7,
+        border: `1px solid ${isPrimary ? '#D97757' : isDanger ? '#E04B55' : '#E7E2D8'}`,
+        background: isPrimary ? '#D97757' : isDanger ? '#FFF1F2' : '#FFFFFF',
+        color: isPrimary ? '#FFFFFF' : isDanger ? '#B91C1C' : 'var(--color-ink-700)',
         opacity: disabled ? 0.4 : 1,
         cursor: disabled ? 'not-allowed' : 'pointer',
         transition: 'opacity 0.15s, background 0.15s',
@@ -1634,15 +2171,17 @@ function EmptyState({ doc, canManage, splitting, onSplit }: { doc: Doc; canManag
           <p style={{ fontSize: 14, lineHeight: 1.85, color: 'var(--color-ink-900)', whiteSpace: 'pre-wrap', maxHeight: 384, overflow: 'auto' }}>{doc.source_text}</p>
         </div>
         <div className="border-t border-line text-center" style={{ paddingTop: 32 }}>
-          <h3 className="font-serif" style={{ fontFamily: 'var(--font-serif)', fontSize: 22, color: 'var(--color-ink-900)', marginBottom: 10 }}>开始你的翻译工作</h3>
+          <h3 className="font-serif" style={{ fontFamily: 'var(--font-serif)', fontSize: 22, color: 'var(--color-ink-900)', marginBottom: 10 }}>
+            开始{translationWorkflow.no} {translationWorkflow.title}
+          </h3>
           <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--color-ink-500)', maxWidth: 400, margin: '0 auto 24px' }}>
             {canManage
-              ? '点击「分句」，将原文按句子切分为表格。每一句都可以单独 AI 翻译并自由编辑。'
+              ? `点击「切分原文」，把${sourceWorkflow.title}整理为句段表格。每个句段都可以进行 AI 对照、译者编辑、${reviewWorkflow.title}和${glossaryWorkflow.title}检查。`
               : '项目经理还没切分原文，请联系项目经理操作。'}
           </p>
           {canManage && (
             <Button variant="primary" size="lg" onClick={onSplit} loading={splitting}>
-              {splitting ? '分句中...' : '分句开始翻译'}
+              {splitting ? '切分中...' : `切分原文进入${translationWorkflow.title}`}
             </Button>
           )}
         </div>
@@ -1651,12 +2190,27 @@ function EmptyState({ doc, canManage, splitting, onSplit }: { doc: Doc; canManag
   )
 }
 
-function ExportMenu({ open, onToggle, onExport, isReviewMode }: { open: boolean; onToggle: () => void; onExport: (m: ExportMode) => void; isReviewMode?: boolean }) {
+function ExportMenu({
+  open,
+  onToggle,
+  onExport,
+  isReviewMode,
+  teamPlan,
+  brandFooter,
+}: {
+  open: boolean
+  onToggle: () => void
+  onExport: (m: ExportMode) => void
+  isReviewMode?: boolean
+  teamPlan: DocumentTeamPlan | null
+  brandFooter: boolean
+}) {
   const items: Array<[ExportMode, string]> = [
-    ['bilingual', '双语对照（默认）'],
-    ['target', '仅译文'],
+    ['delivery_package', '完整成果包'],
+    ['bilingual', '研译双语对照（默认）'],
+    ['target', '仅定稿译文'],
     ['bilingual_notes', '双语 + 备注'],
-    ...(isReviewMode ? [['review_comparison' as ExportMode, '审校对照（横向）'] as [ExportMode, string]] : []),
+    ...(isReviewMode ? [['review_comparison' as ExportMode, `${reviewWorkflow.title}对照（横向）`] as [ExportMode, string]] : []),
   ]
   return (
     <div style={{ position: 'relative' }}>
@@ -1674,6 +2228,17 @@ function ExportMenu({ open, onToggle, onExport, isReviewMode }: { open: boolean;
               {label}
             </button>
           ))}
+          <div className="mt-1 rounded-lg border border-line bg-canvas/60"
+            style={{ paddingLeft: 10, paddingRight: 10, paddingTop: 8, paddingBottom: 8 }}>
+            <p className="font-medium" style={{ fontSize: 11, color: 'var(--color-ink-800)' }}>
+              {brandFooter ? '品牌导出' : '无品牌导出'}
+            </p>
+            <p className="mt-1 leading-relaxed" style={{ fontSize: 11, color: 'var(--color-ink-500)' }}>
+              {brandFooter
+                ? `${teamPlan?.planLabel || '试用/兼容项目'}会保留译境页脚。`
+                : `${teamPlan?.planLabel || '当前套餐'}已移除译境页脚。`}
+            </p>
+          </div>
         </div>
       )}
     </div>
