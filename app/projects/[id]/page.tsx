@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { MainContent } from '@/components/ui/MainContent'
 import { cn } from '@/components/ui/cn'
 import { splitSentences } from '@/lib/sentenceSplit'
+import { fetchSegmentRowsByDocumentIds } from '@/lib/fetchSegmentRows'
 
 // ---------- 类型 ----------
 type Document = {
@@ -472,12 +473,13 @@ export default function ProjectPage() {
     const creatorIds = Array.from(new Set(docsList.map(d => d.created_by).filter(Boolean) as string[]))
 
     const [segRes, ptRes, profRes] = await Promise.all([
-      supabase.from('segments').select('*').in('document_id', docIds),
+      fetchSegmentRowsByDocumentIds<SegmentRow>(supabase, docIds, '*'),
       supabase.from('parallel_translations').select('id, document_id, segment_id, provider, model, temperature, prompt, status, created_by, created_at, updated_at').in('document_id', docIds).neq('provider', '__config__').order('updated_at', { ascending: false }).limit(60),
       creatorIds.length > 0
         ? supabase.from('profiles').select('id, name, email').in('id', creatorIds)
         : Promise.resolve({ data: [] }),
     ])
+    if (segRes.error) console.error('Failed to load project segments', segRes.error)
     setSegments((segRes.data ?? []) as SegmentRow[])
     setParallel((ptRes.data ?? []) as ParallelRow[])
     const profMap: Record<string, Profile> = {}

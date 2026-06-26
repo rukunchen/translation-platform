@@ -9,6 +9,7 @@ import { Input, Textarea } from '@/components/ui/Input'
 import { MainContent } from '@/components/ui/MainContent'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { apiJSON } from '@/lib/apiFetch'
+import { fetchSegmentRowsByDocumentIds } from '@/lib/fetchSegmentRows'
 import { supabase } from '@/lib/supabase'
 
 type Project = {
@@ -147,16 +148,18 @@ export default function ProjectsPage() {
       return
     }
 
-    const segmentRes = await supabase
-      .from('segments')
-      .select('id, document_id, status, target, translator_target, review_target, reviewed_at, metadata')
-      .in('document_id', docIds)
+    const segmentRes = await fetchSegmentRowsByDocumentIds<SegmentRow>(
+      supabase,
+      docIds,
+      'id, document_id, status, target, translator_target, review_target, reviewed_at, metadata'
+    )
 
     if (segmentRes.error && /translator_target|review_target|reviewed_at|metadata|schema cache|column/i.test(segmentRes.error.message)) {
-      const fallbackRes = await supabase
-        .from('segments')
-        .select('id, document_id, status, target')
-        .in('document_id', docIds)
+      const fallbackRes = await fetchSegmentRowsByDocumentIds<SegmentRow>(
+        supabase,
+        docIds,
+        'id, document_id, status, target'
+      )
       setSegments((fallbackRes.data ?? []) as SegmentRow[])
       return
     }
