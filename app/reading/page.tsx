@@ -105,6 +105,7 @@ type ReadingSourceGroup = {
   key: string
   source: string
   description: string
+  coverImage: string
   articles: ReadingArticle[]
   genres: string[]
   words: number
@@ -262,11 +263,12 @@ function sourceGroupKey(source: string): string {
   return source.trim().toLowerCase() || 'unrecorded'
 }
 
-function sourceCoverTitle(source: string): string {
-  if (/aeon/i.test(source)) return 'AEON'
-  if (/north and south/i.test(source)) return 'North and South'
-  if (source.length <= 28) return source
-  return `${source.slice(0, 25).trim()}...`
+function sourceCoverImage(source: string): string {
+  const normalized = source.toLowerCase()
+  if (normalized.includes('north and south')) return '/reading/north-south-cover.jpg'
+  if (normalized.includes('aeon')) return '/landing/archive-voyage.png'
+  if (normalized.includes('手动粘贴')) return '/landing/archive-review.png'
+  return '/landing/archive-classics.png'
 }
 
 function describeSource(source: string, genres: string[]): string {
@@ -317,6 +319,7 @@ function groupReadingArticlesBySource(articles: ReadingArticle[]): ReadingSource
   return Array.from(groups.values()).map((group, index) => ({
     ...group,
     description: describeSource(group.source, group.genres),
+    coverImage: sourceCoverImage(group.source),
     palette: SOURCE_COVER_PALETTES[index % SOURCE_COVER_PALETTES.length],
   }))
 }
@@ -1471,36 +1474,24 @@ export default function ReadingRoomPage() {
                           type="button"
                           aria-expanded={expanded}
                           onClick={() => setExpandedSourceKey(expanded ? null : group.key)}
-                          className="grid w-full gap-5 text-left transition-colors hover:bg-surface/50 md:grid-cols-[190px_minmax(0,1fr)]"
+                          className="grid w-full gap-5 text-left transition-colors hover:bg-surface/50 md:grid-cols-[180px_minmax(0,1fr)]"
                           style={{ padding: 22 }}
                         >
                           <div
-                            className="relative min-h-[210px] overflow-hidden rounded-l-xl rounded-r-[28px] border border-white/40 text-white shadow-2xl"
-                            style={{ background: group.palette.background, boxShadow: `0 22px 46px ${group.palette.shadow}` }}
+                            className="relative h-[242px] w-[180px] max-w-full overflow-hidden rounded-l-xl rounded-r-[28px] border border-white/50 bg-white shadow-2xl"
+                            style={{ boxShadow: `0 22px 46px ${group.palette.shadow}` }}
                           >
-                            <div className="absolute inset-y-0 left-0 w-8 bg-black/20" />
-                            <div className="absolute inset-y-5 left-9 w-px bg-white/35" />
-                            <div className="absolute left-5 top-5 -rotate-90 origin-left font-mono text-[10px] uppercase tracking-[0.28em] text-white/60">
-                              Source
-                            </div>
-                            <div className="relative flex h-full min-h-[210px] flex-col justify-between p-6 pl-12">
-                              <div>
-                                <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-white/70">
-                                  Reading Volume
-                                </p>
-                                <h3 className="mt-4 line-clamp-4 font-serif text-3xl leading-tight text-white">
-                                  {sourceCoverTitle(group.source)}
-                                </h3>
-                              </div>
-                              <div className="flex items-end justify-between gap-3">
-                                <span className="rounded-full bg-white/15 px-3 py-1 text-xs text-white/80 backdrop-blur">
-                                  {group.articles.length} 篇
-                                </span>
-                                <span className="font-mono text-[11px] uppercase tracking-[0.18em]" style={{ color: group.palette.accent }}>
-                                  深读室
-                                </span>
-                              </div>
-                            </div>
+                            <img
+                              src={group.coverImage}
+                              alt=""
+                              aria-hidden="true"
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/25" />
+                            <div className="absolute inset-y-0 left-0 w-9 bg-gradient-to-r from-black/35 via-black/10 to-transparent" />
+                            <div className="absolute inset-y-5 left-9 w-px bg-white/45" />
+                            <div className="absolute inset-0 rounded-l-xl rounded-r-[28px] ring-1 ring-inset ring-black/10" />
                           </div>
 
                           <div className="flex min-h-[210px] flex-col justify-between">
