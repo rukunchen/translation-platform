@@ -1,5 +1,5 @@
 // PATCH /api/projects/[id]/members/[memberId]   改角色（platform admin 或 manager）
-// DELETE /api/projects/[id]/members/[memberId]  移除成员（platform admin + manager，或本人）
+// DELETE /api/projects/[id]/members/[memberId]  移除成员（platform admin 或 manager，或本人）
 
 import { NextRequest, NextResponse } from 'next/server'
 import { logAdminAudit } from '@/lib/adminAudit'
@@ -92,7 +92,7 @@ export async function DELETE(
 
   const isSelf = target.user_id === user.id
   const platformAdmin = await isPlatformAdmin(user, admin)
-  if (!isSelf && (!platformAdmin || !canManage(myRole))) {
+  if (!isSelf && !platformAdmin && !canManage(myRole)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 

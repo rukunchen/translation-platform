@@ -1,5 +1,6 @@
 import { Liveblocks } from '@liveblocks/node'
 import { NextRequest, NextResponse } from 'next/server'
+import { supabaseFromRequest } from '@/lib/supabaseServer'
 
 let liveblocksInstance: Liveblocks | null = null
 
@@ -20,18 +21,24 @@ function errorMessage(error: unknown): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const { user } = await supabaseFromRequest(req)
+    if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+
     const liveblocks = getLiveblocks()
     if (!liveblocks) {
       return NextResponse.json({ error: 'Liveblocks 未配置（缺少 LIVEBLOCKS_SECRET_KEY）' }, { status: 500 })
     }
 
-    const { room, userId, userName } = await req.json()
+    const { room, userName } = await req.json().catch(() => ({}))
+    if (typeof room !== 'string' || !room.trim()) {
+      return NextResponse.json({ error: 'room is required' }, { status: 400 })
+    }
     const color = colors[Math.floor(Math.random() * colors.length)]
 
-    const session = liveblocks.prepareSession(userId || 'anonymous', {
-      userInfo: { name: userName || '译员', color }
+    const session = liveblocks.prepareSession(user.id, {
+      userInfo: { name: userName || user.email || '译员', color }
     })
-    session.allow(room, session.FULL_ACCESS)
+    session.allow(room.trim(), session.FULL_ACCESS)
 
     const { status, body } = await session.authorize()
     return new NextResponse(body, { status })
