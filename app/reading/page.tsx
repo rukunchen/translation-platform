@@ -290,7 +290,7 @@ function describeSource(source: string, genres: string[]): string {
 }
 
 function groupReadingArticlesBySource(articles: ReadingArticle[]): ReadingSourceGroup[] {
-  const groups = new Map<string, Omit<ReadingSourceGroup, 'description' | 'palette'>>()
+  const groups = new Map<string, Omit<ReadingSourceGroup, 'description' | 'coverImage' | 'palette'>>()
 
   for (const article of articles) {
     const source = articleSource(article)
