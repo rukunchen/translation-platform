@@ -117,6 +117,15 @@ type ReadingSourceGroup = {
   }
 }
 
+type ReadingSourceProfile = {
+  id: string
+  displayName: string
+  matchers: string[]
+  description: string
+  coverImage: string
+  paletteIndex?: number
+}
+
 type AnnotationNoticeTone = 'success' | 'error' | 'info'
 
 type AnnotationMenuState = {
@@ -203,6 +212,43 @@ const SOURCE_COVER_PALETTES = [
   },
 ]
 
+const DEFAULT_SOURCE_COVER_IMAGE = '/landing/archive-classics.png'
+
+const READING_SOURCE_PROFILES: ReadingSourceProfile[] = [
+  {
+    id: 'north-and-south',
+    displayName: 'North and South by Elizabeth Gaskell',
+    matchers: ['north and south', 'elizabeth gaskell'],
+    description: '《North and South》是 Elizabeth Gaskell 的经典小说。这里按章节沉淀原文，适合连续阅读人物、叙事与维多利亚时期社会语境。',
+    coverImage: '/reading/north-south-cover.jpg',
+    paletteIndex: 0,
+  },
+  {
+    id: 'aeon',
+    displayName: 'AEON.co',
+    matchers: ['aeon', 'aeon.co'],
+    description: 'AEON 是关注思想、文化、心理与社会议题的英文长文平台。适合做观点表达、论证结构和高级语汇精读。',
+    coverImage: '/reading/aeon-cover.jpg',
+    paletteIndex: 1,
+  },
+  {
+    id: 'fatherhood',
+    displayName: '《Fatherhood》',
+    matchers: ['fatherhood'],
+    description: '《Fatherhood》相关文本合集，适合围绕家庭、代际关系和心理经验做主题式精读。',
+    coverImage: '/reading/fatherhood-cover.jpg',
+    paletteIndex: 2,
+  },
+  {
+    id: 'manual-imports',
+    displayName: '手动导入',
+    matchers: ['手动粘贴', '手动导入'],
+    description: '手动导入的原文合集，适合临时精读、摘录和课堂材料整理。可以继续按来源名称细分为不同书册。',
+    coverImage: '/landing/archive-review.png',
+    paletteIndex: 3,
+  },
+]
+
 function cleanSourceText(input: string): string {
   const lines = input
     .replace(/\r\n?/g, '\n')
@@ -263,26 +309,18 @@ function sourceGroupKey(source: string): string {
   return source.trim().toLowerCase() || 'unrecorded'
 }
 
-function sourceCoverImage(source: string): string {
-  const normalized = source.toLowerCase()
-  if (normalized.includes('north and south')) return '/reading/north-south-cover.jpg'
-  if (normalized.includes('aeon')) return '/reading/aeon-cover.jpg'
-  if (normalized.includes('father')) return '/reading/fatherhood-cover.jpg'
-  if (normalized.includes('手动粘贴')) return '/landing/archive-review.png'
-  return '/landing/archive-classics.png'
+function normalizeSourceMatcher(source: string): string {
+  return source.trim().toLowerCase()
 }
 
-function describeSource(source: string, genres: string[]): string {
-  const normalized = source.toLowerCase()
-  if (normalized.includes('aeon')) {
-    return 'AEON 是关注思想、文化、心理与社会议题的英文长文平台。适合做观点表达、论证结构和高级语汇精读。'
-  }
-  if (normalized.includes('north and south')) {
-    return '《North and South》是 Elizabeth Gaskell 的经典小说。这里按章节沉淀原文，适合连续阅读人物、叙事与维多利亚时期社会语境。'
-  }
-  if (normalized.includes('手动粘贴')) {
-    return '手动导入的原文合集，适合临时精读、摘录和课堂材料整理。可以继续按来源名称细分为不同书册。'
-  }
+function findReadingSourceProfile(source: string): ReadingSourceProfile | null {
+  const normalized = normalizeSourceMatcher(source)
+  return READING_SOURCE_PROFILES.find(profile =>
+    profile.matchers.some(matcher => normalized.includes(normalizeSourceMatcher(matcher))),
+  ) || null
+}
+
+function describeFallbackSource(source: string, genres: string[]): string {
   if (source === '未记录来源') {
     return '这些文章暂未填写来源。建议在编辑文章中补充网站、书名或刊物名，后续会自动归入对应书册。'
   }
@@ -291,11 +329,15 @@ function describeSource(source: string, genres: string[]): string {
 }
 
 function groupReadingArticlesBySource(articles: ReadingArticle[]): ReadingSourceGroup[] {
-  const groups = new Map<string, Omit<ReadingSourceGroup, 'description' | 'coverImage' | 'palette'>>()
+  const groups = new Map<string, Omit<ReadingSourceGroup, 'description' | 'coverImage' | 'palette'> & {
+    profile: ReadingSourceProfile | null
+  }>()
 
   for (const article of articles) {
-    const source = articleSource(article)
-    const key = sourceGroupKey(source)
+    const rawSource = articleSource(article)
+    const profile = findReadingSourceProfile(rawSource)
+    const source = profile?.displayName || rawSource
+    const key = profile?.id || sourceGroupKey(rawSource)
     const current = groups.get(key)
     if (current) {
       current.articles.push(article)
@@ -313,15 +355,16 @@ function groupReadingArticlesBySource(articles: ReadingArticle[]): ReadingSource
         genres: [articleGenre(article)],
         words: articleWords(article),
         latestAt: article.updated_at,
+        profile,
       })
     }
   }
 
   return Array.from(groups.values()).map((group, index) => ({
     ...group,
-    description: describeSource(group.source, group.genres),
-    coverImage: sourceCoverImage(group.source),
-    palette: SOURCE_COVER_PALETTES[index % SOURCE_COVER_PALETTES.length],
+    description: group.profile?.description || describeFallbackSource(group.source, group.genres),
+    coverImage: group.profile?.coverImage || DEFAULT_SOURCE_COVER_IMAGE,
+    palette: SOURCE_COVER_PALETTES[(group.profile?.paletteIndex ?? index) % SOURCE_COVER_PALETTES.length],
   }))
 }
 
