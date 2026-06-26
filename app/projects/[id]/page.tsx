@@ -521,20 +521,19 @@ export default function ProjectPage() {
     const docIds = docsList.map(d => d.id)
     const creatorIds = Array.from(new Set(docsList.map(d => d.created_by).filter(Boolean) as string[]))
 
-    const [segRes, visibleSegments, ptRes, profRes] = await Promise.all([
-      apiJSON<{ segments: SegmentRow[]; documentStats?: Record<string, ProgressStats> }>(`/api/projects/${projectId}/segments`),
+    const [statsRes, visibleSegments, ptRes, profRes] = await Promise.all([
+      apiJSON<{ documentStats?: Record<string, ProgressStats> }>(`/api/projects/${projectId}/segments?statsOnly=1`, { cache: 'no-store' }),
       fetchVisibleSegmentsByDocumentIds(docIds),
       supabase.from('parallel_translations').select('id, document_id, segment_id, provider, model, temperature, prompt, status, created_by, created_at, updated_at').in('document_id', docIds).neq('provider', '__config__').order('updated_at', { ascending: false }).limit(60),
       creatorIds.length > 0
         ? supabase.from('profiles').select('id, name, email').in('id', creatorIds)
         : Promise.resolve({ data: [] }),
     ])
-    if (segRes.error) console.error('Failed to load project segments', segRes.error)
+    if (statsRes.error) console.error('Failed to load project segment stats', statsRes.error)
     const mergedSegments = new Map<string, SegmentRow>()
-    for (const row of ((segRes.data?.segments ?? []) as SegmentRow[])) mergedSegments.set(row.id, row)
     for (const row of visibleSegments) mergedSegments.set(row.id, row)
     setSegments(Array.from(mergedSegments.values()))
-    setDocumentStats(segRes.data?.documentStats ?? {})
+    setDocumentStats(statsRes.data?.documentStats ?? {})
     setParallel((ptRes.data ?? []) as ParallelRow[])
     const profMap: Record<string, Profile> = {}
     for (const p of (profRes.data ?? []) as Profile[]) profMap[p.id] = p

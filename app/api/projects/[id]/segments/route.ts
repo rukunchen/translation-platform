@@ -35,6 +35,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  const statsOnly = req.nextUrl.searchParams.get('statsOnly') === '1'
   const { user } = await supabaseFromRequest(req)
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
@@ -57,7 +58,10 @@ export async function GET(
   if (documentError) return NextResponse.json({ error: documentError.message }, { status: 500 })
 
   const documentIds = (docs ?? []).map(doc => doc.id as string).filter(Boolean)
-  const segmentRes = await fetchSegmentRowsByDocumentIds<SegmentProgressRow>(admin, documentIds, '*')
+  const segmentSelect = statsOnly
+    ? 'id, document_id, status, target, translator_target, review_target, reviewed_at'
+    : '*'
+  const segmentRes = await fetchSegmentRowsByDocumentIds<SegmentProgressRow>(admin, documentIds, segmentSelect)
 
   if (segmentRes.error) return NextResponse.json({ error: segmentRes.error.message }, { status: 500 })
 
@@ -85,5 +89,8 @@ export async function GET(
     { total: 0, translated: 0, reviewed: 0, locked: 0 }
   )
 
-  return NextResponse.json({ segments: segmentRes.data ?? [], documentStats, projectProgress })
+  const payload = statsOnly
+    ? { documentStats, projectProgress }
+    : { segments: segmentRes.data ?? [], documentStats, projectProgress }
+  return NextResponse.json(payload, { headers: { 'Cache-Control': 'no-store' } })
 }
