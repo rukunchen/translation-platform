@@ -1494,14 +1494,15 @@ export default function ReadingRoomPage() {
                       </div>
                     </header>
 
-                    <div className={readerColumnMode === 'double' ? 'max-w-none xl:columns-2 xl:gap-12' : 'max-w-none'}>
+                    <div className={readerColumnMode === 'double' ? 'max-w-none xl:columns-2 xl:gap-12 xl:[column-fill:balance]' : 'max-w-none'}>
                       {readingLayout.body.map((paragraph, index) => (
                         <p
                           key={`${paragraph.startOffset}-${paragraph.endOffset}`}
                           data-reading-paragraph
                           data-reading-offset-start={paragraph.startOffset}
                           className={[
-                            'break-inside-avoid whitespace-pre-wrap text-ink-900',
+                            readerColumnMode === 'double' ? '' : 'break-inside-avoid',
+                            'whitespace-pre-wrap text-ink-900',
                             index === 0 ? 'first-letter:float-left first-letter:mr-3 first-letter:font-serif first-letter:text-6xl first-letter:leading-[0.85] first-letter:text-ink-950' : '',
                           ].join(' ')}
                           style={{ ...readerTextStyle, marginBottom: '1.6em' }}
