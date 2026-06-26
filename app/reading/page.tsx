@@ -101,6 +101,21 @@ type ReadingLayout = {
   body: ReadingParagraph[]
 }
 
+type ReadingSourceGroup = {
+  key: string
+  source: string
+  description: string
+  articles: ReadingArticle[]
+  genres: string[]
+  words: number
+  latestAt: string
+  palette: {
+    background: string
+    accent: string
+    shadow: string
+  }
+}
+
 type AnnotationNoticeTone = 'success' | 'error' | 'info'
 
 type AnnotationMenuState = {
@@ -164,6 +179,29 @@ const READING_COLUMN_OPTIONS: { value: ReadingColumnMode; label: string }[] = [
 const NEWS_CHINESE_FONT_FAMILY = '"SimSun", "Songti SC", STSong, serif'
 const NEWS_ENGLISH_FONT_FAMILY = 'Georgia, "Times New Roman", serif'
 
+const SOURCE_COVER_PALETTES = [
+  {
+    background: 'linear-gradient(135deg, #1f2937 0%, #8a4a31 54%, #e37855 100%)',
+    accent: '#f5d1bf',
+    shadow: 'rgba(138,74,49,0.24)',
+  },
+  {
+    background: 'linear-gradient(135deg, #162033 0%, #42536d 52%, #c8b596 100%)',
+    accent: '#e7dcc6',
+    shadow: 'rgba(66,83,109,0.24)',
+  },
+  {
+    background: 'linear-gradient(135deg, #243026 0%, #68735b 52%, #d9c7a1 100%)',
+    accent: '#efe3c6',
+    shadow: 'rgba(104,115,91,0.22)',
+  },
+  {
+    background: 'linear-gradient(135deg, #2c2431 0%, #755463 54%, #d8a878 100%)',
+    accent: '#f3d8bd',
+    shadow: 'rgba(117,84,99,0.22)',
+  },
+]
+
 function cleanSourceText(input: string): string {
   const lines = input
     .replace(/\r\n?/g, '\n')
@@ -214,6 +252,73 @@ function isFrontierLiteratureArticle(article: ReadingArticle | null): boolean {
 
 function articleGenre(article: ReadingArticle): string {
   return article.genre || '其他'
+}
+
+function articleSource(article: ReadingArticle): string {
+  return article.source?.trim() || '未记录来源'
+}
+
+function sourceGroupKey(source: string): string {
+  return source.trim().toLowerCase() || 'unrecorded'
+}
+
+function sourceCoverTitle(source: string): string {
+  if (/aeon/i.test(source)) return 'AEON'
+  if (/north and south/i.test(source)) return 'North and South'
+  if (source.length <= 28) return source
+  return `${source.slice(0, 25).trim()}...`
+}
+
+function describeSource(source: string, genres: string[]): string {
+  const normalized = source.toLowerCase()
+  if (normalized.includes('aeon')) {
+    return 'AEON 是关注思想、文化、心理与社会议题的英文长文平台。适合做观点表达、论证结构和高级语汇精读。'
+  }
+  if (normalized.includes('north and south')) {
+    return '《North and South》是 Elizabeth Gaskell 的经典小说。这里按章节沉淀原文，适合连续阅读人物、叙事与维多利亚时期社会语境。'
+  }
+  if (normalized.includes('手动粘贴')) {
+    return '手动导入的原文合集，适合临时精读、摘录和课堂材料整理。可以继续按来源名称细分为不同书册。'
+  }
+  if (source === '未记录来源') {
+    return '这些文章暂未填写来源。建议在编辑文章中补充网站、书名或刊物名，后续会自动归入对应书册。'
+  }
+  const genreText = genres.length ? genres.slice(0, 3).join('、') : '英文精读'
+  return `来自 ${source} 的文章合集，当前以 ${genreText} 内容为主。适合按同一来源连续阅读、复盘表达和积累语境笔记。`
+}
+
+function groupReadingArticlesBySource(articles: ReadingArticle[]): ReadingSourceGroup[] {
+  const groups = new Map<string, Omit<ReadingSourceGroup, 'description' | 'palette'>>()
+
+  for (const article of articles) {
+    const source = articleSource(article)
+    const key = sourceGroupKey(source)
+    const current = groups.get(key)
+    if (current) {
+      current.articles.push(article)
+      current.words += articleWords(article)
+      if (new Date(article.updated_at).getTime() > new Date(current.latestAt).getTime()) {
+        current.latestAt = article.updated_at
+      }
+      const genre = articleGenre(article)
+      if (!current.genres.includes(genre)) current.genres.push(genre)
+    } else {
+      groups.set(key, {
+        key,
+        source,
+        articles: [article],
+        genres: [articleGenre(article)],
+        words: articleWords(article),
+        latestAt: article.updated_at,
+      })
+    }
+  }
+
+  return Array.from(groups.values()).map((group, index) => ({
+    ...group,
+    description: describeSource(group.source, group.genres),
+    palette: SOURCE_COVER_PALETTES[index % SOURCE_COVER_PALETTES.length],
+  }))
 }
 
 function splitReadingParagraphs(text: string): ReadingParagraph[] {
@@ -553,6 +658,7 @@ export default function ReadingRoomPage() {
   const [annotations, setAnnotations] = useState<ReadingAnnotation[]>([])
   const [genreFilter, setGenreFilter] = useState('全部')
   const [searchQuery, setSearchQuery] = useState('')
+  const [expandedSourceKey, setExpandedSourceKey] = useState<string | null>(null)
   const [aiNotice, setAiNotice] = useState('')
   const [annotationPaletteOpen, setAnnotationPaletteOpen] = useState(false)
   const [annotationMenu, setAnnotationMenu] = useState<AnnotationMenuState | null>(null)
@@ -576,6 +682,7 @@ export default function ReadingRoomPage() {
   const filteredArticles = articles.filter(item =>
     (genreFilter === '全部' || articleGenre(item) === genreFilter) && articleMatchesSearch(item, searchQuery)
   )
+  const sourceGroups = groupReadingArticlesBySource(filteredArticles)
   const editArticleGenreOptions = GENRE_OPTIONS.includes(editArticleGenre)
     ? GENRE_OPTIONS
     : [editArticleGenre, ...GENRE_OPTIONS]
@@ -1297,7 +1404,7 @@ export default function ReadingRoomPage() {
                   <p className="mt-2 text-sm text-ink-500">选择文章继续精读、复习摘录和查看 AI 解释。</p>
                 </div>
                 <span className="font-mono text-xs uppercase tracking-[0.12em] text-ink-400">
-                  {filteredArticles.length} / {articles.length} articles
+                  {sourceGroups.length} sources · {filteredArticles.length} / {articles.length} articles
                 </span>
               </div>
 
@@ -1352,39 +1459,132 @@ export default function ReadingRoomPage() {
                   <p className="mt-3 text-sm text-ink-500">调整体裁筛选或搜索关键词后再试。</p>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                  {filteredArticles.map(item => (
-                    <article key={item.id} className="rounded-xl border border-line bg-white overflow-hidden shadow-sm">
-                      <div className="border-b border-line bg-surface/70" style={{ padding: '18px 20px' }}>
-                        <div className="mb-3 flex flex-wrap items-center gap-2.5">
-                          <span className="inline-flex min-h-8 items-center rounded-full border border-line bg-white/95 px-3.5 py-1.5 text-xs leading-none text-ink-700 shadow-sm">
-                            {articleGenre(item)}
-                          </span>
-                          <span className="inline-flex min-h-8 items-center rounded-full border border-line bg-surface px-3.5 py-1.5 font-mono text-[11px] leading-none text-ink-500 shadow-sm">
-                            {item.source_type || 'plain_text'}
-                          </span>
+                <div className="space-y-4">
+                  {sourceGroups.map(group => {
+                    const expanded = expandedSourceKey === group.key
+                    return (
+                      <section
+                        key={group.key}
+                        className="overflow-hidden rounded-[28px] border border-line bg-white/95 shadow-[0_18px_50px_rgba(39,35,28,0.08)] transition-shadow hover:shadow-[0_24px_70px_rgba(39,35,28,0.12)]"
+                      >
+                        <button
+                          type="button"
+                          aria-expanded={expanded}
+                          onClick={() => setExpandedSourceKey(expanded ? null : group.key)}
+                          className="grid w-full gap-5 text-left transition-colors hover:bg-surface/50 md:grid-cols-[190px_minmax(0,1fr)]"
+                          style={{ padding: 22 }}
+                        >
+                          <div
+                            className="relative min-h-[210px] overflow-hidden rounded-l-xl rounded-r-[28px] border border-white/40 text-white shadow-2xl"
+                            style={{ background: group.palette.background, boxShadow: `0 22px 46px ${group.palette.shadow}` }}
+                          >
+                            <div className="absolute inset-y-0 left-0 w-8 bg-black/20" />
+                            <div className="absolute inset-y-5 left-9 w-px bg-white/35" />
+                            <div className="absolute left-5 top-5 -rotate-90 origin-left font-mono text-[10px] uppercase tracking-[0.28em] text-white/60">
+                              Source
+                            </div>
+                            <div className="relative flex h-full min-h-[210px] flex-col justify-between p-6 pl-12">
+                              <div>
+                                <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-white/70">
+                                  Reading Volume
+                                </p>
+                                <h3 className="mt-4 line-clamp-4 font-serif text-3xl leading-tight text-white">
+                                  {sourceCoverTitle(group.source)}
+                                </h3>
+                              </div>
+                              <div className="flex items-end justify-between gap-3">
+                                <span className="rounded-full bg-white/15 px-3 py-1 text-xs text-white/80 backdrop-blur">
+                                  {group.articles.length} 篇
+                                </span>
+                                <span className="font-mono text-[11px] uppercase tracking-[0.18em]" style={{ color: group.palette.accent }}>
+                                  深读室
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex min-h-[210px] flex-col justify-between">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {group.genres.slice(0, 4).map(genre => (
+                                  <span
+                                    key={genre}
+                                    className="inline-flex min-h-8 items-center rounded-full border border-line bg-white px-3.5 py-1.5 text-xs text-ink-600 shadow-sm"
+                                  >
+                                    {genre}
+                                  </span>
+                                ))}
+                              </div>
+                              <h3 className="mt-4 font-serif text-3xl leading-tight text-ink-950">
+                                {group.source}
+                              </h3>
+                              <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-500">
+                                {group.description}
+                              </p>
+                            </div>
+                            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+                              <div className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-[11px] uppercase tracking-[0.12em] text-ink-400">
+                                <span>{group.articles.length} articles</span>
+                                <span>{group.words} words</span>
+                                <span>updated {formatReadingDate(group.latestAt)}</span>
+                              </div>
+                              <span className="inline-flex items-center gap-2 text-sm text-ink-700">
+                                {expanded ? '收起文章' : '展开文章'}
+                                <span className={['transition-transform duration-300', expanded ? 'rotate-180' : ''].join(' ')}>⌄</span>
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+
+                        <div
+                          className="grid transition-all duration-500 ease-out"
+                          style={{
+                            gridTemplateRows: expanded ? '1fr' : '0fr',
+                            opacity: expanded ? 1 : 0,
+                          }}
+                        >
+                          <div className="overflow-hidden">
+                            <div className="border-t border-line bg-surface/50" style={{ padding: '18px 22px 22px' }}>
+                              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                                {group.articles.map(item => (
+                                  <article key={item.id} className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+                                    <button
+                                      type="button"
+                                      onClick={() => { void openArticle(item) }}
+                                      className="w-full border-b border-line bg-white text-left transition-colors hover:bg-surface/70"
+                                      style={{ padding: '16px 18px' }}
+                                    >
+                                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                                        <span className="inline-flex min-h-7 items-center rounded-full border border-line bg-surface px-3 py-1 text-xs text-ink-600">
+                                          {articleGenre(item)}
+                                        </span>
+                                        <span className="inline-flex min-h-7 items-center rounded-full border border-line bg-white px-3 py-1 font-mono text-[11px] text-ink-400">
+                                          {item.source_type || 'plain_text'}
+                                        </span>
+                                      </div>
+                                      <h4 className="line-clamp-2 font-serif text-xl leading-tight text-ink-900">
+                                        {item.title || '未命名文章'}
+                                      </h4>
+                                      <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-500">
+                                        <span>{articleWords(item)} words</span>
+                                        <span>笔记 {noteCounts[item.id] || 0} 条</span>
+                                        <span>最近阅读：{formatReadingDate(item.updated_at)}</span>
+                                      </p>
+                                    </button>
+                                    <div className="flex flex-wrap justify-end gap-2" style={{ padding: '12px 14px' }}>
+                                      <Button size="sm" variant="secondary" onClick={() => openArticleEditor(item)}>编辑文章</Button>
+                                      <Button size="sm" variant="ghost" onClick={() => { void removeArticle(item) }}>删除文章</Button>
+                                      <Button size="sm" variant="primary" onClick={() => { void openArticle(item) }}>继续阅读</Button>
+                                    </div>
+                                  </article>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <h3 className="line-clamp-2 font-serif text-2xl leading-tight text-ink-900">
-                          {item.title || '未命名文章'}
-                        </h3>
-                        <p className="mt-3 truncate text-sm text-ink-500">
-                          来源：{item.source || '未记录'}
-                        </p>
-                      </div>
-                      <div style={{ padding: '16px 20px' }}>
-                        <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-ink-500">
-                          <span>{articleWords(item)} words</span>
-                          <span>笔记 {noteCounts[item.id] || 0} 条</span>
-                          <span>最近阅读：{formatReadingDate(item.updated_at)}</span>
-                        </div>
-                        <div className="mt-5 flex flex-wrap justify-end gap-2">
-                          <Button size="sm" variant="secondary" onClick={() => openArticleEditor(item)}>编辑文章</Button>
-                          <Button size="sm" variant="ghost" onClick={() => { void removeArticle(item) }}>删除文章</Button>
-                          <Button size="sm" variant="primary" onClick={() => { void openArticle(item) }}>继续阅读</Button>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
+                      </section>
+                    )
+                  })}
                 </div>
               )}
             </div>
