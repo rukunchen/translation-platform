@@ -266,7 +266,8 @@ function sourceGroupKey(source: string): string {
 function sourceCoverImage(source: string): string {
   const normalized = source.toLowerCase()
   if (normalized.includes('north and south')) return '/reading/north-south-cover.jpg'
-  if (normalized.includes('aeon')) return '/landing/archive-voyage.png'
+  if (normalized.includes('aeon')) return '/reading/aeon-cover.jpg'
+  if (normalized.includes('father')) return '/reading/fatherhood-cover.jpg'
   if (normalized.includes('手动粘贴')) return '/landing/archive-review.png'
   return '/landing/archive-classics.png'
 }
