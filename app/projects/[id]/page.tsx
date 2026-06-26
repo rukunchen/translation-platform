@@ -521,19 +521,28 @@ export default function ProjectPage() {
     const docIds = docsList.map(d => d.id)
     const creatorIds = Array.from(new Set(docsList.map(d => d.created_by).filter(Boolean) as string[]))
 
-    const [statsRes, visibleSegments, ptRes, profRes] = await Promise.all([
-      apiJSON<{ documentStats?: Record<string, ProgressStats> }>(`/api/projects/${projectId}/segments?statsOnly=1`, { cache: 'no-store' }),
-      fetchVisibleSegmentsByDocumentIds(docIds),
-      supabase.from('parallel_translations').select('id, document_id, segment_id, provider, model, temperature, prompt, status, created_by, created_at, updated_at').in('document_id', docIds).neq('provider', '__config__').order('updated_at', { ascending: false }).limit(60),
-      creatorIds.length > 0
-        ? supabase.from('profiles').select('id, name, email').in('id', creatorIds)
-        : Promise.resolve({ data: [] }),
-    ])
+    const statsPromise = apiJSON<{ documentStats?: Record<string, ProgressStats> }>(`/api/projects/${projectId}/segments?statsOnly=1`, { cache: 'no-store' })
+    const visibleSegmentsPromise = fetchVisibleSegmentsByDocumentIds(docIds).catch(error => {
+      console.error('Failed to load visible document segments fallback', error)
+      return [] as SegmentRow[]
+    })
+    const ptPromise = supabase.from('parallel_translations').select('id, document_id, segment_id, provider, model, temperature, prompt, status, created_by, created_at, updated_at').in('document_id', docIds).neq('provider', '__config__').order('updated_at', { ascending: false }).limit(60)
+    const profPromise = creatorIds.length > 0
+      ? supabase.from('profiles').select('id, name, email').in('id', creatorIds)
+      : Promise.resolve({ data: [] })
+
+    const statsRes = await statsPromise
     if (statsRes.error) console.error('Failed to load project segment stats', statsRes.error)
+    setDocumentStats(statsRes.data?.documentStats ?? {})
+
+    const [visibleSegments, ptRes, profRes] = await Promise.all([
+      visibleSegmentsPromise,
+      ptPromise,
+      profPromise,
+    ])
     const mergedSegments = new Map<string, SegmentRow>()
     for (const row of visibleSegments) mergedSegments.set(row.id, row)
     setSegments(Array.from(mergedSegments.values()))
-    setDocumentStats(statsRes.data?.documentStats ?? {})
     setParallel((ptRes.data ?? []) as ParallelRow[])
     const profMap: Record<string, Profile> = {}
     for (const p of (profRes.data ?? []) as Profile[]) profMap[p.id] = p
