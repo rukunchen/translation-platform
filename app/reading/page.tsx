@@ -161,6 +161,9 @@ const READING_COLUMN_OPTIONS: { value: ReadingColumnMode; label: string }[] = [
   { value: 'double', label: '双栏' },
 ]
 
+const NEWS_CHINESE_FONT_FAMILY = '"SimSun", "Songti SC", STSong, serif'
+const NEWS_ENGLISH_FONT_FAMILY = 'Georgia, "Times New Roman", serif'
+
 function cleanSourceText(input: string): string {
   const lines = input
     .replace(/\r\n?/g, '\n')
@@ -405,21 +408,29 @@ function noteFromRow(row: ReadingNoteRow): ReadingNote {
 function NewsHotspotColumn({
   title,
   eyebrow,
+  language,
   items,
   loading,
   error,
 }: {
   title: string
   eyebrow: string
+  language: 'zh' | 'en'
   items: NewsHotspotItem[]
   loading: boolean
   error: string
 }) {
+  const itemFontFamily = language === 'en' ? NEWS_ENGLISH_FONT_FAMILY : NEWS_CHINESE_FONT_FAMILY
+
   return (
     <Card padding="none" className="overflow-hidden">
       <div className="border-b border-line bg-surface/80" style={{ padding: '14px 18px' }}>
-        <Eyebrow tone="muted">{eyebrow}</Eyebrow>
-        <h3 className="mt-1 font-serif text-xl text-ink-900">{title}</h3>
+        <Eyebrow tone="muted">
+          <span style={{ fontFamily: NEWS_ENGLISH_FONT_FAMILY }}>{eyebrow}</span>
+        </Eyebrow>
+        <h3 className="mt-1 text-xl text-ink-900" style={{ fontFamily: NEWS_CHINESE_FONT_FAMILY }}>
+          {title}
+        </h3>
       </div>
       <div style={{ padding: '14px 18px' }}>
         {loading ? (
@@ -436,7 +447,10 @@ function NewsHotspotColumn({
           <ol className="space-y-2.5">
             {items.slice(0, 10).map((item, index) => {
               const content = (
-                <span className="line-clamp-1 text-sm leading-6 text-ink-800 transition-colors hover:text-brand">
+                <span
+                  className="line-clamp-1 text-sm leading-6 text-ink-800 transition-colors hover:text-brand"
+                  style={{ fontFamily: itemFontFamily }}
+                >
                   {item.title}
                 </span>
               )
@@ -471,8 +485,12 @@ function NewsHotspotsPanel({
     <section className="mb-6">
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Eyebrow tone="muted">Daily Hotspots</Eyebrow>
-          <h2 className="mt-1 font-serif text-2xl text-ink-900">新闻热点</h2>
+          <Eyebrow tone="muted">
+            <span style={{ fontFamily: NEWS_ENGLISH_FONT_FAMILY }}>Daily Hotspots</span>
+          </Eyebrow>
+          <h2 className="mt-1 text-2xl text-ink-900" style={{ fontFamily: NEWS_CHINESE_FONT_FAMILY }}>
+            新闻热点
+          </h2>
         </div>
         <span className="font-mono text-xs uppercase tracking-[0.12em] text-ink-400">
           {hotspots?.date ? `更新 ${hotspots.date}` : 'daily refresh'}
@@ -482,6 +500,7 @@ function NewsHotspotsPanel({
         <NewsHotspotColumn
           eyebrow="China"
           title="国内新闻热点"
+          language="zh"
           items={hotspots?.domestic || []}
           loading={loading}
           error={error}
@@ -489,6 +508,7 @@ function NewsHotspotsPanel({
         <NewsHotspotColumn
           eyebrow="World"
           title="国外新闻热点"
+          language="en"
           items={hotspots?.international || []}
           loading={loading}
           error={error}
