@@ -100,8 +100,15 @@ const REVIEW_ISSUE_TYPES = ['意义问题', '风格问题', '文化问题', '术
 const COMMENT_SEP = '\n———审校意见———\n'
 
 function percent(value: number, total: number): number {
-  if (total <= 0) return 0
-  return Math.round((value / total) * 100)
+  if (total <= 0 || value <= 0) return 0
+  const raw = (value / total) * 100
+  if (raw < 1) return Math.max(0.1, Number(raw.toFixed(1)))
+  return Math.round(raw)
+}
+
+function progressWidth(value: number, total: number, pct: number): string {
+  if (total <= 0 || value <= 0) return '0%'
+  return `${Math.max(pct, 2)}%`
 }
 
 function valueOf(row: SegmentRow, keys: string[]): string {
@@ -1724,12 +1731,12 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 function ProgressInline({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0
+  const pct = percent(value, total)
   return (
     <div className="flex items-center gap-2">
       <span className="text-ink-600">{label}</span>
       <div className="w-20 h-1.5 bg-canvas rounded-full overflow-hidden">
-        <div className={cn('h-full rounded-full transition-all', color)} style={{ width: `${pct}%` }} />
+        <div className={cn('h-full rounded-full transition-all', color)} style={{ width: progressWidth(value, total, pct) }} />
       </div>
       <span className="font-mono text-ink-700">{value}/{total} · {pct}%</span>
     </div>
@@ -1948,11 +1955,11 @@ function CollaborationTab(p: CollabProps) {
 }
 
 function MiniBar({ value, total, color }: { value: number; total: number; color: string }) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0
+  const pct = percent(value, total)
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1 bg-canvas rounded-full overflow-hidden">
-        <div className={cn('h-full transition-all', color)} style={{ width: `${pct}%` }} />
+        <div className={cn('h-full transition-all', color)} style={{ width: progressWidth(value, total, pct) }} />
       </div>
       <span className="text-[10px] text-ink-500 font-mono w-10 text-right">{pct}%</span>
     </div>

@@ -648,11 +648,12 @@ function AnimatedProgressBar({ pct, color, className }: {
 }) {
   const [width, setWidth] = useState(0)
   const safePct = Math.max(0, Math.min(100, pct))
+  const visiblePct = safePct > 0 ? Math.max(safePct, 2) : 0
 
   useEffect(() => {
-    const frame = requestAnimationFrame(() => setWidth(safePct))
+    const frame = requestAnimationFrame(() => setWidth(visiblePct))
     return () => cancelAnimationFrame(frame)
-  }, [safePct])
+  }, [visiblePct])
 
   return (
     <div className={cn('h-1.5 bg-canvas rounded-full overflow-hidden', className)}>
@@ -862,7 +863,12 @@ function ProjectCard({ s, deleting, onPrefetch, onDelete }: {
   onDelete: () => void
 }) {
   const { project, total, translated, reviewed, locked, docs, memberCount, langPair, lastUpdated } = s
-  const pct = (n: number) => total > 0 ? Math.round((n / total) * 100) : 0
+  const pct = (n: number) => {
+    if (total <= 0 || n <= 0) return 0
+    const raw = (n / total) * 100
+    if (raw < 1) return Math.max(0.1, Number(raw.toFixed(1)))
+    return Math.round(raw)
+  }
   const pptProject = isPptProject(project)
   const projectUrl = pptProject ? `/projects/${project.id}/ppt` : `/projects/${project.id}`
   const glossaryHref = `/projects/${project.id}/glossary`
@@ -980,7 +986,7 @@ function ProgressRow({ label, value, total, pct, color }: {
         </span>
       </div>
       <div className="h-1.5 bg-canvas rounded-full overflow-hidden">
-        <div className={cn('h-full rounded-full transition-all', color)} style={{ width: `${pct}%` }} />
+        <div className={cn('h-full rounded-full transition-all', color)} style={{ width: pct > 0 ? `${Math.max(pct, 2)}%` : '0%' }} />
       </div>
     </div>
   )

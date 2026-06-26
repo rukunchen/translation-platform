@@ -71,8 +71,15 @@ function displayDescription(project: Project): string {
 }
 
 function percent(value: number, total: number): number {
-  if (total <= 0) return 0
-  return Math.round((value / total) * 100)
+  if (total <= 0 || value <= 0) return 0
+  const raw = (value / total) * 100
+  if (raw < 1) return Math.max(0.1, Number(raw.toFixed(1)))
+  return Math.round(raw)
+}
+
+function progressWidth(value: number, total: number, pct: number): string {
+  if (total <= 0 || value <= 0) return '0%'
+  return `${Math.max(pct, 2)}%`
 }
 
 function valueOf(row: SegmentRow, keys: string[]): string {
@@ -324,7 +331,7 @@ function ProjectProgress({ label, value, total, pct, color }: { label: string; v
         <span className="text-ink-700">{value}/{total} · {pct}%</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-canvas">
-        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: progressWidth(value, total, pct) }} />
       </div>
     </div>
   )

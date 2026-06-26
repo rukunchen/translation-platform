@@ -200,8 +200,10 @@ function isPptProject(project: Project): boolean {
 }
 
 function percent(value: number, total: number): number {
-  if (total <= 0) return 0
-  return Math.round((value / total) * 100)
+  if (total <= 0 || value <= 0) return 0
+  const raw = (value / total) * 100
+  if (raw < 1) return Math.max(0.1, Number(raw.toFixed(1)))
+  return Math.round(raw)
 }
 
 function valueOf(row: SegmentRow, keys: string[]): string {
