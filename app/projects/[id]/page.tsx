@@ -1998,7 +1998,7 @@ function MiniBar({ value, total, color }: { value: number; total: number; color:
       <div className="flex-1 h-1 bg-canvas rounded-full overflow-hidden">
         <div className={cn('h-full transition-all', color)} style={{ width: progressWidth(value, total, pct) }} />
       </div>
-      <span className="text-[10px] text-ink-500 font-mono w-10 text-right">{pct}%</span>
+      <span className="text-[10px] text-ink-500 font-mono w-20 text-right">{value}/{total} · {pct}%</span>
     </div>
   )
 }
