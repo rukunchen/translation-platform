@@ -195,24 +195,21 @@ function issueTypesOf(row: SegmentRow): string[] {
 
 async function fetchVisibleSegmentsByDocumentIds(documentIds: string[]): Promise<SegmentRow[]> {
   const rows: SegmentRow[] = []
-  const batchSize = 50
   const pageSize = 1000
 
-  for (let batchStart = 0; batchStart < documentIds.length; batchStart += batchSize) {
-    const batch = documentIds.slice(batchStart, batchStart + batchSize)
+  for (const documentId of documentIds) {
     let from = 0
 
     while (true) {
       const { data, error } = await supabase
         .from('segments')
         .select('*')
-        .in('document_id', batch)
-        .order('document_id', { ascending: true })
+        .eq('document_id', documentId)
         .order('position', { ascending: true })
         .range(from, from + pageSize - 1)
 
       if (error) {
-        console.error('Failed to load visible document segments', error)
+        console.error('Failed to load visible document segments', { documentId, error })
         break
       }
 

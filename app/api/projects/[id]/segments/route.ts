@@ -57,24 +57,16 @@ export async function GET(
   if (documentError) return NextResponse.json({ error: documentError.message }, { status: 500 })
 
   const documentIds = (docs ?? []).map(doc => doc.id as string).filter(Boolean)
-  const [segmentRes, progressRes] = await Promise.all([
-    fetchSegmentRowsByDocumentIds(admin, documentIds, '*'),
-    fetchSegmentRowsByDocumentIds<SegmentProgressRow>(
-      admin,
-      documentIds,
-      'id, document_id, status, target, translator_target, review_target, reviewed_at'
-    ),
-  ])
+  const segmentRes = await fetchSegmentRowsByDocumentIds<SegmentProgressRow>(admin, documentIds, '*')
 
   if (segmentRes.error) return NextResponse.json({ error: segmentRes.error.message }, { status: 500 })
-  if (progressRes.error) return NextResponse.json({ error: progressRes.error.message }, { status: 500 })
 
   const documentStats: Record<string, { total: number; translated: number; reviewed: number; locked: number }> = {}
   for (const docId of documentIds) {
     documentStats[docId] = { total: 0, translated: 0, reviewed: 0, locked: 0 }
   }
 
-  for (const row of progressRes.data ?? []) {
+  for (const row of segmentRes.data ?? []) {
     const stats = documentStats[row.document_id] ?? { total: 0, translated: 0, reviewed: 0, locked: 0 }
     stats.total += 1
     if (isTranslated(row)) stats.translated += 1
