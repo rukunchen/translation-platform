@@ -182,6 +182,39 @@ function issueTypesOf(row: SegmentRow): string[] {
   return values.map(type => REVIEW_ISSUE_TYPES.includes(type) ? type : '其他')
 }
 
+async function fetchVisibleSegmentsByDocumentIds(documentIds: string[]): Promise<SegmentRow[]> {
+  const rows: SegmentRow[] = []
+  const batchSize = 50
+  const pageSize = 1000
+
+  for (let batchStart = 0; batchStart < documentIds.length; batchStart += batchSize) {
+    const batch = documentIds.slice(batchStart, batchStart + batchSize)
+    let from = 0
+
+    while (true) {
+      const { data, error } = await supabase
+        .from('segments')
+        .select('*')
+        .in('document_id', batch)
+        .order('document_id', { ascending: true })
+        .order('position', { ascending: true })
+        .range(from, from + pageSize - 1)
+
+      if (error) {
+        console.error('Failed to load visible document segments', error)
+        break
+      }
+
+      const page = (data ?? []) as SegmentRow[]
+      rows.push(...page)
+      if (page.length < pageSize) break
+      from += pageSize
+    }
+  }
+
+  return rows
+}
+
 // 粗略判断 CJK / Latin
 function detectScript(text: string): 'cjk' | 'latin' | 'unknown' {
   const sample = text.slice(0, 600)
@@ -479,15 +512,19 @@ export default function ProjectPage() {
     const docIds = docsList.map(d => d.id)
     const creatorIds = Array.from(new Set(docsList.map(d => d.created_by).filter(Boolean) as string[]))
 
-    const [segRes, ptRes, profRes] = await Promise.all([
+    const [segRes, visibleSegments, ptRes, profRes] = await Promise.all([
       apiJSON<{ segments: SegmentRow[] }>(`/api/projects/${projectId}/segments`),
+      fetchVisibleSegmentsByDocumentIds(docIds),
       supabase.from('parallel_translations').select('id, document_id, segment_id, provider, model, temperature, prompt, status, created_by, created_at, updated_at').in('document_id', docIds).neq('provider', '__config__').order('updated_at', { ascending: false }).limit(60),
       creatorIds.length > 0
         ? supabase.from('profiles').select('id, name, email').in('id', creatorIds)
         : Promise.resolve({ data: [] }),
     ])
     if (segRes.error) console.error('Failed to load project segments', segRes.error)
-    setSegments((segRes.data?.segments ?? []) as SegmentRow[])
+    const mergedSegments = new Map<string, SegmentRow>()
+    for (const row of ((segRes.data?.segments ?? []) as SegmentRow[])) mergedSegments.set(row.id, row)
+    for (const row of visibleSegments) mergedSegments.set(row.id, row)
+    setSegments(Array.from(mergedSegments.values()))
     setParallel((ptRes.data ?? []) as ParallelRow[])
     const profMap: Record<string, Profile> = {}
     for (const p of (profRes.data ?? []) as Profile[]) profMap[p.id] = p
