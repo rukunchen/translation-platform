@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { fetchSegmentRowsByDocumentIds } from '@/lib/fetchSegmentRows'
 import { supabaseAdmin, supabaseFromRequest } from '@/lib/supabaseServer'
 
 function cleanText(value: unknown): string {
@@ -44,10 +45,19 @@ export async function GET(req: NextRequest) {
   const error = projectRes.error || documentRes.error || memberRes.error
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  const documentIds = Array.from(new Set((documentRes.data ?? []).map(row => row.id as string).filter(Boolean)))
+  const segmentRes = await fetchSegmentRowsByDocumentIds(
+    admin,
+    documentIds,
+    'id, document_id, status, target, translator_target, review_target, reviewed_at, metadata'
+  )
+  if (segmentRes.error) return NextResponse.json({ error: segmentRes.error.message }, { status: 500 })
+
   return NextResponse.json({
     projects: projectRes.data ?? [],
     documents: documentRes.data ?? [],
     members: memberRes.data ?? [],
+    segments: segmentRes.data ?? [],
   })
 }
 

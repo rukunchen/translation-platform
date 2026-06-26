@@ -15,8 +15,8 @@ import { Eyebrow } from '@/components/ui/Eyebrow'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MainContent } from '@/components/ui/MainContent'
 import { cn } from '@/components/ui/cn'
+import { apiJSON } from '@/lib/apiFetch'
 import { splitSentences } from '@/lib/sentenceSplit'
-import { fetchSegmentRowsByDocumentIds } from '@/lib/fetchSegmentRows'
 
 // ---------- 类型 ----------
 type Document = {
@@ -473,14 +473,14 @@ export default function ProjectPage() {
     const creatorIds = Array.from(new Set(docsList.map(d => d.created_by).filter(Boolean) as string[]))
 
     const [segRes, ptRes, profRes] = await Promise.all([
-      fetchSegmentRowsByDocumentIds<SegmentRow>(supabase, docIds, '*'),
+      apiJSON<{ segments: SegmentRow[] }>(`/api/projects/${projectId}/segments`),
       supabase.from('parallel_translations').select('id, document_id, segment_id, provider, model, temperature, prompt, status, created_by, created_at, updated_at').in('document_id', docIds).neq('provider', '__config__').order('updated_at', { ascending: false }).limit(60),
       creatorIds.length > 0
         ? supabase.from('profiles').select('id, name, email').in('id', creatorIds)
         : Promise.resolve({ data: [] }),
     ])
     if (segRes.error) console.error('Failed to load project segments', segRes.error)
-    setSegments((segRes.data ?? []) as SegmentRow[])
+    setSegments((segRes.data?.segments ?? []) as SegmentRow[])
     setParallel((ptRes.data ?? []) as ParallelRow[])
     const profMap: Record<string, Profile> = {}
     for (const p of (profRes.data ?? []) as Profile[]) profMap[p.id] = p

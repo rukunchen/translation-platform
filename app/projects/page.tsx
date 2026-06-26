@@ -126,6 +126,7 @@ export default function ProjectsPage() {
       projects: Project[]
       documents: DocumentRow[]
       members: MemberRow[]
+      segments?: SegmentRow[]
     }>('/api/projects')
 
     if (error || !data) {
@@ -141,6 +142,10 @@ export default function ProjectsPage() {
     setProjects(data.projects ?? [])
     setDocuments(docs)
     setMembers(data.members ?? [])
+    if (data.segments) {
+      setSegments(data.segments)
+      return
+    }
 
     const docIds = docs.map(doc => doc.id)
     if (docIds.length === 0) {
