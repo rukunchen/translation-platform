@@ -36,6 +36,7 @@ type ReaderTab = 'source' | 'notes' | 'annotations'
 type ReadingFont = 'serif' | 'sans' | 'mono'
 type ReadingFontSize = 'sm' | 'md' | 'lg'
 type ReadingLineHeight = 'compact' | 'comfortable' | 'open'
+type ReadingColumnMode = 'single' | 'double'
 type AnnotationType = 'highlight' | 'underline'
 type AnnotationColor = 'yellow' | 'green' | 'blue' | 'purple' | 'red' | 'gray'
 type SidePanelTab = 'notes' | 'annotations'
@@ -153,6 +154,11 @@ const READING_LINE_OPTIONS: { value: ReadingLineHeight; label: string }[] = [
   { value: 'compact', label: '紧凑' },
   { value: 'comfortable', label: '舒适' },
   { value: 'open', label: '宽松' },
+]
+
+const READING_COLUMN_OPTIONS: { value: ReadingColumnMode; label: string }[] = [
+  { value: 'single', label: '单栏' },
+  { value: 'double', label: '双栏' },
 ]
 
 function cleanSourceText(input: string): string {
@@ -506,6 +512,7 @@ export default function ReadingRoomPage() {
   const [readerFont, setReaderFont] = useState<ReadingFont>('serif')
   const [readerFontSize, setReaderFontSize] = useState<ReadingFontSize>('md')
   const [readerLineHeight, setReaderLineHeight] = useState<ReadingLineHeight>('comfortable')
+  const [readerColumnMode, setReaderColumnMode] = useState<ReadingColumnMode>('single')
   const [articles, setArticles] = useState<ReadingArticle[]>([])
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({})
   const [article, setArticle] = useState<ReadingArticle | null>(null)
@@ -1404,6 +1411,18 @@ export default function ReadingRoomPage() {
                     <Button size="sm" variant="ghost" onClick={() => { void removeArticle(article) }}>删除文章</Button>
                   )}
                   <label className="flex items-center gap-2 text-xs text-ink-500">
+                    版式
+                    <select
+                      value={readerColumnMode}
+                      onChange={event => setReaderColumnMode(event.target.value as ReadingColumnMode)}
+                      className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-xs text-ink-700 focus:border-brand focus:outline-none"
+                    >
+                      {READING_COLUMN_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-ink-500">
                     字体
                     <select
                       value={readerFont}
@@ -1475,7 +1494,7 @@ export default function ReadingRoomPage() {
                       </div>
                     </header>
 
-                    <div className="max-w-none xl:columns-2 xl:gap-12">
+                    <div className={readerColumnMode === 'double' ? 'max-w-none xl:columns-2 xl:gap-12' : 'max-w-none'}>
                       {readingLayout.body.map((paragraph, index) => (
                         <p
                           key={`${paragraph.startOffset}-${paragraph.endOffset}`}
