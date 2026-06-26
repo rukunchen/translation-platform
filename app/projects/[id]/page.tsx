@@ -26,6 +26,7 @@ type Document = {
   created_by?: string | null
 }
 type Project = { id: string; name: string; description: string }
+type ProgressStats = { total: number; translated: number; reviewed: number; locked: number }
 type SegmentRow = {
   id: string
   document_id: string
@@ -84,6 +85,16 @@ function deriveDocStatus(segs: SegmentRow[]): DocStatus {
   if (reviewed > 0) return 'reviewing'
   if (untrans === 0) return 'pending_review'   // 全部翻译完但都没审过
   if (draft > 0 || reviewed > 0 || locked > 0) return 'translating'
+  return 'not_started'
+}
+
+function deriveDocStatusFromStats(stats: ProgressStats): DocStatus {
+  if (stats.total <= 0) return 'not_started'
+  if (stats.locked === stats.total) return 'locked'
+  if (stats.reviewed + stats.locked === stats.total) return 'reviewed'
+  if (stats.reviewed > 0) return 'reviewing'
+  if (stats.translated === stats.total) return 'pending_review'
+  if (stats.translated > 0) return 'translating'
   return 'not_started'
 }
 
@@ -402,6 +413,7 @@ export default function ProjectPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
   const [segments, setSegments] = useState<SegmentRow[]>([])
+  const [documentStats, setDocumentStats] = useState<Record<string, ProgressStats>>({})
   const [profiles, setProfiles] = useState<Record<string, Profile>>({})
   const [parallel, setParallel] = useState<ParallelRow[]>([])
   const [accessDenied, setAccessDenied] = useState(false)
@@ -491,7 +503,7 @@ export default function ProjectPage() {
       .maybeSingle()
     if (!memberRow) {
       setAccessDenied(true)
-      setProject(null); setDocuments([]); setSegments([]); setParallel([]); setProfiles({})
+      setProject(null); setDocuments([]); setSegments([]); setDocumentStats({}); setParallel([]); setProfiles({})
       return
     }
     setAccessDenied(false)
@@ -506,14 +518,14 @@ export default function ProjectPage() {
     setDocuments(docsList)
 
     if (docsList.length === 0) {
-      setSegments([]); setParallel([]); setProfiles({})
+      setSegments([]); setDocumentStats({}); setParallel([]); setProfiles({})
       return
     }
     const docIds = docsList.map(d => d.id)
     const creatorIds = Array.from(new Set(docsList.map(d => d.created_by).filter(Boolean) as string[]))
 
     const [segRes, visibleSegments, ptRes, profRes] = await Promise.all([
-      apiJSON<{ segments: SegmentRow[] }>(`/api/projects/${projectId}/segments`),
+      apiJSON<{ segments: SegmentRow[]; documentStats?: Record<string, ProgressStats> }>(`/api/projects/${projectId}/segments`),
       fetchVisibleSegmentsByDocumentIds(docIds),
       supabase.from('parallel_translations').select('id, document_id, segment_id, provider, model, temperature, prompt, status, created_by, created_at, updated_at').in('document_id', docIds).neq('provider', '__config__').order('updated_at', { ascending: false }).limit(60),
       creatorIds.length > 0
@@ -525,6 +537,7 @@ export default function ProjectPage() {
     for (const row of ((segRes.data?.segments ?? []) as SegmentRow[])) mergedSegments.set(row.id, row)
     for (const row of visibleSegments) mergedSegments.set(row.id, row)
     setSegments(Array.from(mergedSegments.values()))
+    setDocumentStats(segRes.data?.documentStats ?? {})
     setParallel((ptRes.data ?? []) as ParallelRow[])
     const profMap: Record<string, Profile> = {}
     for (const p of (profRes.data ?? []) as Profile[]) profMap[p.id] = p
@@ -555,16 +568,17 @@ export default function ProjectPage() {
   const docInfos: DocInfo[] = useMemo(() => {
     return documents.map(d => {
       const segs = segments.filter(s => s.document_id === d.id)
-      const total = segs.length
-      const translated = segs.filter(isTranslated).length
-      const reviewed   = segs.filter(isReviewed).length
-      const locked     = segs.filter(s => s.status === 'locked').length
-      const status     = deriveDocStatus(segs)
+      const stats = documentStats[d.id]
+      const total = stats?.total ?? segs.length
+      const translated = stats?.translated ?? segs.filter(isTranslated).length
+      const reviewed   = stats?.reviewed ?? segs.filter(isReviewed).length
+      const locked     = stats?.locked ?? segs.filter(s => s.status === 'locked').length
+      const status     = stats ? deriveDocStatusFromStats(stats) : deriveDocStatus(segs)
       const owner = d.created_by ? profiles[d.created_by] : null
       const ownerName = owner?.name || owner?.email?.split('@')[0] || '—'
       return { doc: d, segs, total, translated, reviewed, locked, status, ownerName, ownerId: d.created_by ?? null }
     })
-  }, [documents, segments, profiles])
+  }, [documents, segments, documentStats, profiles])
 
   // ---- 筛选 + 排序 ----
   const visibleDocs: DocInfo[] = useMemo(() => {
