@@ -31,6 +31,22 @@ type ReadingArticle = {
   updated_at: string
 }
 
+type ReadingCollectionMeta = {
+  description?: string
+  coverImage?: string
+}
+
+type ReadingCollection = {
+  id: string
+  user_id: string
+  title: string
+  description: string
+  coverImage: string
+  genre: string
+  created_at: string
+  updated_at: string
+}
+
 type ReadingMode = 'library' | 'reader'
 type ReaderTab = 'source' | 'notes' | 'annotations'
 type ReadingFont = 'serif' | 'sans' | 'mono'
@@ -106,6 +122,7 @@ type ReadingSourceGroup = {
   source: string
   description: string
   coverImage: string
+  collectionId: string | null
   articles: ReadingArticle[]
   genres: string[]
   words: number
@@ -152,6 +169,7 @@ type NewsHotspotsPayload = {
 const GENRE_OPTIONS = ['经济', '政治', '中国', '心理学', '文学', '历史', '文化', '科技', '商务', '法律', '其他']
 const GENRE_FILTERS = ['全部', ...GENRE_OPTIONS]
 
+const READING_COLLECTION_SOURCE_TYPE = 'reading_collection'
 const ARTICLE_SELECT = 'id,user_id,title,source,genre,source_type,clean_text,structured_blocks,created_at,updated_at'
 const ANNOTATION_SELECT = 'id,article_id,user_id,quote,start_offset,end_offset,annotation_type,color,note,created_at,updated_at'
 const ANNOTATION_COLORS: { value: AnnotationColor; label: string; fill: string }[] = [
@@ -213,6 +231,17 @@ const SOURCE_COVER_PALETTES = [
 ]
 
 const DEFAULT_SOURCE_COVER_IMAGE = '/landing/archive-classics.png'
+const DEFAULT_COLLECTION_DESCRIPTION = '这个合集还没有介绍。可以在“编辑合集”中补充来源说明、阅读目的和适合积累的表达类型。'
+
+const COLLECTION_COVER_OPTIONS = [
+  { label: '经典书册', value: '/landing/archive-classics.png' },
+  { label: '审读档案', value: '/landing/archive-review.png' },
+  { label: '文化航行', value: '/landing/archive-voyage.png' },
+  { label: '中西相遇', value: '/landing/archive-encounter.png' },
+  { label: 'North and South', value: '/reading/north-south-cover.jpg' },
+  { label: 'AEON', value: '/reading/aeon-cover.jpg' },
+  { label: 'Fatherhood', value: '/reading/fatherhood-cover.jpg' },
+]
 
 const READING_SOURCE_PROFILES: ReadingSourceProfile[] = [
   {
@@ -305,6 +334,34 @@ function articleSource(article: ReadingArticle): string {
   return article.source?.trim() || '未记录来源'
 }
 
+function isCollectionArticle(article: ReadingArticle): boolean {
+  return article.source_type === READING_COLLECTION_SOURCE_TYPE
+}
+
+function collectionMetaFromArticle(article: ReadingArticle): ReadingCollectionMeta {
+  const blocks = article.structured_blocks
+  if (!blocks || typeof blocks !== 'object' || Array.isArray(blocks)) return {}
+  const meta = blocks as ReadingCollectionMeta
+  return {
+    description: typeof meta.description === 'string' ? meta.description : '',
+    coverImage: typeof meta.coverImage === 'string' ? meta.coverImage : '',
+  }
+}
+
+function collectionFromArticle(article: ReadingArticle): ReadingCollection {
+  const meta = collectionMetaFromArticle(article)
+  return {
+    id: article.id,
+    user_id: article.user_id,
+    title: article.title?.trim() || article.source?.trim() || '未命名合集',
+    description: meta.description?.trim() || DEFAULT_COLLECTION_DESCRIPTION,
+    coverImage: meta.coverImage?.trim() || DEFAULT_SOURCE_COVER_IMAGE,
+    genre: article.genre || '其他',
+    created_at: article.created_at,
+    updated_at: article.updated_at,
+  }
+}
+
 function sourceGroupKey(source: string): string {
   return source.trim().toLowerCase() || 'unrecorded'
 }
@@ -328,10 +385,30 @@ function describeFallbackSource(source: string, genres: string[]): string {
   return `来自 ${source} 的文章合集，当前以 ${genreText} 内容为主。适合按同一来源连续阅读、复盘表达和积累语境笔记。`
 }
 
-function groupReadingArticlesBySource(articles: ReadingArticle[]): ReadingSourceGroup[] {
+function groupReadingArticlesBySource(
+  articles: ReadingArticle[],
+  collections: ReadingCollection[] = [],
+): ReadingSourceGroup[] {
   const groups = new Map<string, Omit<ReadingSourceGroup, 'description' | 'coverImage' | 'palette'> & {
     profile: ReadingSourceProfile | null
+    collection: ReadingCollection | null
   }>()
+
+  for (const collection of collections) {
+    const profile = findReadingSourceProfile(collection.title)
+    const key = profile?.id || sourceGroupKey(collection.title)
+    groups.set(key, {
+      key,
+      source: collection.title,
+      articles: [],
+      genres: [collection.genre],
+      words: 0,
+      latestAt: collection.updated_at,
+      profile,
+      collection,
+      collectionId: collection.id,
+    })
+  }
 
   for (const article of articles) {
     const rawSource = articleSource(article)
@@ -356,14 +433,16 @@ function groupReadingArticlesBySource(articles: ReadingArticle[]): ReadingSource
         words: articleWords(article),
         latestAt: article.updated_at,
         profile,
+        collection: null,
+        collectionId: null,
       })
     }
   }
 
   return Array.from(groups.values()).map((group, index) => ({
     ...group,
-    description: group.profile?.description || describeFallbackSource(group.source, group.genres),
-    coverImage: group.profile?.coverImage || DEFAULT_SOURCE_COVER_IMAGE,
+    description: group.collection?.description || group.profile?.description || describeFallbackSource(group.source, group.genres),
+    coverImage: group.collection?.coverImage || group.profile?.coverImage || DEFAULT_SOURCE_COVER_IMAGE,
     palette: SOURCE_COVER_PALETTES[(group.profile?.paletteIndex ?? index) % SOURCE_COVER_PALETTES.length],
   }))
 }
@@ -694,10 +773,19 @@ export default function ReadingRoomPage() {
   const [readerLineHeight, setReaderLineHeight] = useState<ReadingLineHeight>('comfortable')
   const [readerColumnMode, setReaderColumnMode] = useState<ReadingColumnMode>('single')
   const [articles, setArticles] = useState<ReadingArticle[]>([])
+  const [collections, setCollections] = useState<ReadingCollection[]>([])
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({})
   const [article, setArticle] = useState<ReadingArticle | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [savingArticle, setSavingArticle] = useState(false)
+  const [collectionEditorOpen, setCollectionEditorOpen] = useState(false)
+  const [editingCollection, setEditingCollection] = useState<ReadingCollection | null>(null)
+  const [collectionOriginalSource, setCollectionOriginalSource] = useState('')
+  const [savingCollection, setSavingCollection] = useState(false)
+  const [collectionTitle, setCollectionTitle] = useState('')
+  const [collectionDescription, setCollectionDescription] = useState('')
+  const [collectionGenre, setCollectionGenre] = useState('其他')
+  const [collectionCoverImage, setCollectionCoverImage] = useState(DEFAULT_SOURCE_COVER_IMAGE)
   const [editArticleOpen, setEditArticleOpen] = useState(false)
   const [editArticleTarget, setEditArticleTarget] = useState<ReadingArticle | null>(null)
   const [savingArticleEdit, setSavingArticleEdit] = useState(false)
@@ -707,6 +795,7 @@ export default function ReadingRoomPage() {
   const [editArticleText, setEditArticleText] = useState('')
   const [draftText, setDraftText] = useState('')
   const [importGenre, setImportGenre] = useState('其他')
+  const [importCollectionKey, setImportCollectionKey] = useState('')
   const [cleanText, setCleanText] = useState('')
   const [selection, setSelection] = useState<SelectionState | null>(null)
   const [notes, setNotes] = useState<ReadingNote[]>([])
@@ -737,10 +826,18 @@ export default function ReadingRoomPage() {
   const filteredArticles = articles.filter(item =>
     (genreFilter === '全部' || articleGenre(item) === genreFilter) && articleMatchesSearch(item, searchQuery)
   )
-  const sourceGroups = groupReadingArticlesBySource(filteredArticles)
+  const librarySourceGroups = groupReadingArticlesBySource(articles, collections)
+  const sourceGroups = groupReadingArticlesBySource(filteredArticles, collections).filter(group =>
+    (genreFilter === '全部' || group.genres.includes(genreFilter)) &&
+    (!searchQuery.trim() ||
+      group.articles.length > 0 ||
+      group.source.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
+      group.description.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+  )
   const editArticleGenreOptions = GENRE_OPTIONS.includes(editArticleGenre)
     ? GENRE_OPTIONS
     : [editArticleGenre, ...GENRE_OPTIONS]
+  const selectedImportGroup = librarySourceGroups.find(group => group.key === importCollectionKey) || librarySourceGroups[0] || null
   const activeAnnotation = annotationMenu
     ? annotations.find(annotation => annotation.id === annotationMenu.annotationId) || null
     : null
@@ -770,7 +867,10 @@ export default function ReadingRoomPage() {
       return []
     }
 
-    const nextArticles = (articleRows || []) as ReadingArticle[]
+    const allRows = (articleRows || []) as ReadingArticle[]
+    const nextCollections = allRows.filter(isCollectionArticle).map(collectionFromArticle)
+    const nextArticles = allRows.filter(item => !isCollectionArticle(item))
+    setCollections(nextCollections)
     setArticles(nextArticles)
 
     const { data: noteRows, error: notesError } = await supabase
@@ -899,8 +999,104 @@ export default function ReadingRoomPage() {
     }
   }, [])
 
-  const applyImport = async () => {
+  const openCollectionEditor = (group?: ReadingSourceGroup) => {
+    const collection = group?.collectionId
+      ? collections.find(item => item.id === group.collectionId) || null
+      : null
+    setEditingCollection(collection)
+    setCollectionOriginalSource(collection?.title || group?.source || '')
+    setCollectionTitle(collection?.title || group?.source || '')
+    setCollectionDescription(collection?.description || group?.description || '')
+    setCollectionGenre(collection?.genre || group?.genres[0] || '其他')
+    setCollectionCoverImage(collection?.coverImage || group?.coverImage || DEFAULT_SOURCE_COVER_IMAGE)
+    setCollectionEditorOpen(true)
+    setStorageError('')
+  }
+
+  const closeCollectionEditor = () => {
+    setCollectionEditorOpen(false)
+    setEditingCollection(null)
+    setCollectionOriginalSource('')
+  }
+
+  const saveCollection = async () => {
     if (!userId) return
+    const title = collectionTitle.trim()
+    if (!title) return
+    const description = collectionDescription.trim() || DEFAULT_COLLECTION_DESCRIPTION
+    const coverImage = collectionCoverImage || DEFAULT_SOURCE_COVER_IMAGE
+    const genre = collectionGenre || '其他'
+    const previousTitle = editingCollection?.title || collectionOriginalSource
+
+    setSavingCollection(true)
+    setStorageError('')
+    const payload = {
+      title,
+      source: title,
+      genre,
+      source_type: READING_COLLECTION_SOURCE_TYPE,
+      clean_text: '',
+      structured_blocks: { description, coverImage },
+    }
+
+    const result = editingCollection
+      ? await supabase
+        .from('reading_articles')
+        .update(payload)
+        .eq('id', editingCollection.id)
+        .eq('user_id', userId)
+        .select(ARTICLE_SELECT)
+        .single()
+      : await supabase
+        .from('reading_articles')
+        .insert({ ...payload, user_id: userId })
+        .select(ARTICLE_SELECT)
+        .single()
+
+    if (result.error || !result.data) {
+      setSavingCollection(false)
+      setStorageError(result.error?.message || '保存合集失败')
+      return
+    }
+
+    if (previousTitle && previousTitle !== title) {
+      const { error: articleUpdateError } = await supabase
+        .from('reading_articles')
+        .update({ source: title })
+        .eq('user_id', userId)
+        .eq('source', previousTitle)
+        .neq('source_type', READING_COLLECTION_SOURCE_TYPE)
+      if (articleUpdateError) {
+        setSavingCollection(false)
+        setStorageError(articleUpdateError.message)
+        return
+      }
+      if (article?.source === previousTitle) {
+        setArticle(current => current ? { ...current, source: title } : current)
+      }
+    }
+
+    await loadArticleLibrary(userId)
+    setImportCollectionKey(findReadingSourceProfile(title)?.id || sourceGroupKey(title))
+    setSavingCollection(false)
+    closeCollectionEditor()
+  }
+
+  const openImportDialog = () => {
+    if (librarySourceGroups.length === 0) {
+      setStorageError('请先建立合集，再往合集里导入原文。')
+      openCollectionEditor()
+      return
+    }
+    setDraftText('')
+    setImportGenre(librarySourceGroups[0]?.genres[0] || '其他')
+    setImportCollectionKey(librarySourceGroups[0]?.key || '')
+    setImportOpen(true)
+    setStorageError('')
+  }
+
+  const applyImport = async () => {
+    if (!userId || !selectedImportGroup) return
     const cleaned = cleanSourceText(draftText)
     const title = titleFromText(cleaned)
 
@@ -911,7 +1107,7 @@ export default function ReadingRoomPage() {
       .insert({
         user_id: userId,
         title,
-        source: '手动粘贴',
+        source: selectedImportGroup.source,
         genre: importGenre,
         source_type: 'plain_text',
         clean_text: cleaned,
@@ -933,6 +1129,7 @@ export default function ReadingRoomPage() {
     setArticles(current => [createdArticle, ...current.filter(item => item.id !== createdArticle.id)])
     setNoteCounts(current => ({ ...current, [createdArticle.id]: 0 }))
     setImportOpen(false)
+    setExpandedSourceKey(selectedImportGroup.key)
     setSelection(null)
     setAnnotationPaletteOpen(false)
     closeAnnotationMenu()
@@ -1425,12 +1622,13 @@ export default function ReadingRoomPage() {
                 ← 返回文章库
               </Button>
             )}
-            <Button variant="primary" onClick={() => {
-              setDraftText('')
-              setImportGenre('其他')
-              setImportOpen(true)
-            }}>
-              一键导入原文
+            {mode === 'library' && (
+              <Button variant="secondary" onClick={() => openCollectionEditor()}>
+                建立合集
+              </Button>
+            )}
+            <Button variant="primary" onClick={openImportDialog}>
+              导入原文
             </Button>
           </div>
         </header>
@@ -1494,21 +1692,22 @@ export default function ReadingRoomPage() {
                 </div>
               </Card>
 
-              {articles.length === 0 ? (
+              {librarySourceGroups.length === 0 ? (
                 <Card padding="lg" className="text-center">
-                  <h3 className="font-serif text-2xl text-ink-900">还没有文章</h3>
-                  <p className="mt-3 text-sm text-ink-500">点击“一键导入原文”开始第一篇精读。</p>
-                  <div className="mt-6">
-                    <Button variant="primary" onClick={() => {
-                      setDraftText('')
-                      setImportGenre('其他')
-                      setImportOpen(true)
-                    }}>
-                      一键导入原文
+                  <h3 className="font-serif text-2xl text-ink-900">先建立一个合集</h3>
+                  <p className="mt-3 text-sm text-ink-500">
+                    合集用于承载后续导入的原文，例如一本书、一个网站或一个专题。
+                  </p>
+                  <div className="mt-6 flex flex-wrap justify-center gap-3">
+                    <Button variant="secondary" onClick={() => openCollectionEditor()}>
+                      建立合集
+                    </Button>
+                    <Button variant="primary" disabled onClick={openImportDialog}>
+                      导入原文
                     </Button>
                   </div>
                 </Card>
-              ) : filteredArticles.length === 0 ? (
+              ) : sourceGroups.length === 0 ? (
                 <Card padding="lg" className="text-center">
                   <h3 className="font-serif text-2xl text-ink-900">没有匹配的文章</h3>
                   <p className="mt-3 text-sm text-ink-500">调整体裁筛选或搜索关键词后再试。</p>
@@ -1522,10 +1721,17 @@ export default function ReadingRoomPage() {
                         key={group.key}
                         className="overflow-hidden rounded-[28px] border border-line bg-white/95 shadow-[0_18px_50px_rgba(39,35,28,0.08)] transition-shadow hover:shadow-[0_24px_70px_rgba(39,35,28,0.12)]"
                       >
-                        <button
-                          type="button"
+                        <div
+                          role="button"
+                          tabIndex={0}
                           aria-expanded={expanded}
                           onClick={() => setExpandedSourceKey(expanded ? null : group.key)}
+                          onKeyDown={event => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              setExpandedSourceKey(expanded ? null : group.key)
+                            }
+                          }}
                           className="grid w-full gap-5 text-left transition-colors hover:bg-surface/50 md:grid-cols-[180px_minmax(0,1fr)]"
                           style={{ padding: 22 }}
                         >
@@ -1571,13 +1777,25 @@ export default function ReadingRoomPage() {
                                 <span>{group.words} words</span>
                                 <span>updated {formatReadingDate(group.latestAt)}</span>
                               </div>
-                              <span className="inline-flex items-center gap-2 text-sm text-ink-700">
-                                {expanded ? '收起文章' : '展开文章'}
-                                <span className={['transition-transform duration-300', expanded ? 'rotate-180' : ''].join(' ')}>⌄</span>
-                              </span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={event => {
+                                    event.stopPropagation()
+                                    openCollectionEditor(group)
+                                  }}
+                                  className="inline-flex min-h-9 items-center rounded-full border border-line bg-white px-3.5 py-1.5 text-sm text-ink-700 shadow-sm transition-colors hover:border-ink-300 hover:bg-surface"
+                                >
+                                  编辑合集
+                                </button>
+                                <span className="inline-flex items-center gap-2 text-sm text-ink-700">
+                                  {expanded ? '收起文章' : '展开文章'}
+                                  <span className={['transition-transform duration-300', expanded ? 'rotate-180' : ''].join(' ')}>⌄</span>
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </button>
+                        </div>
 
                         <div
                           className="grid transition-all duration-500 ease-out"
@@ -1588,6 +1806,26 @@ export default function ReadingRoomPage() {
                         >
                           <div className="overflow-hidden">
                             <div className="border-t border-line bg-surface/50" style={{ padding: '18px 22px 22px' }}>
+                              {group.articles.length === 0 ? (
+                                <div className="rounded-2xl border border-dashed border-line bg-white/80 p-6 text-center">
+                                  <h4 className="font-serif text-xl text-ink-900">这个合集还没有文章</h4>
+                                  <p className="mt-2 text-sm text-ink-500">导入原文时选择这个合集，文章就会出现在这里。</p>
+                                  <div className="mt-4">
+                                    <Button
+                                      size="sm"
+                                      variant="primary"
+                                      onClick={() => {
+                                        setImportCollectionKey(group.key)
+                                        setImportGenre(group.genres[0] || '其他')
+                                        setDraftText('')
+                                        setImportOpen(true)
+                                      }}
+                                    >
+                                      导入原文
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
                               <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                                 {group.articles.map(item => (
                                   <article key={item.id} className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
@@ -1622,6 +1860,7 @@ export default function ReadingRoomPage() {
                                   </article>
                                 ))}
                               </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -2146,6 +2385,112 @@ export default function ReadingRoomPage() {
         </div>
       )}
 
+      {collectionEditorOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/45 p-6 backdrop-blur-sm">
+          <Card padding="none" className="w-full max-w-3xl overflow-hidden shadow-[var(--shadow-modal)]">
+            <div className="flex items-center justify-between border-b border-line bg-surface"
+              style={{ padding: '22px 26px' }}>
+              <div>
+                <Eyebrow tone="muted">Reading Volume</Eyebrow>
+                <h2 className="mt-1 font-serif text-2xl text-ink-900">
+                  {editingCollection ? '编辑合集' : '建立合集'}
+                </h2>
+              </div>
+              <button
+                onClick={closeCollectionEditor}
+                className="rounded-lg px-3 py-2 text-sm text-ink-500 transition-colors hover:bg-white hover:text-ink-900"
+              >
+                关闭
+              </button>
+            </div>
+            <div style={{ padding: 26 }}>
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-[180px_minmax(0,1fr)]">
+                <div className="space-y-3">
+                  <div className="relative h-[242px] w-[180px] max-w-full overflow-hidden rounded-l-xl rounded-r-[28px] border border-white/60 bg-white shadow-2xl">
+                    <img
+                      src={collectionCoverImage || DEFAULT_SOURCE_COVER_IMAGE}
+                      alt=""
+                      aria-hidden="true"
+                      className="h-full w-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/25" />
+                    <div className="absolute inset-y-0 left-0 w-9 bg-gradient-to-r from-black/35 via-black/10 to-transparent" />
+                    <div className="absolute inset-y-5 left-9 w-px bg-white/45" />
+                    <div className="absolute inset-0 rounded-l-xl rounded-r-[28px] ring-1 ring-inset ring-black/10" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-ink-700">合集题目</span>
+                    <input
+                      value={collectionTitle}
+                      onChange={event => setCollectionTitle(event.target.value)}
+                      placeholder="例如：AEON.co、North and South、心理学长文"
+                      className="w-full rounded-xl border-2 border-line bg-white text-base text-ink-900 placeholder-ink-300 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
+                      style={{ padding: '12px 14px' }}
+                    />
+                  </label>
+                  <label className="mt-4 block">
+                    <span className="mb-2 block text-sm font-medium text-ink-700">合集介绍</span>
+                    <textarea
+                      value={collectionDescription}
+                      onChange={event => setCollectionDescription(event.target.value)}
+                      placeholder="介绍这个合集的来源、用途和适合积累的内容"
+                      className="w-full resize-y rounded-xl border-2 border-line bg-white text-sm leading-relaxed text-ink-900 placeholder-ink-300 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
+                      style={{ minHeight: 120, padding: 14 }}
+                    />
+                  </label>
+                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-ink-700">默认体裁</span>
+                      <select
+                        value={collectionGenre}
+                        onChange={event => setCollectionGenre(event.target.value)}
+                        className="w-full rounded-xl border-2 border-line bg-white text-sm text-ink-900 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
+                        style={{ padding: '11px 14px' }}
+                      >
+                        {GENRE_OPTIONS.map(genre => (
+                          <option key={genre} value={genre}>{genre}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-medium text-ink-700">封面图片</span>
+                      <select
+                        value={collectionCoverImage}
+                        onChange={event => setCollectionCoverImage(event.target.value)}
+                        className="w-full rounded-xl border-2 border-line bg-white text-sm text-ink-900 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
+                        style={{ padding: '11px 14px' }}
+                      >
+                        {COLLECTION_COVER_OPTIONS.map(option => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 flex items-center justify-between gap-4">
+                <span className="text-sm text-ink-500">
+                  建立合集后，再往这个合集里导入原文。
+                </span>
+                <div className="flex items-center gap-3">
+                  <Button variant="ghost" onClick={closeCollectionEditor}>取消</Button>
+                  <Button
+                    variant="primary"
+                    disabled={!collectionTitle.trim() || savingCollection}
+                    loading={savingCollection}
+                    onClick={() => { void saveCollection() }}
+                  >
+                    保存合集
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {importOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/45 p-6 backdrop-blur-sm">
           <Card padding="none" className="w-full max-w-3xl overflow-hidden shadow-[var(--shadow-modal)]">
@@ -2153,7 +2498,7 @@ export default function ReadingRoomPage() {
               style={{ padding: '22px 26px' }}>
               <div>
                 <Eyebrow tone="muted">Import</Eyebrow>
-                <h2 className="mt-1 font-serif text-2xl text-ink-900">一键导入原文</h2>
+                <h2 className="mt-1 font-serif text-2xl text-ink-900">导入原文</h2>
               </div>
               <button
                 onClick={() => setImportOpen(false)}
@@ -2163,6 +2508,23 @@ export default function ReadingRoomPage() {
               </button>
             </div>
             <div style={{ padding: 26 }}>
+              <label className="mb-4 block">
+                <span className="mb-2 block text-sm font-medium text-ink-700">选择合集</span>
+                <select
+                  value={selectedImportGroup?.key || ''}
+                  onChange={event => {
+                    const nextGroup = librarySourceGroups.find(group => group.key === event.target.value) || null
+                    setImportCollectionKey(event.target.value)
+                    if (nextGroup) setImportGenre(nextGroup.genres[0] || '其他')
+                  }}
+                  className="w-full rounded-xl border-2 border-line bg-white text-sm text-ink-900 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
+                  style={{ padding: '11px 14px' }}
+                >
+                  {librarySourceGroups.map(group => (
+                    <option key={group.key} value={group.key}>{group.source}</option>
+                  ))}
+                </select>
+              </label>
               <textarea
                 value={draftText}
                 onChange={event => setDraftText(event.target.value)}
@@ -2189,8 +2551,8 @@ export default function ReadingRoomPage() {
                 </span>
                 <div className="flex items-center gap-3">
                   <Button variant="ghost" onClick={() => setImportOpen(false)}>取消</Button>
-                  <Button variant="primary" disabled={!draftText.trim() || savingArticle} loading={savingArticle} onClick={() => { void applyImport() }}>
-                    生成 clean version
+                  <Button variant="primary" disabled={!draftText.trim() || !selectedImportGroup || savingArticle} loading={savingArticle} onClick={() => { void applyImport() }}>
+                    导入到合集
                   </Button>
                 </div>
               </div>
