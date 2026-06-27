@@ -34,6 +34,8 @@ type ReadingArticle = {
 type ReadingCollectionMeta = {
   description?: string
   coverImage?: string
+  publicManaged?: boolean
+  publicAudienceUserIds?: string[]
 }
 
 type ReadingCollection = {
@@ -43,6 +45,8 @@ type ReadingCollection = {
   description: string
   coverImage: string
   genre: string
+  publicManaged: boolean
+  publicAudienceUserIds: string[]
   created_at: string
   updated_at: string
 }
@@ -123,6 +127,7 @@ type ReadingSourceGroup = {
   description: string
   coverImage: string
   collectionId: string | null
+  publicManaged: boolean
   articles: ReadingArticle[]
   genres: string[]
   words: number
@@ -164,6 +169,19 @@ type NewsHotspotsPayload = {
   updatedAt: string
   domestic: NewsHotspotItem[]
   international: NewsHotspotItem[]
+}
+
+type PublicCollectionUser = {
+  id: string
+  email: string | null
+  name: string | null
+}
+
+type PublicCollectionsPayload = {
+  canManagePublicCollections: boolean
+  users: PublicCollectionUser[]
+  shares: Record<string, string[]>
+  syncedCollections: number
 }
 
 const GENRE_OPTIONS = ['经济', '政治', '中国', '心理学', '文学', '历史', '文化', '科技', '商务', '法律', '其他']
@@ -334,6 +352,11 @@ function articleSource(article: ReadingArticle): string {
   return article.source?.trim() || '未记录来源'
 }
 
+function isPublicManagedArticle(article: ReadingArticle): boolean {
+  const blocks = article.structured_blocks
+  return Boolean(blocks && typeof blocks === 'object' && !Array.isArray(blocks) && (blocks as { publicManaged?: unknown }).publicManaged === true)
+}
+
 function isCollectionArticle(article: ReadingArticle): boolean {
   return article.source_type === READING_COLLECTION_SOURCE_TYPE
 }
@@ -345,6 +368,10 @@ function collectionMetaFromArticle(article: ReadingArticle): ReadingCollectionMe
   return {
     description: typeof meta.description === 'string' ? meta.description : '',
     coverImage: typeof meta.coverImage === 'string' ? meta.coverImage : '',
+    publicManaged: meta.publicManaged === true,
+    publicAudienceUserIds: Array.isArray(meta.publicAudienceUserIds)
+      ? meta.publicAudienceUserIds.filter((item): item is string => typeof item === 'string')
+      : [],
   }
 }
 
@@ -357,6 +384,8 @@ function collectionFromArticle(article: ReadingArticle): ReadingCollection {
     description: meta.description?.trim() || DEFAULT_COLLECTION_DESCRIPTION,
     coverImage: meta.coverImage?.trim() || DEFAULT_SOURCE_COVER_IMAGE,
     genre: article.genre || '其他',
+    publicManaged: meta.publicManaged === true,
+    publicAudienceUserIds: meta.publicAudienceUserIds || [],
     created_at: article.created_at,
     updated_at: article.updated_at,
   }
@@ -407,6 +436,7 @@ function groupReadingArticlesBySource(
       profile,
       collection,
       collectionId: collection.id,
+      publicManaged: collection.publicManaged,
     })
   }
 
@@ -418,6 +448,7 @@ function groupReadingArticlesBySource(
     const current = groups.get(key)
     if (current) {
       current.articles.push(article)
+      current.publicManaged = current.publicManaged || isPublicManagedArticle(article)
       current.words += articleWords(article)
       if (new Date(article.updated_at).getTime() > new Date(current.latestAt).getTime()) {
         current.latestAt = article.updated_at
@@ -435,6 +466,7 @@ function groupReadingArticlesBySource(
         profile,
         collection: null,
         collectionId: null,
+        publicManaged: isPublicManagedArticle(article),
       })
     }
   }
@@ -816,6 +848,12 @@ export default function ReadingRoomPage() {
   const [newsLoading, setNewsLoading] = useState(false)
   const [newsError, setNewsError] = useState('')
   const [flashedAnnotationId, setFlashedAnnotationId] = useState<string | null>(null)
+  const [canManagePublicCollections, setCanManagePublicCollections] = useState(false)
+  const [publicCollectionUsers, setPublicCollectionUsers] = useState<PublicCollectionUser[]>([])
+  const [publicCollectionShares, setPublicCollectionShares] = useState<Record<string, string[]>>({})
+  const [shareEditorGroup, setShareEditorGroup] = useState<ReadingSourceGroup | null>(null)
+  const [shareAudienceIds, setShareAudienceIds] = useState<string[]>([])
+  const [savingPublicShare, setSavingPublicShare] = useState(false)
   const readingLayout = buildReadingLayout(cleanText, article?.title)
   const cleanWordCount = wordCount(cleanText)
   const readerTextStyle = {
@@ -827,6 +865,7 @@ export default function ReadingRoomPage() {
     (genreFilter === '全部' || articleGenre(item) === genreFilter) && articleMatchesSearch(item, searchQuery)
   )
   const librarySourceGroups = groupReadingArticlesBySource(articles, collections)
+  const writableLibrarySourceGroups = librarySourceGroups.filter(group => !group.publicManaged)
   const sourceGroups = groupReadingArticlesBySource(filteredArticles, collections).filter(group =>
     (genreFilter === '全部' || group.genres.includes(genreFilter)) &&
     (!searchQuery.trim() ||
@@ -837,7 +876,7 @@ export default function ReadingRoomPage() {
   const editArticleGenreOptions = GENRE_OPTIONS.includes(editArticleGenre)
     ? GENRE_OPTIONS
     : [editArticleGenre, ...GENRE_OPTIONS]
-  const selectedImportGroup = librarySourceGroups.find(group => group.key === importCollectionKey) || librarySourceGroups[0] || null
+  const selectedImportGroup = writableLibrarySourceGroups.find(group => group.key === importCollectionKey) || writableLibrarySourceGroups[0] || null
   const activeAnnotation = annotationMenu
     ? annotations.find(annotation => annotation.id === annotationMenu.annotationId) || null
     : null
@@ -907,6 +946,24 @@ export default function ReadingRoomPage() {
       setNewsHotspots(data)
     }
     setNewsLoading(false)
+  }
+
+  const loadPublicCollectionSync = async (currentUserId: string) => {
+    const { data, error } = await apiJSON<PublicCollectionsPayload>(
+      `/api/reading/public-collections?t=${Date.now()}`,
+      { cache: 'no-store' }
+    )
+    if (error || !data) {
+      setCanManagePublicCollections(false)
+      return
+    }
+
+    setCanManagePublicCollections(data.canManagePublicCollections)
+    setPublicCollectionUsers(data.users || [])
+    setPublicCollectionShares(data.shares || {})
+    if (!data.canManagePublicCollections && data.syncedCollections > 0) {
+      await loadArticleLibrary(currentUserId)
+    }
   }
 
   const loadNotesForArticle = async (articleId: string) => {
@@ -981,6 +1038,7 @@ export default function ReadingRoomPage() {
       setUserId(user.id)
       setStorageError('')
       await loadArticleLibrary(user.id)
+      await loadPublicCollectionSync(user.id)
       void loadNewsHotspots()
 
       if (!alive) return
@@ -998,6 +1056,70 @@ export default function ReadingRoomPage() {
       if (annotationNoticeTimer.current) clearTimeout(annotationNoticeTimer.current)
     }
   }, [])
+
+  const syncPublicCollectionShare = async (collectionId: string) => {
+    if (!canManagePublicCollections) return
+    const audienceUserIds = publicCollectionShares[collectionId] || []
+    if (audienceUserIds.length === 0) return
+    const { data, error } = await apiJSON<PublicCollectionsPayload>('/api/reading/public-collections', {
+      method: 'PATCH',
+      body: JSON.stringify({ collectionId, audienceUserIds }),
+    })
+    if (error || !data) {
+      setStorageError(error || '公共合集同步失败')
+      return
+    }
+    setPublicCollectionUsers(data.users || [])
+    setPublicCollectionShares(data.shares || {})
+  }
+
+  const openPublicShareEditor = (group: ReadingSourceGroup) => {
+    if (!group.collectionId) {
+      setStorageError('请先点“编辑合集”保存合集信息后，再设置公共推送。')
+      openCollectionEditor(group)
+      return
+    }
+    setShareEditorGroup(group)
+    setShareAudienceIds(publicCollectionShares[group.collectionId] || [])
+    setStorageError('')
+  }
+
+  const closePublicShareEditor = () => {
+    setShareEditorGroup(null)
+    setShareAudienceIds([])
+    setSavingPublicShare(false)
+  }
+
+  const toggleShareAudience = (targetUserId: string) => {
+    setShareAudienceIds(current =>
+      current.includes(targetUserId)
+        ? current.filter(id => id !== targetUserId)
+        : [...current, targetUserId]
+    )
+  }
+
+  const savePublicShare = async () => {
+    if (!shareEditorGroup?.collectionId) return
+    setSavingPublicShare(true)
+    setStorageError('')
+    const { data, error } = await apiJSON<PublicCollectionsPayload>('/api/reading/public-collections', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        collectionId: shareEditorGroup.collectionId,
+        audienceUserIds: shareAudienceIds,
+      }),
+    })
+    setSavingPublicShare(false)
+
+    if (error || !data) {
+      setStorageError(error || '推送设置保存失败')
+      return
+    }
+
+    setPublicCollectionUsers(data.users || [])
+    setPublicCollectionShares(data.shares || {})
+    closePublicShareEditor()
+  }
 
   const openCollectionEditor = (group?: ReadingSourceGroup) => {
     const collection = group?.collectionId
@@ -1021,6 +1143,10 @@ export default function ReadingRoomPage() {
 
   const saveCollection = async () => {
     if (!userId) return
+    if (editingCollection?.publicManaged) {
+      setStorageError('公共阅览合集由管理员维护，不能在个人端编辑。')
+      return
+    }
     const title = collectionTitle.trim()
     if (!title) return
     const description = collectionDescription.trim() || DEFAULT_COLLECTION_DESCRIPTION
@@ -1036,7 +1162,13 @@ export default function ReadingRoomPage() {
       genre,
       source_type: READING_COLLECTION_SOURCE_TYPE,
       clean_text: '',
-      structured_blocks: { description, coverImage },
+      structured_blocks: {
+        description,
+        coverImage,
+        publicAudienceUserIds: editingCollection?.id
+          ? publicCollectionShares[editingCollection.id] || editingCollection.publicAudienceUserIds
+          : [],
+      },
     }
 
     const result = editingCollection
@@ -1076,21 +1208,23 @@ export default function ReadingRoomPage() {
       }
     }
 
+    const savedCollection = result.data as ReadingArticle
     await loadArticleLibrary(userId)
+    await syncPublicCollectionShare(savedCollection.id)
     setImportCollectionKey(findReadingSourceProfile(title)?.id || sourceGroupKey(title))
     setSavingCollection(false)
     closeCollectionEditor()
   }
 
   const openImportDialog = () => {
-    if (librarySourceGroups.length === 0) {
+    if (writableLibrarySourceGroups.length === 0) {
       setStorageError('请先建立合集，再往合集里导入原文。')
       openCollectionEditor()
       return
     }
     setDraftText('')
-    setImportGenre(librarySourceGroups[0]?.genres[0] || '其他')
-    setImportCollectionKey(librarySourceGroups[0]?.key || '')
+    setImportGenre(writableLibrarySourceGroups[0]?.genres[0] || '其他')
+    setImportCollectionKey(writableLibrarySourceGroups[0]?.key || '')
     setImportOpen(true)
     setStorageError('')
   }
@@ -1138,11 +1272,18 @@ export default function ReadingRoomPage() {
     setReaderTab('source')
     setSidePanelTab('notes')
     setMode('reader')
+    if (selectedImportGroup.collectionId) {
+      await syncPublicCollectionShare(selectedImportGroup.collectionId)
+    }
   }
 
   const openArticleEditor = (target?: ReadingArticle) => {
     const targetArticle = target || article
     if (!targetArticle || targetArticle.user_id !== userId) return
+    if (isPublicManagedArticle(targetArticle)) {
+      setStorageError('公共阅览文章由管理员维护，不能在个人端编辑。')
+      return
+    }
     const sourceText = article?.id === targetArticle.id ? cleanText : targetArticle.clean_text || ''
     setEditArticleTarget(targetArticle)
     setEditArticleTitle(targetArticle.title || titleFromText(sourceText))
@@ -1164,6 +1305,10 @@ export default function ReadingRoomPage() {
   const saveArticleEdit = async () => {
     const targetArticle = editArticleTarget || article
     if (!targetArticle || !userId || targetArticle.user_id !== userId) return
+    if (isPublicManagedArticle(targetArticle)) {
+      setStorageError('公共阅览文章由管理员维护，不能在个人端编辑。')
+      return
+    }
     const cleaned = cleanSourceText(editArticleText)
     const title = editArticleTitle.trim() || titleFromText(cleaned)
     const source = editArticleSource.trim() || '手动粘贴'
@@ -1200,6 +1345,10 @@ export default function ReadingRoomPage() {
     setArticles(current => [updatedArticle, ...current.filter(item => item.id !== updatedArticle.id)])
     closeArticleEditor()
     setAiNotice('原文已更新。')
+    const sharedCollection = collections.find(collection => collection.title === updatedArticle.source)
+    if (sharedCollection?.id) {
+      await syncPublicCollectionShare(sharedCollection.id)
+    }
   }
 
   const updateSelection = () => {
@@ -1539,6 +1688,11 @@ export default function ReadingRoomPage() {
 
   const removeArticle = async (target: ReadingArticle) => {
     if (!userId || target.user_id !== userId) return
+    if (isPublicManagedArticle(target)) {
+      setStorageError('公共阅览文章由管理员维护，不能在个人端删除。')
+      return
+    }
+    const sharedCollection = collections.find(collection => collection.title === target.source)
     const confirmed = window.confirm('删除后该文章和相关笔记都会被删除，是否继续？')
     if (!confirmed) return
 
@@ -1576,6 +1730,9 @@ export default function ReadingRoomPage() {
     }
     if (editArticleTarget?.id === target.id) {
       closeArticleEditor()
+    }
+    if (sharedCollection?.id) {
+      await syncPublicCollectionShare(sharedCollection.id)
     }
   }
 
@@ -1716,6 +1873,9 @@ export default function ReadingRoomPage() {
                 <div className="space-y-4">
                   {sourceGroups.map(group => {
                     const expanded = expandedSourceKey === group.key
+                    const publicShareCount = group.collectionId
+                      ? publicCollectionShares[group.collectionId]?.length || 0
+                      : 0
                     return (
                       <section
                         key={group.key}
@@ -1755,6 +1915,11 @@ export default function ReadingRoomPage() {
                           <div className="flex min-h-[210px] flex-col justify-between">
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
+                                {group.publicManaged && (
+                                  <span className="inline-flex min-h-8 items-center rounded-full border border-brand/20 bg-brand/10 px-3.5 py-1.5 text-xs text-brand">
+                                    公共阅览
+                                  </span>
+                                )}
                                 {group.genres.slice(0, 4).map(genre => (
                                   <span
                                     key={genre}
@@ -1778,16 +1943,30 @@ export default function ReadingRoomPage() {
                                 <span>updated {formatReadingDate(group.latestAt)}</span>
                               </div>
                               <div className="flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={event => {
-                                    event.stopPropagation()
-                                    openCollectionEditor(group)
-                                  }}
-                                  className="inline-flex min-h-9 items-center rounded-full border border-line bg-white px-3.5 py-1.5 text-sm text-ink-700 shadow-sm transition-colors hover:border-ink-300 hover:bg-surface"
-                                >
-                                  编辑合集
-                                </button>
+                                {!group.publicManaged && (
+                                  <button
+                                    type="button"
+                                    onClick={event => {
+                                      event.stopPropagation()
+                                      openCollectionEditor(group)
+                                    }}
+                                    className="inline-flex min-h-9 items-center rounded-full border border-line bg-white px-3.5 py-1.5 text-sm text-ink-700 shadow-sm transition-colors hover:border-ink-300 hover:bg-surface"
+                                  >
+                                    编辑合集
+                                  </button>
+                                )}
+                                {canManagePublicCollections && !group.publicManaged && (
+                                  <button
+                                    type="button"
+                                    onClick={event => {
+                                      event.stopPropagation()
+                                      openPublicShareEditor(group)
+                                    }}
+                                    className="inline-flex min-h-9 items-center rounded-full border border-brand/30 bg-brand/10 px-3.5 py-1.5 text-sm text-brand shadow-sm transition-colors hover:border-brand/60 hover:bg-brand/15"
+                                  >
+                                    推送设置{publicShareCount > 0 ? ` ${publicShareCount}` : ''}
+                                  </button>
+                                )}
                                 <span className="inline-flex items-center gap-2 text-sm text-ink-700">
                                   {expanded ? '收起文章' : '展开文章'}
                                   <span className={['transition-transform duration-300', expanded ? 'rotate-180' : ''].join(' ')}>⌄</span>
@@ -1809,21 +1988,25 @@ export default function ReadingRoomPage() {
                               {group.articles.length === 0 ? (
                                 <div className="rounded-2xl border border-dashed border-line bg-white/80 p-6 text-center">
                                   <h4 className="font-serif text-xl text-ink-900">这个合集还没有文章</h4>
-                                  <p className="mt-2 text-sm text-ink-500">导入原文时选择这个合集，文章就会出现在这里。</p>
-                                  <div className="mt-4">
-                                    <Button
-                                      size="sm"
-                                      variant="primary"
-                                      onClick={() => {
-                                        setImportCollectionKey(group.key)
-                                        setImportGenre(group.genres[0] || '其他')
-                                        setDraftText('')
-                                        setImportOpen(true)
-                                      }}
-                                    >
-                                      导入原文
-                                    </Button>
-                                  </div>
+                                  <p className="mt-2 text-sm text-ink-500">
+                                    {group.publicManaged ? '管理员更新后，文章会同步出现在这里。' : '导入原文时选择这个合集，文章就会出现在这里。'}
+                                  </p>
+                                  {!group.publicManaged && (
+                                    <div className="mt-4">
+                                      <Button
+                                        size="sm"
+                                        variant="primary"
+                                        onClick={() => {
+                                          setImportCollectionKey(group.key)
+                                          setImportGenre(group.genres[0] || '其他')
+                                          setDraftText('')
+                                          setImportOpen(true)
+                                        }}
+                                      >
+                                        导入原文
+                                      </Button>
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
                               <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
@@ -1853,8 +2036,12 @@ export default function ReadingRoomPage() {
                                       </p>
                                     </button>
                                     <div className="flex flex-wrap justify-end gap-2" style={{ padding: '12px 14px' }}>
-                                      <Button size="sm" variant="secondary" onClick={() => openArticleEditor(item)}>编辑文章</Button>
-                                      <Button size="sm" variant="ghost" onClick={() => { void removeArticle(item) }}>删除文章</Button>
+                                      {!isPublicManagedArticle(item) && (
+                                        <>
+                                          <Button size="sm" variant="secondary" onClick={() => openArticleEditor(item)}>编辑文章</Button>
+                                          <Button size="sm" variant="ghost" onClick={() => { void removeArticle(item) }}>删除文章</Button>
+                                        </>
+                                      )}
                                       <Button size="sm" variant="primary" onClick={() => { void openArticle(item) }}>继续阅读</Button>
                                     </div>
                                   </article>
@@ -1908,8 +2095,10 @@ export default function ReadingRoomPage() {
                   <h2 className="mt-1 font-serif text-xl text-ink-900">原文阅读区</h2>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => openArticleEditor()}>编辑原文</Button>
-                  {article && (
+                  {article && !isPublicManagedArticle(article) && (
+                    <Button size="sm" variant="ghost" onClick={() => openArticleEditor()}>编辑原文</Button>
+                  )}
+                  {article && !isPublicManagedArticle(article) && (
                     <Button size="sm" variant="ghost" onClick={() => { void removeArticle(article) }}>删除文章</Button>
                   )}
                   <label className="flex items-center gap-2 text-xs text-ink-500">
@@ -2491,6 +2680,101 @@ export default function ReadingRoomPage() {
         </div>
       )}
 
+      {shareEditorGroup && canManagePublicCollections && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/45 p-6 backdrop-blur-sm">
+          <Card padding="none" className="w-full max-w-2xl overflow-hidden shadow-[var(--shadow-modal)]">
+            <div className="flex items-center justify-between border-b border-line bg-surface"
+              style={{ padding: '22px 26px' }}>
+              <div>
+                <Eyebrow tone="muted">Public Reading</Eyebrow>
+                <h2 className="mt-1 font-serif text-2xl text-ink-900">推送公共阅览合集</h2>
+                <p className="mt-2 text-sm text-ink-500">
+                  {shareEditorGroup.source}
+                </p>
+              </div>
+              <button
+                onClick={closePublicShareEditor}
+                className="rounded-lg px-3 py-2 text-sm text-ink-500 transition-colors hover:bg-white hover:text-ink-900"
+              >
+                关闭
+              </button>
+            </div>
+            <div style={{ padding: 26 }}>
+              <div className="rounded-2xl border border-line bg-surface/70" style={{ padding: 18 }}>
+                <p className="text-sm leading-6 text-ink-600">
+                  选中的用户会在自己的深读室看到这个合集。之后管理员更新合集信息、导入新文章、修改或删除文章时，他们都会收到同步后的公共阅览版本。
+                </p>
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm text-ink-500">
+                  已选择 {shareAudienceIds.length} / {publicCollectionUsers.length} 位用户
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShareAudienceIds(publicCollectionUsers.map(item => item.id))}
+                    className="rounded-full border border-line bg-white px-3 py-1.5 text-xs text-ink-600 transition-colors hover:border-ink-300 hover:bg-surface"
+                  >
+                    全选
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShareAudienceIds([])}
+                    className="rounded-full border border-line bg-white px-3 py-1.5 text-xs text-ink-600 transition-colors hover:border-ink-300 hover:bg-surface"
+                  >
+                    清空
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 max-h-[340px] overflow-auto rounded-2xl border border-line bg-white">
+                {publicCollectionUsers.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-ink-500">暂无可推送用户。</div>
+                ) : (
+                  publicCollectionUsers.map(targetUser => {
+                    const selected = shareAudienceIds.includes(targetUser.id)
+                    const label = targetUser.name || targetUser.email || targetUser.id
+                    return (
+                      <label
+                        key={targetUser.id}
+                        className="flex cursor-pointer items-center justify-between gap-4 border-b border-line last:border-b-0 transition-colors hover:bg-surface/60"
+                        style={{ padding: '14px 16px' }}
+                      >
+                        <span>
+                          <span className="block text-sm font-medium text-ink-900">{label}</span>
+                          {targetUser.email && targetUser.email !== label && (
+                            <span className="mt-1 block text-xs text-ink-400">{targetUser.email}</span>
+                          )}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleShareAudience(targetUser.id)}
+                          className="h-5 w-5 rounded border-line text-brand focus:ring-brand"
+                        />
+                      </label>
+                    )
+                  })
+                )}
+              </div>
+
+              <div className="mt-6 flex items-center justify-end gap-3">
+                <Button variant="ghost" onClick={closePublicShareEditor}>取消</Button>
+                <Button
+                  variant="primary"
+                  loading={savingPublicShare}
+                  disabled={savingPublicShare}
+                  onClick={() => { void savePublicShare() }}
+                >
+                  保存推送设置
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {importOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/45 p-6 backdrop-blur-sm">
           <Card padding="none" className="w-full max-w-3xl overflow-hidden shadow-[var(--shadow-modal)]">
@@ -2513,14 +2797,14 @@ export default function ReadingRoomPage() {
                 <select
                   value={selectedImportGroup?.key || ''}
                   onChange={event => {
-                    const nextGroup = librarySourceGroups.find(group => group.key === event.target.value) || null
+                    const nextGroup = writableLibrarySourceGroups.find(group => group.key === event.target.value) || null
                     setImportCollectionKey(event.target.value)
                     if (nextGroup) setImportGenre(nextGroup.genres[0] || '其他')
                   }}
                   className="w-full rounded-xl border-2 border-line bg-white text-sm text-ink-900 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10"
                   style={{ padding: '11px 14px' }}
                 >
-                  {librarySourceGroups.map(group => (
+                  {writableLibrarySourceGroups.map(group => (
                     <option key={group.key} value={group.key}>{group.source}</option>
                   ))}
                 </select>
