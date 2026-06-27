@@ -1071,14 +1071,67 @@ export default function ReadingRoomPage() {
     setPublicCollectionShares(data.shares || {})
   }
 
-  const openPublicShareEditor = (group: ReadingSourceGroup) => {
-    if (!group.collectionId) {
-      setStorageError('请先点“编辑合集”保存合集信息后，再设置公共推送。')
-      openCollectionEditor(group)
-      return
+  const ensureShareableCollection = async (
+    group: ReadingSourceGroup,
+  ): Promise<{ group: ReadingSourceGroup; created: boolean } | null> => {
+    if (group.collectionId) return { group, created: false }
+    if (!userId || !canManagePublicCollections) return null
+
+    setSavingPublicShare(true)
+    setStorageError('')
+    const payload = {
+      user_id: userId,
+      title: group.source,
+      source: group.source,
+      genre: group.genres[0] || '其他',
+      source_type: READING_COLLECTION_SOURCE_TYPE,
+      clean_text: '',
+      structured_blocks: {
+        description: group.description,
+        coverImage: group.coverImage || DEFAULT_SOURCE_COVER_IMAGE,
+        publicAudienceUserIds: [],
+      },
     }
-    setShareEditorGroup(group)
-    setShareAudienceIds(publicCollectionShares[group.collectionId] || [])
+    const { data, error } = await supabase
+      .from('reading_articles')
+      .insert(payload)
+      .select(ARTICLE_SELECT)
+      .single()
+
+    if (error || !data) {
+      setSavingPublicShare(false)
+      setStorageError(error?.message || '建立公共推送合集失败')
+      return null
+    }
+
+    const articleIds = group.articles.map(item => item.id)
+    if (articleIds.length > 0) {
+      const { error: sourceUpdateError } = await supabase
+        .from('reading_articles')
+        .update({ source: group.source })
+        .eq('user_id', userId)
+        .in('id', articleIds)
+      if (sourceUpdateError) {
+        setSavingPublicShare(false)
+        setStorageError(sourceUpdateError.message)
+        return null
+      }
+    }
+
+    await loadArticleLibrary(userId)
+    setSavingPublicShare(false)
+    return { group: { ...group, collectionId: (data as ReadingArticle).id, publicManaged: false }, created: true }
+  }
+
+  const openPublicShareEditor = async (group: ReadingSourceGroup) => {
+    const result = await ensureShareableCollection(group)
+    if (!result) return
+    const shareableGroup = result.group
+    if (!shareableGroup?.collectionId) return
+
+    const existingAudience = publicCollectionShares[shareableGroup.collectionId] || []
+    setShareEditorGroup(shareableGroup)
+    setShareAudienceIds(result.created ? publicCollectionUsers.map(item => item.id) : existingAudience)
     setStorageError('')
   }
 
@@ -1956,11 +2009,12 @@ export default function ReadingRoomPage() {
                                 {canManagePublicCollections && !group.publicManaged && (
                                   <button
                                     type="button"
+                                    disabled={savingPublicShare}
                                     onClick={event => {
                                       event.stopPropagation()
-                                      openPublicShareEditor(group)
+                                      void openPublicShareEditor(group)
                                     }}
-                                    className="inline-flex min-h-9 items-center rounded-full border border-brand/30 bg-brand/10 px-3.5 py-1.5 text-sm text-brand shadow-sm transition-colors hover:border-brand/60 hover:bg-brand/15"
+                                    className="inline-flex min-h-9 items-center rounded-full border border-brand/30 bg-brand/10 px-3.5 py-1.5 text-sm text-brand shadow-sm transition-colors hover:border-brand/60 hover:bg-brand/15 disabled:cursor-not-allowed disabled:opacity-60"
                                   >
                                     推送设置{publicShareCount > 0 ? ` ${publicShareCount}` : ''}
                                   </button>
