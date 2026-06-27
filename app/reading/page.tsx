@@ -408,6 +408,14 @@ function normalizeHeading(text: string): string {
   return text.replace(/\s+/g, ' ').trim().toLowerCase()
 }
 
+function isLikelyReadingDeck(paragraph: ReadingParagraph | undefined, nextParagraph: ReadingParagraph | undefined): boolean {
+  const text = paragraph?.text.trim() || ''
+  if (!text || !nextParagraph) return false
+  if (text.length > 160) return false
+  if (/[.!?。！？][”"')\]]?$/.test(text)) return false
+  return text.split(/\s+/).filter(Boolean).length <= 18
+}
+
 function buildReadingLayout(text: string, savedTitle?: string | null): ReadingLayout {
   const paragraphs = splitReadingParagraphs(text)
   const title = savedTitle?.trim() || paragraphs[0]?.text || '未命名文章'
@@ -420,7 +428,7 @@ function buildReadingLayout(text: string, savedTitle?: string | null): ReadingLa
     body.shift()
   }
 
-  const deck = body.length > 1 && body[0].text.length <= 260 ? body.shift()?.text || '' : ''
+  const deck = isLikelyReadingDeck(body[0], body[1]) ? body.shift()?.text || '' : ''
   return { title, deck, body }
 }
 
