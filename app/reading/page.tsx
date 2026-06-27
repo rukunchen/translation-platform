@@ -248,17 +248,15 @@ const SOURCE_COVER_PALETTES = [
   },
 ]
 
-const DEFAULT_SOURCE_COVER_IMAGE = '/landing/archive-classics.png'
+const DEFAULT_SOURCE_COVER_IMAGE = '/reading/chinese-culture-cover.jpg'
 const DEFAULT_COLLECTION_DESCRIPTION = '这个合集还没有介绍。可以在“编辑合集”中补充来源说明、阅读目的和适合积累的表达类型。'
 
 const COLLECTION_COVER_OPTIONS = [
-  { label: '经典书册', value: '/landing/archive-classics.png' },
-  { label: '审读档案', value: '/landing/archive-review.png' },
-  { label: '文化航行', value: '/landing/archive-voyage.png' },
-  { label: '中西相遇', value: '/landing/archive-encounter.png' },
-  { label: 'North and South', value: '/reading/north-south-cover.jpg' },
-  { label: 'AEON', value: '/reading/aeon-cover.jpg' },
-  { label: 'Fatherhood', value: '/reading/fatherhood-cover.jpg' },
+  { label: '中国文化', value: '/reading/chinese-culture-cover.jpg' },
+  { label: '西方文化', value: '/reading/western-culture-cover.jpg' },
+  { label: '爱情', value: '/reading/love-cover.jpg' },
+  { label: '时事', value: '/reading/current-affairs-cover.jpg' },
+  { label: '哲学', value: '/reading/philosophy-cover.jpg' },
 ]
 
 const READING_SOURCE_PROFILES: ReadingSourceProfile[] = [
