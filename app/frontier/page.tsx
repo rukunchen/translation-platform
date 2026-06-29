@@ -1422,16 +1422,34 @@ export default function FrontierPage() {
                   />
                 )}
 
-                <section className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
-                  <Card padding="md" variant="surface">
-                    <div className="grid grid-cols-1 gap-5">
+                <section style={{ marginBottom: 42 }}>
+                  <Card padding="none" className="overflow-hidden rounded-[30px] border-line/80 shadow-[0_18px_55px_rgba(39,35,28,0.06)]">
+                    <div className="flex flex-col gap-5 border-b border-line bg-surface/60 lg:flex-row lg:items-center lg:justify-between" style={{ padding: '30px 36px' }}>
+                      <div>
+                        <Eyebrow tone="muted" className="mb-2">Literature Filter</Eyebrow>
+                        <h2 className="font-serif text-2xl text-ink-900">文献筛选</h2>
+                        <p className="mt-2 text-sm leading-relaxed text-ink-500">
+                          先用关键词定位文献，再按地区与领域缩小范围，勾选后进入阅读会话。
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="rounded-2xl border border-line bg-white px-5 py-3 shadow-sm">
+                          <p className="text-xs text-ink-500">已选择</p>
+                          <p className="mt-1 font-mono text-3xl leading-none text-ink-900">{selectedPapers.length}</p>
+                        </div>
+                        <Button variant="secondary" disabled={selectedPapers.length === 0} onClick={() => setSelectedIds(new Set())}>
+                          清空选择
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-8" style={{ padding: 36 }}>
                       <Input
                         label="搜索"
                         value={searchQuery}
                         onChange={event => setSearchQuery(event.target.value)}
                         placeholder="搜索题目、作者、来源、摘要、标签或 DOI"
                       />
-                      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.4fr)]">
                         <FilterGroup
                           label="国内 / 国外"
                           values={REGION_FILTERS}
@@ -1446,15 +1464,6 @@ export default function FrontierPage() {
                         />
                       </div>
                     </div>
-                  </Card>
-                  <Card padding="md" className="flex min-w-[220px] items-center justify-between gap-4 xl:flex-col xl:items-start xl:justify-center">
-                    <div>
-                      <p className="text-xs text-ink-500">已选择</p>
-                      <p className="mt-1 font-mono text-3xl text-ink-900">{selectedPapers.length}</p>
-                    </div>
-                    <Button variant="secondary" disabled={selectedPapers.length === 0} onClick={() => setSelectedIds(new Set())}>
-                      清空选择
-                    </Button>
                   </Card>
                 </section>
 
@@ -1473,7 +1482,7 @@ export default function FrontierPage() {
                     <p className="mt-3 text-sm text-ink-500">调整地区、领域或搜索关键词后再试。</p>
                   </Card>
                 ) : (
-                  <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                     {filteredPapers.map(paper => (
                       <FrontierPaperCard
                         key={paper.id}
@@ -1622,26 +1631,26 @@ function ReadingSessionsPanel({
   onDelete: (sessionId: string) => void
 }) {
   return (
-    <section className="mb-6">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <section style={{ marginBottom: 42 }}>
+      <div className="flex items-center justify-between gap-3" style={{ marginBottom: 22 }}>
         <div>
           <Eyebrow tone="muted">Reading Sessions</Eyebrow>
-          <h2 className="mt-1 font-serif text-xl text-ink-900">我的阅读会话</h2>
+          <h2 className="mt-2 font-serif text-2xl text-ink-900">我的阅读会话</h2>
         </div>
       </div>
 
       {loading ? (
-        <Card padding="md" variant="surface">
+        <Card padding="lg" variant="surface" className="rounded-[28px] shadow-[0_14px_40px_rgba(39,35,28,0.05)]">
           <p className="text-sm text-ink-500">正在加载阅读会话...</p>
         </Card>
       ) : sessions.length === 0 ? (
-        <Card padding="md" variant="surface">
+        <Card padding="lg" variant="surface" className="rounded-[28px] shadow-[0_14px_40px_rgba(39,35,28,0.05)]">
           <p className="text-sm text-ink-500">暂无阅读会话。勾选文献后点击“确认进入阅读”即可创建。</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           {sessions.map(session => (
-            <Card key={session.id} padding="md" className="flex flex-col gap-4">
+            <Card key={session.id} padding="lg" className="flex flex-col gap-5 rounded-[28px] shadow-[0_14px_40px_rgba(39,35,28,0.05)]">
               <div>
                 <h3 className="font-serif text-lg leading-tight text-ink-900">{session.title || '未命名阅读会话'}</h3>
                 {session.description && (
@@ -1689,11 +1698,11 @@ function CandidatePoolPanel({
   }
 
   return (
-    <section className="mb-6">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <section style={{ marginBottom: 42 }}>
+      <div className="flex items-center justify-between gap-3" style={{ marginBottom: 22 }}>
         <div>
           <Eyebrow tone="muted">Candidate Pool</Eyebrow>
-          <h2 className="mt-1 font-serif text-xl text-ink-900">候选文献池</h2>
+          <h2 className="mt-2 font-serif text-2xl text-ink-900">候选文献池</h2>
         </div>
         <span className="font-mono text-xs uppercase tracking-[0.12em] text-ink-400">
           {candidates.length} candidates
@@ -1701,20 +1710,20 @@ function CandidatePoolPanel({
       </div>
 
       {loading ? (
-        <Card padding="md" variant="surface">
+        <Card padding="lg" variant="surface" className="rounded-[28px] shadow-[0_14px_40px_rgba(39,35,28,0.05)]">
           <p className="text-sm text-ink-500">正在加载候选文献池...</p>
         </Card>
       ) : candidates.length === 0 ? (
-        <Card padding="md" variant="surface">
+        <Card padding="lg" variant="surface" className="rounded-[28px] shadow-[0_14px_40px_rgba(39,35,28,0.05)]">
           <p className="text-sm text-ink-500">暂无候选文献。</p>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-5">
           {candidates.map(candidate => {
             const status = candidate.status || 'pending'
             const busy = actionId === candidate.id
             return (
-              <Card key={candidate.id} padding="md">
+              <Card key={candidate.id} padding="lg" className="rounded-[28px] shadow-[0_14px_40px_rgba(39,35,28,0.05)]">
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
                   <div className="min-w-0">
                     <div className="mb-2 flex flex-wrap gap-2">
@@ -1806,11 +1815,11 @@ function FrontierPaperCard({
 }) {
   return (
     <article className={cn(
-      'rounded-2xl border bg-white transition-colors',
-      checked ? 'border-brand shadow-[var(--shadow-card)]' : 'border-line'
+      'overflow-hidden rounded-[28px] border bg-white shadow-[0_14px_42px_rgba(39,35,28,0.05)] transition-colors',
+      checked ? 'border-brand shadow-[0_18px_55px_rgba(224,107,75,0.14)]' : 'border-line'
     )}>
-      <div className="border-b border-line bg-surface/70" style={{ padding: '18px 20px' }}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="border-b border-line bg-surface/70" style={{ padding: '24px 28px' }}>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap gap-2">
             <span className="rounded-full border border-line bg-white px-3 py-1 text-xs text-ink-700">{paper.region}</span>
             <span className="rounded-full border border-line bg-white px-3 py-1 text-xs text-ink-700">{paper.field}</span>
@@ -1826,8 +1835,8 @@ function FrontierPaperCard({
             选择
           </label>
         </div>
-        <h2 className="font-serif text-xl leading-tight text-ink-900">{paper.title}</h2>
-        <p className="mt-3 text-sm text-ink-500">{paper.authors} · {paper.source}</p>
+        <h2 className="font-serif text-xl leading-snug text-ink-900">{paper.title}</h2>
+        <p className="mt-4 text-sm leading-relaxed text-ink-500">{paper.authors} · {paper.source}</p>
       </div>
       <div style={{ padding: '24px 28px 30px' }}>
         <div className="space-y-5">
