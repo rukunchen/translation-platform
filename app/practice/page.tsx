@@ -217,7 +217,7 @@ export default function TranslationPracticeHomePage() {
               }
             />
 
-            <section className="grid grid-cols-1 gap-8 lg:grid-cols-2" style={{ marginBottom: 84 }}>
+            <section className="grid grid-cols-1 gap-8 lg:grid-cols-2" style={{ marginBottom: 42 }}>
               <PracticeEntryCard
                 eyebrow="Exam Center"
                 title="CATTI 模考中心"
