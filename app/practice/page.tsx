@@ -217,7 +217,7 @@ export default function TranslationPracticeHomePage() {
               }
             />
 
-            <section className="mb-12 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <section className="grid grid-cols-1 gap-8 lg:grid-cols-2" style={{ marginBottom: 84 }}>
               <PracticeEntryCard
                 eyebrow="Exam Center"
                 title="CATTI 模考中心"
@@ -236,8 +236,11 @@ export default function TranslationPracticeHomePage() {
               />
             </section>
 
-            <section className="mb-12 overflow-hidden rounded-[30px] border border-line bg-gradient-to-br from-white via-surface/70 to-white shadow-[0_20px_70px_rgba(39,35,28,0.08)]">
-              <div className="flex flex-col gap-4 border-b border-line/80 px-7 py-6 lg:flex-row lg:items-end lg:justify-between">
+            <section
+              className="overflow-hidden rounded-[30px] border border-line bg-gradient-to-br from-white via-surface/70 to-white shadow-[0_20px_70px_rgba(39,35,28,0.08)]"
+              style={{ marginBottom: 78 }}
+            >
+              <div className="flex flex-col gap-5 border-b border-line/80 lg:flex-row lg:items-end lg:justify-between" style={{ padding: '34px 38px 30px' }}>
                 <div>
                   <Eyebrow tone="muted" className="mb-2">Practice Overview</Eyebrow>
                   <h2 className="font-serif text-2xl text-ink-900">学习概览</h2>
@@ -249,7 +252,7 @@ export default function TranslationPracticeHomePage() {
                   今日待处理：{dueCards + dueItems} 项
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-4 p-7 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4" style={{ padding: 38 }}>
                 <PracticeMetric label="已练篇章" value={practicedCount} note={`共 ${items.length} 篇材料`} tone="amber" />
                 <PracticeMetric label="待复习" value={dueCards + dueItems} note={`${dueCards} 张表达卡`} tone="blue" />
                 <PracticeMetric label="表达卡片" value={cards.length} note="复盘中可继续补充" tone="violet" />
@@ -257,23 +260,23 @@ export default function TranslationPracticeHomePage() {
               </div>
             </section>
 
-            <section className="mb-9">
-              <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <section style={{ marginBottom: 42 }}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between" style={{ marginBottom: 26 }}>
                 <div>
                   <Eyebrow tone="muted" className="mb-2">Practice Library</Eyebrow>
                   <h2 className="font-serif text-2xl text-ink-900">练习篇章</h2>
                 </div>
                 <p className="text-xs text-ink-500">{filteredItems.length} / {items.length} 篇材料</p>
               </div>
-              <Card padding="none" className="overflow-hidden border-line/80 shadow-[0_18px_55px_rgba(39,35,28,0.06)]">
-                <div className="flex flex-col gap-3 border-b border-line bg-surface/60 px-7 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <Card padding="none" className="overflow-hidden rounded-[28px] border-line/80 shadow-[0_18px_55px_rgba(39,35,28,0.06)]">
+                <div className="flex flex-col gap-5 border-b border-line bg-surface/60 sm:flex-row sm:items-center sm:justify-between" style={{ padding: '28px 34px' }}>
                   <div>
-                    <h3 className="text-sm font-medium text-ink-900">筛选条件</h3>
-                    <p className="mt-1 text-xs text-ink-500">先按来源和考试类型定位材料，再用状态、难度和标签缩小范围。</p>
+                    <h3 className="text-base font-medium text-ink-900">筛选条件</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-ink-500">先按来源和考试类型定位材料，再用状态、难度和标签缩小范围。</p>
                   </div>
                   <button
                     type="button"
-                    className="w-fit rounded-full border border-line bg-white px-3.5 py-1.5 text-xs text-ink-500 shadow-sm transition-colors hover:border-ink-300 hover:text-ink-900"
+                    className="w-fit rounded-full border border-line bg-white px-4 py-2 text-sm text-ink-500 shadow-sm transition-colors hover:border-ink-300 hover:text-ink-900"
                     onClick={() => {
                       setQuery('')
                       setDirectionFilter('all')
@@ -287,7 +290,7 @@ export default function TranslationPracticeHomePage() {
                     清空筛选
                   </button>
                 </div>
-                <div className="grid grid-cols-1 gap-x-5 gap-y-6 px-7 py-7 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid grid-cols-1 gap-x-7 gap-y-8 sm:grid-cols-2 xl:grid-cols-4" style={{ padding: 34 }}>
                   <Input
                     label="搜索 / 标签"
                     value={query}
@@ -421,18 +424,20 @@ function PracticeEntryCard({
   const entryTone = practiceMetricTone[tone]
   return (
     <div
-      className="group relative overflow-hidden rounded-[28px] border shadow-[0_16px_45px_rgba(39,35,28,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_70px_rgba(39,35,28,0.10)]"
-      style={{ padding: 30, ...entryTone.style }}
+      className="group relative overflow-hidden rounded-[30px] border shadow-[0_16px_45px_rgba(39,35,28,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_70px_rgba(39,35,28,0.10)]"
+      style={{ padding: 42, ...entryTone.style }}
     >
       <div className="pointer-events-none absolute -right-12 -top-16 h-36 w-36 rounded-full bg-white/55 blur-2xl transition-transform duration-500 group-hover:scale-125" />
-      <div className="relative flex h-full min-h-[132px] flex-col gap-7 sm:flex-row sm:items-end sm:justify-between">
+      <div className="relative flex h-full min-h-[172px] flex-col gap-8 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 max-w-xl">
-          <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/70 bg-white/70 font-serif text-lg text-ink-800 shadow-sm">
-            {title.slice(0, 1)}
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-white/75 font-serif text-lg text-ink-800 shadow-sm">
+              {title.slice(0, 1)}
+            </div>
+            <Eyebrow tone="muted">{eyebrow}</Eyebrow>
           </div>
-          <Eyebrow tone="muted" className="mb-2">{eyebrow}</Eyebrow>
-          <h2 className="font-serif text-2xl text-ink-900">{title}</h2>
-          <p className="mt-3 text-sm leading-7 text-ink-600">{description}</p>
+          <h2 className="font-serif text-2xl text-ink-900 leading-tight">{title}</h2>
+          <p className="mt-4 text-sm leading-7 text-ink-600">{description}</p>
         </div>
         <Button variant="secondary" className="shrink-0" onClick={onOpen}>{buttonLabel}</Button>
       </div>
@@ -470,14 +475,14 @@ const practiceMetricTone = {
 function PracticeMetric({ label, value, note, tone }: { label: string; value: number; note: string; tone: keyof typeof practiceMetricTone }) {
   const metricTone = practiceMetricTone[tone]
   return (
-    <div className="rounded-2xl border px-5 py-5 shadow-sm" style={metricTone.style}>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <p className="text-xs text-ink-500">{label}</p>
+    <div className="flex min-h-[128px] flex-col justify-between rounded-2xl border shadow-sm" style={{ padding: 24, ...metricTone.style }}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-ink-500">{label}</p>
         <span className={cn('h-2 w-2 rounded-full bg-current opacity-35', metricTone.valueClass)} />
       </div>
-      <div className="flex items-end justify-between gap-4">
-        <p className={cn('font-serif text-4xl leading-none', metricTone.valueClass)}>{value}</p>
-        <p className="min-w-0 truncate pb-1 text-right text-xs text-ink-600">{note}</p>
+      <div className="flex items-end justify-between gap-5 pt-5">
+        <p className={cn('font-serif text-4xl leading-tight', metricTone.valueClass)}>{value}</p>
+        <p className="min-w-0 truncate pb-2 text-right text-sm text-ink-600">{note}</p>
       </div>
     </div>
   )
