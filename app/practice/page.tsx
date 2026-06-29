@@ -217,7 +217,7 @@ export default function TranslationPracticeHomePage() {
               }
             />
 
-            <section className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <section className="mb-12 grid grid-cols-1 gap-6 lg:grid-cols-2">
               <PracticeEntryCard
                 eyebrow="Exam Center"
                 title="CATTI 模考中心"
@@ -236,13 +236,20 @@ export default function TranslationPracticeHomePage() {
               />
             </section>
 
-            <section className="mb-8 rounded-2xl border border-line bg-surface/70 px-6 py-5">
-              <div className="mb-5 text-center">
-                <Eyebrow tone="muted" className="mb-2">Practice Overview</Eyebrow>
-                <h2 className="font-serif text-xl text-ink-900">学习概览</h2>
-                <p className="mt-2 text-xs text-ink-500">常规练习、复盘问题与表达卡片独立统计。</p>
+            <section className="mb-12 overflow-hidden rounded-[30px] border border-line bg-gradient-to-br from-white via-surface/70 to-white shadow-[0_20px_70px_rgba(39,35,28,0.08)]">
+              <div className="flex flex-col gap-4 border-b border-line/80 px-7 py-6 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <Eyebrow tone="muted" className="mb-2">Practice Overview</Eyebrow>
+                  <h2 className="font-serif text-2xl text-ink-900">学习概览</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-ink-500">
+                    把练习进度、复盘任务、表达沉淀和高频问题分开统计，方便判断下一步该做什么。
+                  </p>
+                </div>
+                <div className="inline-flex w-fit items-center rounded-full border border-line bg-white px-4 py-2 text-xs text-ink-500 shadow-sm">
+                  今日待处理：{dueCards + dueItems} 项
+                </div>
               </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 p-7 sm:grid-cols-2 xl:grid-cols-4">
                 <PracticeMetric label="已练篇章" value={practicedCount} note={`共 ${items.length} 篇材料`} tone="amber" />
                 <PracticeMetric label="待复习" value={dueCards + dueItems} note={`${dueCards} 张表达卡`} tone="blue" />
                 <PracticeMetric label="表达卡片" value={cards.length} note="复盘中可继续补充" tone="violet" />
@@ -250,20 +257,23 @@ export default function TranslationPracticeHomePage() {
               </div>
             </section>
 
-            <section className="mb-7">
-              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <section className="mb-9">
+              <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <Eyebrow tone="muted" className="mb-2">Practice Library</Eyebrow>
-                  <h2 className="font-serif text-xl text-ink-900">练习篇章</h2>
+                  <h2 className="font-serif text-2xl text-ink-900">练习篇章</h2>
                 </div>
                 <p className="text-xs text-ink-500">{filteredItems.length} / {items.length} 篇材料</p>
               </div>
-              <Card padding="md" className="border-line/80">
-                <div className="mb-4 flex items-center justify-between border-b border-line pb-4">
-                  <h3 className="text-sm font-medium text-ink-900">筛选条件</h3>
+              <Card padding="none" className="overflow-hidden border-line/80 shadow-[0_18px_55px_rgba(39,35,28,0.06)]">
+                <div className="flex flex-col gap-3 border-b border-line bg-surface/60 px-7 py-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium text-ink-900">筛选条件</h3>
+                    <p className="mt-1 text-xs text-ink-500">先按来源和考试类型定位材料，再用状态、难度和标签缩小范围。</p>
+                  </div>
                   <button
                     type="button"
-                    className="text-xs text-ink-500 transition-colors hover:text-ink-900"
+                    className="w-fit rounded-full border border-line bg-white px-3.5 py-1.5 text-xs text-ink-500 shadow-sm transition-colors hover:border-ink-300 hover:text-ink-900"
                     onClick={() => {
                       setQuery('')
                       setDirectionFilter('all')
@@ -277,7 +287,7 @@ export default function TranslationPracticeHomePage() {
                     清空筛选
                   </button>
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid grid-cols-1 gap-x-5 gap-y-6 px-7 py-7 sm:grid-cols-2 xl:grid-cols-4">
                   <Input
                     label="搜索 / 标签"
                     value={query}
@@ -314,30 +324,32 @@ export default function TranslationPracticeHomePage() {
               </Card>
             </section>
 
-            {loading ? (
-              <Card padding="lg" className="text-center text-sm text-ink-500">加载中...</Card>
-            ) : items.length === 0 ? (
-              <Card padding="lg" className="text-center py-20">
-                <div className="w-14 h-14 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <span className="font-serif text-2xl text-brand">训</span>
-                </div>
-                <h2 className="font-serif text-xl text-ink-900 mb-3">还没有翻译练习。</h2>
-                <p className="text-sm text-ink-600 leading-relaxed max-w-xl mx-auto mb-7">
-                  先粘贴一篇 CATTI、MTI、课程或商务材料，完成初译后再切分句段做对照复盘。
-                </p>
-                <Button variant="primary" onClick={() => setCreateMode('practice')}>创建第一篇练习</Button>
-              </Card>
-            ) : filteredItems.length === 0 ? (
-              <Card padding="lg" className="text-center text-sm text-ink-500">当前筛选条件下没有练习篇章。</Card>
-            ) : (
-              <PracticeTable
-                items={filteredItems}
-                issueCounts={issueCounts}
-                cardCounts={cardCounts}
-                onOpen={id => router.push(`/practice/${id}`)}
-                onDelete={deletePractice}
-              />
-            )}
+            <div className="mt-8">
+              {loading ? (
+                <Card padding="lg" className="text-center text-sm text-ink-500">加载中...</Card>
+              ) : items.length === 0 ? (
+                <Card padding="lg" className="text-center py-20">
+                  <div className="w-14 h-14 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <span className="font-serif text-2xl text-brand">训</span>
+                  </div>
+                  <h2 className="font-serif text-xl text-ink-900 mb-3">还没有翻译练习。</h2>
+                  <p className="text-sm text-ink-600 leading-relaxed max-w-xl mx-auto mb-7">
+                    先粘贴一篇 CATTI、MTI、课程或商务材料，完成初译后再切分句段做对照复盘。
+                  </p>
+                  <Button variant="primary" onClick={() => setCreateMode('practice')}>创建第一篇练习</Button>
+                </Card>
+              ) : filteredItems.length === 0 ? (
+                <Card padding="lg" className="text-center text-sm text-ink-500">当前筛选条件下没有练习篇章。</Card>
+              ) : (
+                <PracticeTable
+                  items={filteredItems}
+                  issueCounts={issueCounts}
+                  cardCounts={cardCounts}
+                  onOpen={id => router.push(`/practice/${id}`)}
+                  onDelete={deletePractice}
+                />
+              )}
+            </div>
           </MainContent>
         </div>
       </main>
@@ -408,12 +420,19 @@ function PracticeEntryCard({
 }) {
   const entryTone = practiceMetricTone[tone]
   return (
-    <div className="rounded-2xl border transition-all duration-300" style={{ padding: 28, ...entryTone.style }}>
-      <div className="flex h-full flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
+    <div
+      className="group relative overflow-hidden rounded-[28px] border shadow-[0_16px_45px_rgba(39,35,28,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_70px_rgba(39,35,28,0.10)]"
+      style={{ padding: 30, ...entryTone.style }}
+    >
+      <div className="pointer-events-none absolute -right-12 -top-16 h-36 w-36 rounded-full bg-white/55 blur-2xl transition-transform duration-500 group-hover:scale-125" />
+      <div className="relative flex h-full min-h-[132px] flex-col gap-7 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0 max-w-xl">
+          <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/70 bg-white/70 font-serif text-lg text-ink-800 shadow-sm">
+            {title.slice(0, 1)}
+          </div>
           <Eyebrow tone="muted" className="mb-2">{eyebrow}</Eyebrow>
-          <h2 className="font-serif text-xl text-ink-900">{title}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-ink-600">{description}</p>
+          <h2 className="font-serif text-2xl text-ink-900">{title}</h2>
+          <p className="mt-3 text-sm leading-7 text-ink-600">{description}</p>
         </div>
         <Button variant="secondary" className="shrink-0" onClick={onOpen}>{buttonLabel}</Button>
       </div>
@@ -451,11 +470,14 @@ const practiceMetricTone = {
 function PracticeMetric({ label, value, note, tone }: { label: string; value: number; note: string; tone: keyof typeof practiceMetricTone }) {
   const metricTone = practiceMetricTone[tone]
   return (
-    <div className="rounded-xl border px-5 py-4" style={metricTone.style}>
-      <p className="mb-2 text-xs text-ink-500">{label}</p>
+    <div className="rounded-2xl border px-5 py-5 shadow-sm" style={metricTone.style}>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-xs text-ink-500">{label}</p>
+        <span className={cn('h-2 w-2 rounded-full bg-current opacity-35', metricTone.valueClass)} />
+      </div>
       <div className="flex items-end justify-between gap-4">
-        <p className={cn('font-serif text-3xl leading-none', metricTone.valueClass)}>{value}</p>
-        <p className="min-w-0 truncate pb-0.5 text-right text-xs text-ink-600">{note}</p>
+        <p className={cn('font-serif text-4xl leading-none', metricTone.valueClass)}>{value}</p>
+        <p className="min-w-0 truncate pb-1 text-right text-xs text-ink-600">{note}</p>
       </div>
     </div>
   )
@@ -475,7 +497,7 @@ function PracticeTable({
   onDelete: (item: TranslationPracticeItem) => void
 }) {
   return (
-    <Card padding="none" className="overflow-hidden">
+    <Card padding="none" className="overflow-hidden shadow-[0_18px_55px_rgba(39,35,28,0.06)]">
       <div className="overflow-x-auto">
         <div className="min-w-[1180px]">
           <div
