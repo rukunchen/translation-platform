@@ -61,7 +61,7 @@ const workspaceNavItems: WorkspaceNavItem[] = [
   },
   {
     href: '/reading',
-    label: '深读室',
+    label: '精读室',
     detail: '原文精读与札记',
     icon: <ReadingIcon />,
     activeMatcher: pathname => pathname.startsWith('/reading'),

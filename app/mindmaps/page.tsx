@@ -30,7 +30,7 @@ const initialMindmapTree = {
 
 const sourceModuleLabel: Record<string, string> = {
   manual: '手动创建',
-  reading: '深读室',
+  reading: '精读室',
   frontier: '前沿文献',
   writing: '论文写作',
   terms: '术语学习',
@@ -162,7 +162,7 @@ export default function MindmapsPage() {
             <PageHeader
               eyebrow="Mindmaps"
               title="思维导图"
-              description="创建、整理和保存你的知识结构图，后续可与深读室、前沿文献和论文写作联动。"
+              description="创建、整理和保存你的知识结构图，后续可与精读室、前沿文献和论文写作联动。"
               actions={
                 <Button variant="brand" onClick={createMindmap} loading={creating}>
                   新建导图

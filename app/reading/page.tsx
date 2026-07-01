@@ -1807,7 +1807,7 @@ export default function ReadingRoomPage() {
           style={{ padding: '24px 40px' }}>
           <div>
             <Eyebrow>Reading Room</Eyebrow>
-            <h1 className="mt-2 font-serif text-3xl text-ink-900">深读室</h1>
+            <h1 className="mt-2 font-serif text-3xl text-ink-900">精读室</h1>
             {mode === 'library' ? (
               <p className="mt-2 max-w-3xl text-sm text-ink-500">
                 英文精读、语境笔记与表达积累
@@ -2754,7 +2754,7 @@ export default function ReadingRoomPage() {
             <div style={{ padding: 26 }}>
               <div className="rounded-2xl border border-line bg-surface/70" style={{ padding: 18 }}>
                 <p className="text-sm leading-6 text-ink-600">
-                  选中的用户会在自己的深读室看到这个合集。之后管理员更新合集信息、导入新文章、修改或删除文章时，他们都会收到同步后的公共阅览版本。
+                  选中的用户会在自己的精读室看到这个合集。之后管理员更新合集信息、导入新文章、修改或删除文章时，他们都会收到同步后的公共阅览版本。
                 </p>
               </div>
 

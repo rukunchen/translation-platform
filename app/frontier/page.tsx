@@ -923,7 +923,7 @@ export default function FrontierPage() {
     const { data: userData } = await supabase.auth.getUser()
     const currentUserId = userId || userData.user?.id || ''
     if (!currentUserId) {
-      setReadingRoomError('请先登录后再加入深读室。')
+      setReadingRoomError('请先登录后再加入精读室。')
       return
     }
 
@@ -941,7 +941,7 @@ export default function FrontierPage() {
       .limit(1)
 
     if (existingError) {
-      setReadingRoomError(existingError.message || '检查深读室重复文章失败。')
+      setReadingRoomError(existingError.message || '检查精读室重复文章失败。')
       setReadingRoomAddingId(null)
       return
     }
@@ -967,7 +967,7 @@ export default function FrontierPage() {
     setReadingRoomAddingId(null)
 
     if (error) {
-      setReadingRoomError(error.message || '加入深读室失败。')
+      setReadingRoomError(error.message || '加入精读室失败。')
       return
     }
 
@@ -1868,7 +1868,7 @@ function FrontierPaperCard({
             {generating ? '生成中...' : 'AI 补全文献卡片'}
           </Button>
           <Button size="sm" variant="secondary" loading={addingToReadingRoom} onClick={onAddToReadingRoom}>
-            {addingToReadingRoom ? '加入中...' : '加入深读室'}
+            {addingToReadingRoom ? '加入中...' : '加入精读室'}
           </Button>
           <Button size="sm" variant="secondary" onClick={onOpenWritingMaterial}>
             加入论文写作素材
@@ -1961,7 +1961,7 @@ function FrontierReader({
               loading={readingRoomAddingId === activePaper.id}
               onClick={() => onAddToReadingRoom(activePaper)}
             >
-              {readingRoomAddingId === activePaper.id ? '加入中...' : '加入深读室'}
+              {readingRoomAddingId === activePaper.id ? '加入中...' : '加入精读室'}
             </Button>
             <Button size="sm" variant="secondary" onClick={() => onOpenWritingMaterial(activePaper)}>
               加入论文写作素材

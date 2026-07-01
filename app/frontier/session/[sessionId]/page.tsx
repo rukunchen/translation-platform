@@ -411,7 +411,7 @@ export default function FrontierReadingSessionPage() {
 
   const addToReadingRoom = async (paper: FrontierPaper) => {
     if (!userId) {
-      setError('请先登录后再加入深读室。')
+      setError('请先登录后再加入精读室。')
       return
     }
 
@@ -429,7 +429,7 @@ export default function FrontierReadingSessionPage() {
       .limit(1)
 
     if (existingError) {
-      setError(existingError.message || '检查深读室重复文章失败。')
+      setError(existingError.message || '检查精读室重复文章失败。')
       setReadingRoomAddingId(null)
       return
     }
@@ -455,7 +455,7 @@ export default function FrontierReadingSessionPage() {
     setReadingRoomAddingId(null)
 
     if (insertError) {
-      setError(insertError.message || '加入深读室失败。')
+      setError(insertError.message || '加入精读室失败。')
       return
     }
 
@@ -685,7 +685,7 @@ export default function FrontierReadingSessionPage() {
                           loading={readingRoomAddingId === activePaper.id}
                           onClick={() => { void addToReadingRoom(activePaper) }}
                         >
-                          {readingRoomAddingId === activePaper.id ? '加入中...' : '加入深读室'}
+                          {readingRoomAddingId === activePaper.id ? '加入中...' : '加入精读室'}
                         </Button>
                         <Button variant="secondary" onClick={() => { void openWritingMaterialModal(activePaper) }}>
                           加入论文写作素材

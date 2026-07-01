@@ -600,13 +600,13 @@ export function KnowledgeEntrySection() {
             <div className="w-10 h-10 bg-canvas rounded-xl flex items-center justify-center mb-5">
               <span className="text-ink-700 font-serif text-xl">读</span>
             </div>
-            <h3 className="font-serif text-xl text-ink-900 mb-2">深读室</h3>
+            <h3 className="font-serif text-xl text-ink-900 mb-2">精读室</h3>
             <p className="text-sm text-ink-600 leading-relaxed mb-7 flex-1">
               进入长文精读和阅读笔记空间，沉淀原文理解、术语、论证结构和表达积累。
             </p>
             <div className="mt-auto">
               <DashboardLinkVisual variant="secondary" className={dashboardButtonClass}>
-              进入深读室
+              进入精读室
               </DashboardLinkVisual>
             </div>
           </Card>

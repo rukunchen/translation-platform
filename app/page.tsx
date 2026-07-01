@@ -94,7 +94,7 @@ const capabilityNodes: Array<{
   },
   {
     key: 'E',
-    title: '深读与前沿文献',
+    title: '精读与前沿文献',
     body: '精读摘录、AI 解释、前沿文献卡片',
     icon: 'book',
     className: 'lg:left-[40%] lg:bottom-[5%]',
